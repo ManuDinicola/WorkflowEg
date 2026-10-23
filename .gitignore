@@ -1,0 +1,54 @@
+## .NET / Visual Studio
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ll]og/
+[Ll]ogs/
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+*.DotSettings.user
+*.log
+*.tmp
+*.cache
+*.pdb
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+project.lock.json
+artifacts/
+
+## Tests / coverage
+TestResults/
+[Tt]est[Rr]esult*/
+coverage/
+coverage-report/
+*.coverage
+*.coveragexml
+*.trx
+coverage.*.xml
+*.received.*
+BenchmarkDotNet.Artifacts/
+
+## Node (optional TS SDK)
+node_modules/
+
+## OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+
+## Local env / Claude Code
+.env
+.env.*
+appsettings.Local.json
+.claude/settings.local.json
