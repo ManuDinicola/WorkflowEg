@@ -3,7 +3,7 @@
 Flowd is a BPMN 2.0 workflow engine (Camunda-like) written in C# 15 on .NET 11, with clean architecture and union types.
 It deploys BPMN definitions, runs process instances durably on PostgreSQL, and coordinates external job workers, timers, messages and incidents through a REST API.
 
-**Status:** milestones M0 (skeleton) and M1 (model and deployment) are implemented; see `PLAN.md` and `PROGRESS.md`. Processes can be validated and deployed but not executed yet (that is M2).
+**Status:** milestones M0 (skeleton), M1 (model and deployment) and M2 (core execution) are implemented; see `PLAN.md` and `PROGRESS.md`. Linear flows, exclusive/parallel gateways, service tasks with external workers, variables and mappings, incidents and cancellation work end to end on PostgreSQL.
 
 ## What works today
 - Solution skeleton with enforced dependency rules (architecture tests) and C# 15 `union` / `closed class` smoke tests.
@@ -12,6 +12,8 @@ It deploys BPMN definitions, runs process instances durably on PostgreSQL, and c
 - `GET /healthz` (liveness) and `GET /readyz` (database reachable and migrations current).
 - `flowd validate <file.bpmn>`: checks a BPMN file offline and lists every problem (exit code 1 when invalid).
 - `POST /v1/deployments` (multipart `.bpmn` files, XXE-safe, all-or-nothing, versioned by checksum), `GET /v1/process-definitions`, `GET /v1/process-definitions/{key}` and `/xml`.
+- `POST /v1/process-instances`, `GET /v1/process-instances[/{key}]`, `.../cancel`, `PUT .../variables`, `GET .../history`; `POST /v1/jobs/activate` (long poll) and `/v1/jobs/{key}/complete|fail|error`, `PATCH /v1/jobs/{key}`; `GET /v1/incidents`, `POST /v1/incidents/{key}/resolve`.
+- flowd-FEEL expressions (conditions, input/output mappings, dynamic job types and retries).
 
 ## Requirements
 - .NET 11 SDK (RC for now; pinned in `global.json`).
@@ -55,3 +57,11 @@ curl -F "resources=@testdata/bpmn/order-simple.bpmn" http://localhost:8080/v1/de
 curl http://localhost:8080/v1/process-definitions
 ```
 Supported BPMN so far: none start event, none/terminate end event, service task (`flowd:taskDefinition`), manual task, exclusive and parallel gateways. Anything else is rejected with its element id (more elements arrive in M3-M6).
+
+## Running a process
+```
+curl -X POST http://localhost:8080/v1/process-instances -H "Content-Type: application/json" -d '{"bpmnProcessId":"order-process","variables":{"order":{"total":50}}}'
+curl -X POST http://localhost:8080/v1/jobs/activate -H "Content-Type: application/json" -d '{"type":"charge-card","worker":"w1","timeoutMs":30000,"maxJobs":10,"requestTimeoutMs":10000}'
+curl -X POST http://localhost:8080/v1/jobs/<jobKey>/complete -H "Content-Type: application/json" -d '{"variables":{"receiptId":"R-1"}}'
+```
+Jobs are delivered at least once: workers must be idempotent. A job that is not completed before its deadline is handed to another worker.

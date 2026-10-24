@@ -29,3 +29,8 @@ Format: date · question · choice · reason.
 - 2026-10-24 · Job completion by a stale worker · `CompleteJob`/`FailJob` take an optional `worker` name; a mismatch with the job's current worker yields 409 JOB_NOT_ACTIVATED (T-JOB-06) · activation tokens are overkill for v1.
 - 2026-10-24 · Long-poll · job activation polls every 100 ms (FR-JOB-001 allows 100-500 ms); LISTEN/NOTIFY wake-ups are deferred to the M7 performance work.
 - 2026-10-24 · Job results · completed-job result variables are stored on the job row (`result_variables`, migration 0002) so output mappings can be re-run after an `IO_MAPPING_ERROR` incident is resolved.
+- 2026-10-24 · Worker identity on job commands · optional `worker` on complete/fail/error; mismatch gives 409 JOB_NOT_ACTIVATED (see earlier entry) · implemented in `JobCommands.Check`.
+- 2026-10-24 · Unmatched join tokens at completion (FR-EXEC-009, open decision 5) · warn-and-complete: a `JOIN_TOKENS_ABANDONED` history event is recorded and the instance completes · matches Zeebe.
+- 2026-10-24 · ThrowJobError in M2 · no handlers exist yet, so the job becomes ERROR_THROWN and an `UNHANDLED_ERROR_EVENT` incident is raised; boundary-event matching arrives in M5 (section 12.3).
+- 2026-10-24 · Loop limit (FR-ARCH-006) · exceeding 10 000 activations in one command raises `LOOP_LIMIT_EXCEEDED` on the instance and drops the queued steps; the instance stays ACTIVE until cancelled.
+- 2026-10-24 · Local execution state · the interpreter loads only live element instances; jobs and incidents of the instance are loaded in full under `FOR UPDATE` so concurrent activation (SKIP LOCKED) and the timeout sweeper skip them (FR-CON-005).

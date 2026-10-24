@@ -32,7 +32,16 @@ public sealed class CommandProcessor(IInstanceTransactionFactory transactions, E
     public async Task<Result<ProcessedCommand>> ExecuteAsync(string tenantId, long instanceKey, EngineCommand command, CancellationToken cancellationToken)
     {
         await using var transaction = await transactions.BeginAsync(cancellationToken).ConfigureAwait(false);
-        var state = await transaction.LockAsync(tenantId, instanceKey, cancellationToken).ConfigureAwait(false);
+        EngineState? state;
+        try
+        {
+            state = await transaction.LockAsync(tenantId, instanceKey, cancellationToken).ConfigureAwait(false);
+        }
+        catch (InstanceBusyException ex)
+        {
+            return new Failure(new Unavailable(ex.Message, "RETRY_LATER"));
+        }
+
         if (state is null)
         {
             return new Failure(new NotFound($"Process instance {instanceKey} does not exist."));

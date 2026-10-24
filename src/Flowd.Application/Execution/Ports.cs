@@ -34,3 +34,6 @@ public interface IInstanceLookup
 
     Task<long?> InstanceOfIncidentAsync(string tenantId, long incidentKey, CancellationToken cancellationToken);
 }
+
+/// <summary>Thrown by a store when the instance row stayed locked longer than the lock timeout (FR-CON-001). Mapped to 503 RETRY_LATER.</summary>
+public sealed class InstanceBusyException(string message) : Exception(message);

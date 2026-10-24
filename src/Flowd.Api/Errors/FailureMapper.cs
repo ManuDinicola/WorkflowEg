@@ -13,7 +13,7 @@ public static class FailureMapper
         Conflict c => Problem(StatusCodes.Status409Conflict, c.Code, "Conflict", c.Message),
         PermissionDenied p => Problem(StatusCodes.Status403Forbidden, "PERMISSION_DENIED", "Permission denied", p.Message),
         RateLimited r => Problem(StatusCodes.Status429TooManyRequests, "RESOURCE_EXHAUSTED", "Rate limited", r.Message),
-        Unavailable u => Problem(StatusCodes.Status503ServiceUnavailable, "UNAVAILABLE", "Unavailable", u.Message),
+        Unavailable u => Problem(StatusCodes.Status503ServiceUnavailable, u.Code, "Unavailable", u.Message),
     };
 
     private static IResult Problem(int status, string code, string title, string detail, IReadOnlyList<FailureDetail>? details = null)
