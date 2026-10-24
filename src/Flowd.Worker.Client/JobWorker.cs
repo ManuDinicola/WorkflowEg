@@ -41,17 +41,8 @@ public sealed class JobWorker(FlowdClient client, string type, Func<WorkerJob, C
         {
             try
             {
-                await slots.WaitAsync(stoppingToken).ConfigureAwait(false);
-                var free = 1 + slots.CurrentCount;
-                var jobs = await client.ActivateAsync(type, options, free, stoppingToken).ConfigureAwait(false);
+                var jobs = await FetchAsync(slots, stoppingToken).ConfigureAwait(false);
                 failures = 0;
-                if (jobs.Count == 0)
-                {
-                    slots.Release();
-                    continue;
-                }
-
-                slots.Release(); // give back the probe slot, then take one per job
                 foreach (var job in jobs)
                 {
                     await slots.WaitAsync(stoppingToken).ConfigureAwait(false);
@@ -64,7 +55,7 @@ public sealed class JobWorker(FlowdClient client, string type, Func<WorkerJob, C
             {
                 break;
             }
-            catch (HttpRequestException)
+            catch (Exception ex) when (IsTransportFailure(ex))
             {
                 failures++;
                 await DelayAsync(Backoff(failures), stoppingToken).ConfigureAwait(false);
@@ -73,6 +64,24 @@ public sealed class JobWorker(FlowdClient client, string type, Func<WorkerJob, C
 
         await Task.WhenAll(running).ConfigureAwait(false); // graceful shutdown: let in-flight handlers report
         slots.Dispose();
+    }
+
+    /// <summary>Anything a dropped connection, a restarting host or a client timeout can throw; the worker backs off and tries again.</summary>
+    private static bool IsTransportFailure(Exception ex) =>
+        ex is HttpRequestException or IOException or TaskCanceledException or System.Text.Json.JsonException;
+
+    /// <summary>Polls while holding one slot, and always gives it back, also when the request fails.</summary>
+    private async Task<IReadOnlyList<WorkerJob>> FetchAsync(SemaphoreSlim slots, CancellationToken cancellationToken)
+    {
+        await slots.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await client.ActivateAsync(type, options, 1 + slots.CurrentCount, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            slots.Release();
+        }
     }
 
     private TimeSpan Backoff(int failures)
@@ -133,8 +142,13 @@ public sealed class JobWorker(FlowdClient client, string type, Func<WorkerJob, C
                 await client.ReportAsync(job, result, options.WorkerName, CancellationToken.None).ConfigureAwait(false);
                 return;
             }
-            catch (HttpRequestException) when (++attempt < 5)
+            catch (Exception ex) when (IsTransportFailure(ex))
             {
+                if (++attempt >= 5)
+                {
+                    return; // give up: the job deadline hands it to another delivery (at-least-once)
+                }
+
                 await DelayAsync(Backoff(attempt), CancellationToken.None).ConfigureAwait(false);
             }
         }
