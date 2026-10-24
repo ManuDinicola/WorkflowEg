@@ -29,7 +29,33 @@ internal sealed class Parser
             : throw new SyntaxException($"Unexpected '{parser.Current.Text}' at {parser.Current.Position}.");
     }
 
-    private Expr ParseExpression() => IsKeyword("if") ? ParseIf() : ParseOr();
+    private Expr ParseExpression()
+    {
+        if (IsKeyword("if"))
+        {
+            return ParseIf();
+        }
+
+        return IsQuantifierStart() ? ParseQuantified() : ParseOr();
+    }
+
+    /// <summary><c>some</c>, <c>every</c> and <c>for</c> are only keywords when followed by <c>name in</c>, so variables with those names keep working.</summary>
+    private bool IsQuantifierStart() =>
+        Current.Kind == TokenKind.Name
+        && Current.Text is "some" or "every" or "for"
+        && _tokens.Count > _position + 2
+        && _tokens[_position + 1].Kind == TokenKind.Name
+        && _tokens[_position + 2] is { Kind: TokenKind.Name, Text: "in" };
+
+    private QuantifiedExpr ParseQuantified()
+    {
+        var kind = Advance().Text;
+        var variable = Advance().Text;
+        Advance(); // in
+        var source = ParseOr();
+        ExpectKeyword(kind == "for" ? "return" : "satisfies");
+        return new QuantifiedExpr(kind, variable, source, ParseExpression());
+    }
 
     private IfExpr ParseIf()
     {

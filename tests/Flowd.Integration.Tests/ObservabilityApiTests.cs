@@ -70,12 +70,12 @@ public sealed class ObservabilityApiTests(PostgresFixture postgres) : IClassFixt
     [Fact]
     public async Task FR_OBS_002_an_incoming_traceparent_header_is_continued()
     {
-        var traceIds = new List<string>();
+        var traceIds = new System.Collections.Concurrent.ConcurrentQueue<string>();
         using var listener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == "Flowd" || source.Name == "Microsoft.AspNetCore",
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-            ActivityStopped = activity => traceIds.Add(activity.TraceId.ToString()),
+            ActivityStopped = activity => traceIds.Enqueue(activity.TraceId.ToString()),
         };
         ActivitySource.AddActivityListener(listener);
         await using var app = await TestApp.StartAsync(postgres);
@@ -87,6 +87,11 @@ public sealed class ObservabilityApiTests(PostgresFixture postgres) : IClassFixt
         request.Headers.Add("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
 
         (await app.Client.SendAsync(request)).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        for (var i = 0; i < 50 && !traceIds.Contains("0af7651916cd43dd8448eb211c80319c"); i++)
+        {
+            await Task.Delay(100); // the server finishes its span just after the response is sent
+        }
 
         traceIds.ShouldContain("0af7651916cd43dd8448eb211c80319c");
     }

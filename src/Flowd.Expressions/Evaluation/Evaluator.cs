@@ -23,6 +23,7 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
             CallExpr call => EvaluateCall(call, scope),
             BetweenExpr between => EvaluateBetween(between, scope),
             InExpr membership => EvaluateIn(membership, scope),
+            QuantifiedExpr quantified => EvaluateQuantified(quantified, scope),
         };
     }
 
@@ -68,6 +69,22 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
         var low = Operators.Compare(">=", value, Evaluate(between.Low, scope));
         var high = Operators.Compare("<=", value, Evaluate(between.High, scope));
         return Operators.And(low, high);
+    }
+
+    private ExpressionValue EvaluateQuantified(QuantifiedExpr quantified, Scope scope)
+    {
+        if (Evaluate(quantified.Source, scope) is not ListValue list)
+        {
+            return Operators.Null;
+        }
+
+        var results = list.Items.Select(item => Evaluate(quantified.Body, new Scope(new Dictionary<string, ExpressionValue>(StringComparer.Ordinal) { [quantified.Variable] = item }, scope))).ToList();
+        return quantified.Kind switch
+        {
+            "for" => new ListValue(results),
+            "some" => results.Any(r => r is true),
+            _ => results.All(r => r is true), // non-union: every
+        };
     }
 
     private ExpressionValue EvaluateIn(InExpr membership, Scope scope)
