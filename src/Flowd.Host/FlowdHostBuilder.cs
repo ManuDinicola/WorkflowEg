@@ -1,7 +1,11 @@
 using Flowd.Api.Endpoints;
+using Flowd.Application.Deployment;
 using Flowd.Application.Readiness;
+using Flowd.Engine.Keys;
+using Flowd.Infrastructure.Keys;
 using Flowd.Infrastructure.Postgres;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace Flowd.Host;
 
@@ -32,15 +36,27 @@ internal static class FlowdHostBuilder
             .BindConfiguration(FlowdOptions.SectionName)
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        builder.Services.AddSingleton<IMigrationRunner>(sp =>
-            new PostgresMigrationRunner(sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString));
-        builder.Services.AddSingleton<IReadinessProbe>(sp =>
-            new PostgresReadinessProbe(
-                sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString,
-                sp.GetRequiredService<IMigrationRunner>()));
+        AddInfrastructure(builder.Services);
+        builder.Services.AddSingleton<DeployProcessesUseCase>();
 
         var app = builder.Build();
         app.MapOperationalEndpoints();
+        app.MapDeploymentEndpoints();
         return app;
+    }
+
+    private static void AddInfrastructure(IServiceCollection services)
+    {
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(sp => NpgsqlDataSource.Create(sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString));
+        services.AddSingleton<IKeyGenerator>(sp =>
+            new SnowflakeKeyGenerator(sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IOptions<FlowdOptions>>().Value.NodeId));
+        services.AddSingleton<IProcessDefinitionStore, PostgresProcessDefinitionStore>();
+        services.AddSingleton<IMigrationRunner>(sp =>
+            new PostgresMigrationRunner(sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString));
+        services.AddSingleton<IReadinessProbe>(sp =>
+            new PostgresReadinessProbe(
+                sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString,
+                sp.GetRequiredService<IMigrationRunner>()));
     }
 }

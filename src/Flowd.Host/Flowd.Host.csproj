@@ -16,5 +16,6 @@
     <ProjectReference Include="../Flowd.Api/Flowd.Api.csproj" />
     <ProjectReference Include="../Flowd.Infrastructure/Flowd.Infrastructure.csproj" />
     <ProjectReference Include="../Flowd.Application/Flowd.Application.csproj" />
+    <ProjectReference Include="../Flowd.Bpmn/Flowd.Bpmn.csproj" />
   </ItemGroup>
 </Project>

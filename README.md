@@ -3,13 +3,15 @@
 Flowd is a BPMN 2.0 workflow engine (Camunda-like) written in C# 15 on .NET 11, with clean architecture and union types.
 It deploys BPMN definitions, runs process instances durably on PostgreSQL, and coordinates external job workers, timers, messages and incidents through a REST API.
 
-**Status:** milestone M0 (skeleton and tooling) is implemented on `feat/m0-skeleton`; see `PLAN.md` and `PROGRESS.md`. No BPMN execution yet (that is M1/M2).
+**Status:** milestones M0 (skeleton) and M1 (model and deployment) are implemented; see `PLAN.md` and `PROGRESS.md`. Processes can be validated and deployed but not executed yet (that is M2).
 
 ## What works today
 - Solution skeleton with enforced dependency rules (architecture tests) and C# 15 `union` / `closed class` smoke tests.
 - `flowd migrate`: applies the PostgreSQL schema (forward-only DbUp scripts in `db/migrations`).
 - `flowd serve [--auto-migrate]`: starts the HTTP host; refuses to start when migrations are pending.
 - `GET /healthz` (liveness) and `GET /readyz` (database reachable and migrations current).
+- `flowd validate <file.bpmn>`: checks a BPMN file offline and lists every problem (exit code 1 when invalid).
+- `POST /v1/deployments` (multipart `.bpmn` files, XXE-safe, all-or-nothing, versioned by checksum), `GET /v1/process-definitions`, `GET /v1/process-definitions/{key}` and `/xml`.
 
 ## Requirements
 - .NET 11 SDK (RC for now; pinned in `global.json`).
@@ -46,3 +48,10 @@ Set `Flowd__ConnectionString` as a machine environment variable (or in `appsetti
 
 ## Docs
 - Spec index: `docs/spec/00-index.md` - plan: `PLAN.md` - decisions: `DECISIONS.md` - contributing: `docs/contributing.md`.
+
+## Deploying a process
+```
+curl -F "resources=@testdata/bpmn/order-simple.bpmn" http://localhost:8080/v1/deployments
+curl http://localhost:8080/v1/process-definitions
+```
+Supported BPMN so far: none start event, none/terminate end event, service task (`flowd:taskDefinition`), manual task, exclusive and parallel gateways. Anything else is rejected with its element id (more elements arrive in M3-M6).
