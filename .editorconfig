@@ -81,6 +81,13 @@ dotnet_diagnostic.S3267.severity = none
 dotnet_diagnostic.CA1508.severity = none
 # Binary payload records (resource, checksum) intentionally expose byte[]
 dotnet_diagnostic.CA1819.severity = none
+# Internal control-flow exceptions, ordinal == on strings, and union patterns (a is false) trip these
+dotnet_diagnostic.CA1032.severity = none
+dotnet_diagnostic.CA1064.severity = none
+dotnet_diagnostic.S3376.severity = none
+dotnet_diagnostic.S3871.severity = none
+dotnet_diagnostic.S1125.severity = none
+dotnet_diagnostic.MA0006.severity = none
 # Dapper populates row DTO properties by reflection
 dotnet_diagnostic.S1144.severity = none
 # Compiler-generated union structs do not override Equals

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/Flowd.Expressions/Flowd.Expressions.csproj" />
+  </ItemGroup>
+</Project>
