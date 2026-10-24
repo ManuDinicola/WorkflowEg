@@ -95,6 +95,10 @@ internal static class Operators
         ("-", DateTimeOffset x, DateTimeOffset y) => x - y,
         ("+", TimeSpan x, TimeSpan y) => x + y,
         ("-", TimeSpan x, TimeSpan y) => x - y,
+        ("*", TimeSpan x, decimal y) => Duration(() => TimeSpan.FromTicks((long)(x.Ticks * y))),
+        ("*", decimal x, TimeSpan y) => Duration(() => TimeSpan.FromTicks((long)(y.Ticks * x))),
+        ("/", TimeSpan x, decimal y) => y == 0 ? Null : Duration(() => TimeSpan.FromTicks((long)(x.Ticks / y))),
+        ("/", TimeSpan x, TimeSpan y) => y == TimeSpan.Zero ? Null : (decimal)x.Ticks / y.Ticks,
         _ => Null, // non-union: tuple switch; mismatched operand types yield null as in FEEL
     };
 
@@ -109,6 +113,18 @@ internal static class Operators
     {
         var result = Math.Pow((double)x, (double)y);
         return double.IsFinite(result) && Math.Abs(result) < 7.9e27 ? (decimal)result : Null;
+    }
+
+    private static ExpressionValue Duration(Func<TimeSpan> compute)
+    {
+        try
+        {
+            return compute();
+        }
+        catch (OverflowException)
+        {
+            return Null;
+        }
     }
 
     private static ExpressionValue Guard(Func<decimal> compute)

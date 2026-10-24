@@ -18,7 +18,7 @@ Deploying the same file again keeps the version; a changed file creates the next
 - Errors: UNIQUE with several matches `DMN_MULTIPLE_MATCHES`, ANY with different outputs `DMN_ANY_CONFLICT`, failing input or output expressions `DMN_INPUT` / `DMN_OUTPUT`.
 
 ## Not yet
-Decision requirements graphs (a decision calling another), FEEL ranges inside normal expressions, and decision versions pinned by a process.
+FEEL ranges inside normal expressions, and decision versions pinned by a process.
 
 ## Calling a decision from a process
 ```xml
@@ -27,3 +27,6 @@ Decision requirements graphs (a decision calling another), FEEL ranges inside no
 </bpmn:businessRuleTask>
 ```
 The task creates an internal job of type `flowd.decision`. A built-in worker (a hosted service of the engine, every 200 ms, all tenants) evaluates the latest version of the decision with the process variables and completes the job with the result in `resultVariable` (default `decisionResult`). If the decision is missing or fails, the job fails and retries like any other, then raises an incident. Delivery is at-least-once like every job.
+
+## Decisions that need other decisions (requirements graph)
+A decision can list the decisions it needs: `<informationRequirement><requiredDecision href="#rate"/></informationRequirement>`. Those decisions (in the same file) are evaluated first, recursively, and their results are available as variables under their name and their id, so `Base rate` / `rate` can be used in input expressions, output entries and literal expressions of the decision that requires them. A requirement that is not in the file answers `DMN_REQUIREMENT_MISSING`, a cycle `DMN_CYCLE`. Requirements across files and input data / knowledge source elements are not used.

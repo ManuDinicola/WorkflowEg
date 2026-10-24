@@ -56,7 +56,8 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] FEEL: filters, path expressions, for / some / every
 - [x] FEEL: ranges and unary tests
 - [x] FEEL: common built-in functions (strings, lists, numbers, dates, contexts)
-- [ ] FEEL: date and time types with arithmetic, and the remaining standard functions
+- [x] FEEL: date and time arithmetic, properties (.year .hour .days ...) and date functions
+- [ ] FEEL: time-of-day type, years-and-months durations and the rarer standard functions
 - [ ] FEEL: user defined functions
 - [x] Variable and message payload size limits and truncation rules
 - [ ] Execution listeners
@@ -64,7 +65,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 ## Decisions (DMN)
 - [x] Decision tables with all hit policies
 - [x] Literal expression decisions
-- [ ] Decision requirements graph
+- [x] Decision requirements graph (decisions requiring decisions in one file)
 - [x] Deploy and evaluate decisions through the API
 - [x] Business rule task calling a decision
 
@@ -146,4 +147,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 100 of 117 = 85 %. Target: 95 % (112 of 117).
+Score (2026-10-24): 102 of 118 = 86 %. Target: 95 % (113 of 118).

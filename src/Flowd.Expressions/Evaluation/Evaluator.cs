@@ -37,7 +37,32 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
     {
         ContextValue context => context.Entries.TryGetValue(member, out var value) ? value : Operators.Null,
         ListValue list => new ListValue([.. list.Items.Select(i => Member(i, member))]),
-        NullValue or bool or decimal or string or DateTimeOffset or TimeSpan => Operators.Null,
+        DateTimeOffset instant => InstantProperty(instant, member),
+        TimeSpan span => DurationProperty(span, member),
+        NullValue or bool or decimal or string => Operators.Null,
+    };
+
+    /// <summary>FEEL properties of a date and time: <c>.year .month .day .hour .minute .second .weekday</c> (1 = Monday).</summary>
+    private static ExpressionValue InstantProperty(DateTimeOffset instant, string member) => member switch
+    {
+        "year" => instant.Year,
+        "month" => instant.Month,
+        "day" => instant.Day,
+        "hour" => instant.Hour,
+        "minute" => instant.Minute,
+        "second" => instant.Second,
+        "weekday" => instant.DayOfWeek == DayOfWeek.Sunday ? 7 : (int)instant.DayOfWeek,
+        _ => Operators.Null, // non-union: property name
+    };
+
+    /// <summary>FEEL properties of a duration: whole <c>.days .hours .minutes .seconds</c> of the duration.</summary>
+    private static ExpressionValue DurationProperty(TimeSpan span, string member) => member switch
+    {
+        "days" => span.Days,
+        "hours" => span.Hours,
+        "minutes" => span.Minutes,
+        "seconds" => span.Seconds,
+        _ => Operators.Null, // non-union: property name
     };
 
     private ExpressionValue EvaluateContext(ContextExpr context, Scope scope)

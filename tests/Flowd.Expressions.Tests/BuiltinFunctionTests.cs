@@ -114,4 +114,26 @@ public sealed class BuiltinFunctionTests
     [InlineData("2 in [1, 2]", "true")]
     [InlineData("3 in [1, 2]", "false")]
     public void FR_EXPR_011_ranges_are_intervals_after_in_and_lists_still_work(string expression, string expected) => Run(expression).ShouldBe(expected);
+
+    [Theory]
+    [InlineData("date and time(\"2026-10-24T12:00:00Z\") + duration(\"P1D\") > date and time(\"2026-10-25T00:00:00Z\")", "true")]
+    [InlineData("(date and time(\"2026-10-25T12:00:00Z\") - date and time(\"2026-10-24T00:00:00Z\")).hours", "12")]
+    [InlineData("(date and time(\"2026-10-25T12:00:00Z\") - date and time(\"2026-10-24T00:00:00Z\")).days", "1")]
+    [InlineData("duration(\"PT1H\") * 3 = duration(\"PT3H\")", "true")]
+    [InlineData("2 * duration(\"PT30M\") = duration(\"PT1H\")", "true")]
+    [InlineData("duration(\"PT3H\") / 3 = duration(\"PT1H\")", "true")]
+    [InlineData("duration(\"PT3H\") / duration(\"PT1H\")", "3")]
+    [InlineData("duration(\"PT3H\") / 0", "null")]
+    [InlineData("date and time(\"2026-10-24T13:45:30Z\").hour", "13")]
+    [InlineData("date and time(\"2026-10-24T13:45:30Z\").minute", "45")]
+    [InlineData("date and time(\"2026-10-24T13:45:30Z\").year", "2026")]
+    [InlineData("date and time(\"2026-10-24T13:45:30Z\").weekday", "6")]
+    [InlineData("date(\"2026-10-24\") = date and time(\"2026-10-24T00:00:00Z\")", "true")]
+    [InlineData("date(date and time(\"2026-10-24T13:45:30Z\")) = date(\"2026-10-24\")", "true")]
+    [InlineData("date(\"not a date\")", "null")]
+    [InlineData("day of week(date and time(\"2026-10-24T12:00:00Z\"))", "Saturday")]
+    [InlineData("month of year(date and time(\"2026-10-24T12:00:00Z\"))", "October")]
+    [InlineData("last day of month(date and time(\"2028-02-10T12:00:00Z\"))", "29")]
+    [InlineData("today() + duration(\"P7D\") > now()", "true")]
+    public void FR_EXPR_012_date_and_duration_arithmetic_properties_and_functions(string expression, string expected) => Run(expression).ShouldBe(expected);
 }
