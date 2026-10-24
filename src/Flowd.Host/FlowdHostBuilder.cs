@@ -1,16 +1,15 @@
+using System.Threading.RateLimiting;
 using Flowd.Api.Endpoints;
+using Flowd.Api.Security;
 using Flowd.Application.Deployment;
 using Flowd.Application.Execution;
 using Flowd.Application.Jobs;
 using Flowd.Application.Messaging;
+using Flowd.Application.Observability;
 using Flowd.Application.Queries;
 using Flowd.Application.Readiness;
-using Flowd.Api.Security;
 using Flowd.Application.Security;
 using Flowd.Application.Timers;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using Flowd.Application.UserTasks;
 using Flowd.Engine.Execution;
 using Flowd.Engine.Handlers;
@@ -19,8 +18,14 @@ using Flowd.Infrastructure.Background;
 using Flowd.Infrastructure.Keys;
 using Flowd.Infrastructure.Postgres;
 using Flowd.Infrastructure.Postgres.Execution;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using Npgsql;
+using OpenTelemetry.Trace;
 
 namespace Flowd.Host;
 
@@ -54,6 +59,7 @@ internal static class FlowdHostBuilder
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.Host.UseWindowsService(); // no-op unless started by the Windows Service Control Manager
+        ConfigureObservability(builder);
         builder.Services
             .AddOptions<FlowdOptions>()
             .BindConfiguration(FlowdOptions.SectionName)
@@ -62,19 +68,80 @@ internal static class FlowdHostBuilder
         AddInfrastructure(builder.Services);
         AddApplication(builder.Services);
         AddSecurity(builder.Services, builder.Configuration);
+        AddLimits(builder);
 
         var app = builder.Build();
+        _ = app.Services.GetRequiredService<PrometheusMetrics>(); // start listening before the first measurement
         app.UseProblemStatusCodes();
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseRateLimiter();
+        app.UseMiddleware<IdempotencyMiddleware>();
         app.MapOperationalEndpoints();
         app.MapDeploymentEndpoints();
         app.MapInstanceEndpoints();
         app.MapJobEndpoints();
         app.MapMessageEndpoints();
+        app.MapMetricsEndpoint();
         app.MapSignalAndUserTaskEndpoints();
         return app;
     }
+
+    /// <summary>JSON logs with scopes (FR-OBS-003), the <c>/metrics</c> exposition and optional OTLP trace export (FR-OBS-002).</summary>
+    private static void ConfigureObservability(WebApplicationBuilder builder)
+    {
+        builder.Logging.ClearProviders();
+        builder.Logging.AddJsonConsole(options =>
+        {
+            options.IncludeScopes = true;
+            options.UseUtcTimestamp = true;
+            options.TimestampFormat = "O";
+        });
+        builder.Services.AddSingleton<PrometheusMetrics>();
+        builder.Services.AddOpenTelemetry().WithTracing(tracing =>
+        {
+            tracing.AddSource(EngineTelemetry.Name);
+            if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+            {
+                tracing.AddOtlpExporter();
+            }
+        });
+    }
+
+    private static void AddLimits(WebApplicationBuilder builder)
+    {
+        const int MaxBodyBytes = 4 * 1024 * 1024; // FR-SEC-004
+        builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = MaxBodyBytes);
+        builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = MaxBodyBytes);
+        var limit = builder.Configuration.GetSection(RateLimitOptions.SectionName).Get<RateLimitOptions>() ?? new RateLimitOptions();
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.OnRejected = (context, _) =>
+            {
+                context.HttpContext.Response.Headers.RetryAfter = "1";
+                return ValueTask.CompletedTask;
+            };
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            {
+                var exempt = limit.TokensPerSecond <= 0 || IsOperational(context.Request.Path);
+                var caller = context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+                return exempt
+                    ? RateLimitPartition.GetNoLimiter("exempt")
+                    : RateLimitPartition.GetTokenBucketLimiter(caller, _ => new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = Math.Max(limit.Burst, 1),
+                        TokensPerPeriod = limit.TokensPerSecond,
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+        });
+    }
+
+    private static bool IsOperational(PathString path) =>
+        path.StartsWithSegments("/healthz", StringComparison.Ordinal) || path.StartsWithSegments("/readyz", StringComparison.Ordinal) || path.StartsWithSegments("/metrics", StringComparison.Ordinal);
 
     private static void AddSecurity(IServiceCollection services, ConfigurationManager configuration)
     {
@@ -131,6 +198,7 @@ internal static class FlowdHostBuilder
         services.AddSingleton<IUserTaskQueries, PostgresUserTaskQueries>();
         services.AddSingleton<IChildInstanceStore, PostgresChildInstanceStore>();
         services.AddSingleton<IApiKeyStore, PostgresApiKeyStore>();
+        services.AddSingleton<IIdempotencyStore, PostgresIdempotencyStore>();
         services.AddSingleton<IMigrationRunner>(sp =>
             new PostgresMigrationRunner(sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString));
         services.AddSingleton<IReadinessProbe>(sp =>
@@ -155,6 +223,7 @@ internal static class FlowdHostBuilder
         services.AddSingleton<MessageService>();
         services.AddSingleton<SignalService>();
         services.AddSingleton<ISignalBroadcaster>(sp => sp.GetRequiredService<SignalService>());
+        services.AddSingleton<EngineTelemetry>();
         services.AddSingleton<PostCommitEffects>();
         services.AddSingleton<IPostCommitEffects>(sp => sp.GetRequiredService<PostCommitEffects>());
         services.AddSingleton<Func<IPostCommitEffects>>(sp => () => sp.GetRequiredService<IPostCommitEffects>());

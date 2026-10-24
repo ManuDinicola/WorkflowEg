@@ -5,7 +5,7 @@ using Flowd.Engine.State;
 namespace Flowd.Application.Timers;
 
 /// <summary>Fires due timers, each as its own command or instance start (FR-TMR-002, FR-TMR-003, FR-TMR-006).</summary>
-public sealed class TimerService(ITimerQueue queue, CommandProcessor processor, StartInstanceUseCase starter, TimeProvider time)
+public sealed class TimerService(ITimerQueue queue, CommandProcessor processor, StartInstanceUseCase starter, TimeProvider time, Flowd.Application.Observability.EngineTelemetry telemetry)
 {
     public static readonly TimeSpan LeaseDuration = TimeSpan.FromSeconds(30);
     private const int BatchSize = 100;
@@ -17,6 +17,7 @@ public sealed class TimerService(ITimerQueue queue, CommandProcessor processor, 
         var leases = await queue.LeaseDueAsync(now, BatchSize, LeaseDuration, cancellationToken).ConfigureAwait(false);
         foreach (var lease in leases)
         {
+            telemetry.TimerFired(now - lease.DueAt);
             if (lease.Kind == TriggerKind.Start)
             {
                 await FireStartAsync(lease, cancellationToken).ConfigureAwait(false);

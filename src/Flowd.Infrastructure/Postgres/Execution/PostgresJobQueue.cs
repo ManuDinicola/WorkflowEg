@@ -50,7 +50,7 @@ public sealed class PostgresJobQueue(NpgsqlDataSource dataSource) : IJobQueue
             FROM picked
             WHERE j.key = picked.key
             RETURNING j.key AS Key, j.type AS Type, j.instance_key AS InstanceKey, j.element_id AS ElementId, j.retries AS Retries,
-                      j.deadline AS Deadline, j.variables::text AS Variables, j.custom_headers::text AS CustomHeaders
+                      j.deadline AS Deadline, j.variables::text AS Variables, j.custom_headers::text AS CustomHeaders, j.created_at AS CreatedAt
             """,
             new { request.TenantId, request.Type, request.MaxJobs, request.Worker, now = now.UtcDateTime, deadline = (now + request.Timeout).UtcDateTime },
             cancellationToken: cancellationToken)).ConfigureAwait(false);
@@ -100,6 +100,8 @@ public sealed class PostgresJobQueue(NpgsqlDataSource dataSource) : IJobQueue
 
         public string CustomHeaders { get; set; } = "{}";
 
+        public DateTime CreatedAt { get; set; }
+
         public ActivatedJob ToJob(IReadOnlyList<string>? fetch)
         {
             var all = JsonNode.Parse(Variables)!.AsObject();
@@ -110,7 +112,7 @@ public sealed class PostgresJobQueue(NpgsqlDataSource dataSource) : IJobQueue
             }
 
             var headers = JsonNode.Parse(CustomHeaders)!.AsObject().ToDictionary(p => p.Key, p => p.Value?.GetValue<string>() ?? string.Empty, StringComparer.Ordinal);
-            return new ActivatedJob(Key, Type, InstanceKey, ElementId, Retries, PostgresInstanceTransaction.Utc(Deadline), variables, headers);
+            return new ActivatedJob(Key, Type, InstanceKey, ElementId, Retries, PostgresInstanceTransaction.Utc(Deadline), variables, headers, PostgresInstanceTransaction.Utc(CreatedAt));
         }
     }
 }

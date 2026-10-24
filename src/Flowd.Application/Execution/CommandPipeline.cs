@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Flowd.Application.Deployment;
 using Flowd.Application.Messaging;
+using Flowd.Application.Observability;
 using Flowd.Engine.Commands;
 using Flowd.Engine.Effects;
 using Flowd.Engine.Execution;
@@ -32,15 +33,18 @@ public sealed record StartInstanceRequest(
 public sealed record StartedInstance(long InstanceKey, long DefinitionKey, int Version, string BpmnProcessId);
 
 /// <summary>Runs one command on an existing instance in one transaction: lock, interpret, persist, commit (FR-ARCH-002).</summary>
-public sealed class CommandProcessor(IInstanceTransactionFactory transactions, EngineServices engine, IMessageStore messages, Func<IPostCommitEffects> postCommit)
+public sealed class CommandProcessor(IInstanceTransactionFactory transactions, EngineServices engine, IMessageStore messages, Func<IPostCommitEffects> postCommit, EngineTelemetry telemetry)
 {
     public async Task<Result<ProcessedCommand>> ExecuteAsync(string tenantId, long instanceKey, EngineCommand command, CancellationToken cancellationToken)
     {
+        using var scope = telemetry.StartCommand(CommandName(command), instanceKey);
         await using var transaction = await transactions.BeginAsync(cancellationToken).ConfigureAwait(false);
         EngineState? state;
+        var lockStart = System.Diagnostics.Stopwatch.GetTimestamp();
         try
         {
             state = await transaction.LockAsync(tenantId, instanceKey, cancellationToken).ConfigureAwait(false);
+            telemetry.LockWaited(System.Diagnostics.Stopwatch.GetElapsedTime(lockStart));
         }
         catch (InstanceBusyException ex)
         {
@@ -77,9 +81,13 @@ public sealed class CommandProcessor(IInstanceTransactionFactory transactions, E
         return new ProcessedCommand(state.InstanceKey, accepted.Outcome);
     }
 
+    /// <summary>The case name of a command, for traces and metrics (a union exposes its value as <c>object</c>).</summary>
+    private static string CommandName(EngineCommand command) => command.Value?.GetType().Name ?? "Unknown";
+
     /// <summary>Everything that follows a committed command: buffered messages for new subscriptions, signals, child instances (FR-CON-002).</summary>
     public async Task AfterCommitAsync(string tenantId, IReadOnlyList<EngineEffect> effects, CancellationToken cancellationToken)
     {
+        telemetry.Observe(effects);
         await DeliverBufferedAsync(tenantId, effects, cancellationToken).ConfigureAwait(false);
         await postCommit().HandleAsync(tenantId, effects, cancellationToken).ConfigureAwait(false);
     }

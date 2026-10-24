@@ -8,7 +8,7 @@ namespace Flowd.Infrastructure.Background;
 /// Moves jobs whose deadline passed back to ACTIVATABLE without decrementing retries (FR-JOB-004). Leased with
 /// <c>SKIP LOCKED</c>, so several nodes can run it safely (FR-ARCH-004). Delivery is at-least-once: workers must be idempotent.
 /// </summary>
-public sealed partial class JobTimeoutSweeper(IJobQueue queue, TimeProvider time, ILogger<JobTimeoutSweeper> logger) : BackgroundService
+public sealed partial class JobTimeoutSweeper(IJobQueue queue, TimeProvider time, Flowd.Application.Observability.EngineTelemetry telemetry, ILogger<JobTimeoutSweeper> logger) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(1);
 
@@ -33,6 +33,7 @@ public sealed partial class JobTimeoutSweeper(IJobQueue queue, TimeProvider time
         try
         {
             var requeued = await queue.RequeueTimedOutAsync(time.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+            telemetry.JobsTimedOut(requeued);
             if (requeued > 0)
             {
                 LogRequeued(requeued);
