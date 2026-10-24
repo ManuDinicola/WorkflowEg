@@ -5,8 +5,8 @@ Decisions (2026-10-24, see `DECISIONS.md`): granularity **coarse**, parallel sub
 | # | Milestone | Branch | Covers rows |
 |---|---|---|---|
 | [x] M0 | Skeleton & tooling | `feat/m0-skeleton` | 0.1–0.5 |
-| [ ] M1 | Model & deploy | `feat/m1-model-deploy` | 1.1–1.3 (+2.1 expressions in parallel) |
-| [ ] M2 | Core execution | `feat/m2-core-execution` | 2.2–2.9 |
+| [x] M1 | Model & deploy | `feat/m1-model-deploy` | 1.1–1.3 (+2.1 expressions in parallel) |
+| [x] M2 | Core execution | `feat/m2-core-execution` | 2.2–2.9 |
 | [ ] M3–M7 | as below | `feat/m<N>-<slug>` | refined at milestone start |
 
 The rows below are the commit checklist inside each milestone branch (branch column = sub-branch for parallel subagents).
@@ -35,25 +35,25 @@ The rows below are the commit checklist inside each milestone branch (branch col
 
 | # | Slice | Requirement IDs | Tests | Branch | Size | Depends on | Executor |
 |---|---|---|---|---|---|---|---|
-| [ ] 1.1 | BPMN immutable model (closed hierarchy) + XXE-safe parser for MVP elements | §6.1, FR-SEC-006 | T-DEP-06, parser unit tests | `feat/m1-bpmn-model-parser` | M | 0.3 | impl-worker |
-| [ ] 1.2 | Validator that collects all errors; `flowd validate` | FR-DEP-004 | T-DEP-04, T-DEP-05 | `feat/m1-bpmn-validator` | M | 1.1 | impl-worker |
-| [ ] 1.3 | Definitions store, checksum versioning, deployments + definitions API | FR-DEP-001..003, FR-DEP-005, API-001, API-002 | T-DEP-01..03 | `feat/m1-deployments` | M | 1.1, 0.5 | impl-worker |
+| [x] 1.1 | BPMN immutable model (closed hierarchy) + XXE-safe parser for MVP elements | §6.1, FR-SEC-006 | T-DEP-06, parser unit tests | `feat/m1-bpmn-model-parser` | M | 0.3 | impl-worker |
+| [x] 1.2 | Validator that collects all errors; `flowd validate` | FR-DEP-004 | T-DEP-04, T-DEP-05 | `feat/m1-bpmn-validator` | M | 1.1 | impl-worker |
+| [x] 1.3 | Definitions store, checksum versioning, deployments + definitions API | FR-DEP-001..003, FR-DEP-005, API-001, API-002 | T-DEP-01..03 | `feat/m1-deployments` | M | 1.1, 0.5 | impl-worker |
 
 ### M2 — Core execution (linear flow, gateways, jobs)
 
 | # | Slice | Requirement IDs | Tests | Branch | Size | Depends on | Executor |
 |---|---|---|---|---|---|---|---|
-| [ ] 2.1 | flowd-FEEL lexer/parser/evaluator, `ExpressionValue` union, budget | §8.1, §8.2, FR-EXPR-SEC-001 | T-EXPR-01..10 | `feat/m2-expressions` | M | 0.3 | impl-worker (parallel with M1) |
-| [ ] 2.2 | Engine state, key generator, `Step`, `IElementHandler<T>` registry, start/end events | FR-ARCH-001, FR-ARCH-006, FR-EXEC-001, FR-EXEC-002, FR-EXEC-008, CC-003 | T-EXEC-01 | `feat/m2-engine-core` | M | 1.1 | Plan (opus) then impl-worker |
-| [ ] 2.3 | Exclusive and parallel gateways | FR-EXEC-003, FR-EXEC-004 | T-EXEC-03..07 | `feat/m2-gateways` | M | 2.1, 2.2 | impl-worker |
-| [ ] 2.4 | Variables, scopes, input/output mappings | FR-VAR-001..003, §8.4 | T-EXEC-10 | `feat/m2-variables-mappings` | M | 2.1, 2.2 | impl-worker (parallel with 2.3) |
-| [ ] 2.5a | Postgres schema + stores for instances, elements, variables, history | §15, FR-HIS-001 | integration | `feat/m2-stores` | M | 0.5, 2.2 | impl-worker |
-| [ ] 2.5b | Command pipeline: transaction, instance row lock, lock ordering, persistence of step outcome | FR-ARCH-002, FR-ARCH-003, FR-CON-001..003 | integration (concurrency) | `feat/m2-command-pipeline` | M | 2.5a | impl-worker |
-| [ ] 2.6a | Service task handler: job creation, completion, failure semantics (engine side) | FR-EXEC-006, FR-JOB-003, FR-JOB-005 | T-EXEC-02 | `feat/m2-service-task` | M | 2.2, 2.4 | impl-worker |
-| [ ] 2.6b | Job store, activation (`SKIP LOCKED`, long poll), timeout sweeper, job API | FR-JOB-001..009, API-007, API-008, FR-CON-004, FR-CON-005 | T-JOB-01..08 | `feat/m2-job-api` | L→split in two at start | 2.5b, 2.6a | impl-worker |
-| [ ] 2.7 | Start, cancel, query, set-variables API; history endpoint | FR-EXEC-015, API-003..006, API-012 | T-EXEC-08, T-EXEC-09 | `feat/m2-instances-api` | M | 2.5b | impl-worker |
-| [ ] 2.8 | Determinism property test and loop limit | FR-EXEC-016, FR-ARCH-006 | T-EXEC-11, T-EXEC-12 | `test/m2-determinism-looplimit` | S | 2.3 | impl-worker |
-| [ ] 2.9 | Milestone review: reviewer subagent vs CC-001..018, ACC-M2 run, update docs | CC-018 | ACC-M2 | `docs/m2-review` | S | all M2 | reviewer (opus) |
+| [x] 2.1 | flowd-FEEL lexer/parser/evaluator, `ExpressionValue` union, budget | §8.1, §8.2, FR-EXPR-SEC-001 | T-EXPR-01..10 | `feat/m2-expressions` | M | 0.3 | impl-worker (parallel with M1) |
+| [x] 2.2 | Engine state, key generator, `Step`, `IElementHandler<T>` registry, start/end events | FR-ARCH-001, FR-ARCH-006, FR-EXEC-001, FR-EXEC-002, FR-EXEC-008, CC-003 | T-EXEC-01 | `feat/m2-engine-core` | M | 1.1 | Plan (opus) then impl-worker |
+| [x] 2.3 | Exclusive and parallel gateways | FR-EXEC-003, FR-EXEC-004 | T-EXEC-03..07 | `feat/m2-gateways` | M | 2.1, 2.2 | impl-worker |
+| [x] 2.4 | Variables, scopes, input/output mappings | FR-VAR-001..003, §8.4 | T-EXEC-10 | `feat/m2-variables-mappings` | M | 2.1, 2.2 | impl-worker (parallel with 2.3) |
+| [x] 2.5a | Postgres schema + stores for instances, elements, variables, history | §15, FR-HIS-001 | integration | `feat/m2-stores` | M | 0.5, 2.2 | impl-worker |
+| [x] 2.5b | Command pipeline: transaction, instance row lock, lock ordering, persistence of step outcome | FR-ARCH-002, FR-ARCH-003, FR-CON-001..003 | integration (concurrency) | `feat/m2-command-pipeline` | M | 2.5a | impl-worker |
+| [x] 2.6a | Service task handler: job creation, completion, failure semantics (engine side) | FR-EXEC-006, FR-JOB-003, FR-JOB-005 | T-EXEC-02 | `feat/m2-service-task` | M | 2.2, 2.4 | impl-worker |
+| [x] 2.6b | Job store, activation (`SKIP LOCKED`, long poll), timeout sweeper, job API | FR-JOB-001..009, API-007, API-008, FR-CON-004, FR-CON-005 | T-JOB-01..08 | `feat/m2-job-api` | L→split in two at start | 2.5b, 2.6a | impl-worker |
+| [x] 2.7 | Start, cancel, query, set-variables API; history endpoint | FR-EXEC-015, API-003..006, API-012 | T-EXEC-08, T-EXEC-09 | `feat/m2-instances-api` | M | 2.5b | impl-worker |
+| [x] 2.8 | Determinism property test and loop limit | FR-EXEC-016, FR-ARCH-006 | T-EXEC-11, T-EXEC-12 | `test/m2-determinism-looplimit` | S | 2.3 | impl-worker |
+| [x] 2.9 | Milestone review: reviewer subagent vs CC-001..018, ACC-M2 run, update docs | CC-018 | ACC-M2 | `docs/m2-review` | S | all M2 | reviewer (opus) |
 
 ### M3 — Structure and control (refine at milestone start)
 

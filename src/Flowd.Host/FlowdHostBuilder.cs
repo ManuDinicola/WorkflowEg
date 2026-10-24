@@ -1,7 +1,18 @@
 using Flowd.Api.Endpoints;
+using Flowd.Application.Deployment;
+using Flowd.Application.Execution;
+using Flowd.Application.Jobs;
+using Flowd.Application.Queries;
 using Flowd.Application.Readiness;
+using Flowd.Engine.Execution;
+using Flowd.Engine.Handlers;
+using Flowd.Engine.Keys;
+using Flowd.Infrastructure.Background;
+using Flowd.Infrastructure.Keys;
 using Flowd.Infrastructure.Postgres;
+using Flowd.Infrastructure.Postgres.Execution;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace Flowd.Host;
 
@@ -32,15 +43,46 @@ internal static class FlowdHostBuilder
             .BindConfiguration(FlowdOptions.SectionName)
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        builder.Services.AddSingleton<IMigrationRunner>(sp =>
-            new PostgresMigrationRunner(sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString));
-        builder.Services.AddSingleton<IReadinessProbe>(sp =>
-            new PostgresReadinessProbe(
-                sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString,
-                sp.GetRequiredService<IMigrationRunner>()));
+        AddInfrastructure(builder.Services);
+        AddApplication(builder.Services);
 
         var app = builder.Build();
         app.MapOperationalEndpoints();
+        app.MapDeploymentEndpoints();
+        app.MapInstanceEndpoints();
+        app.MapJobEndpoints();
         return app;
+    }
+
+    private static void AddInfrastructure(IServiceCollection services)
+    {
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(sp => NpgsqlDataSource.Create(sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString));
+        services.AddSingleton<IKeyGenerator>(sp =>
+            new SnowflakeKeyGenerator(sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IOptions<FlowdOptions>>().Value.NodeId));
+        services.AddSingleton<IProcessDefinitionStore, PostgresProcessDefinitionStore>();
+        services.AddSingleton<IProcessModelProvider, ProcessModelProvider>();
+        services.AddSingleton<IInstanceTransactionFactory, PostgresInstanceTransactionFactory>();
+        services.AddSingleton<IInstanceLookup, PostgresInstanceLookup>();
+        services.AddSingleton<IJobQueue, PostgresJobQueue>();
+        services.AddSingleton<IInstanceQueries, PostgresInstanceQueries>();
+        services.AddSingleton<IMigrationRunner>(sp =>
+            new PostgresMigrationRunner(sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString));
+        services.AddSingleton<IReadinessProbe>(sp =>
+            new PostgresReadinessProbe(
+                sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString,
+                sp.GetRequiredService<IMigrationRunner>()));
+        services.AddHostedService<JobTimeoutSweeper>();
+    }
+
+    private static void AddApplication(IServiceCollection services)
+    {
+        services.AddSingleton(new Interpreter(ElementHandlerRegistry.CreateDefault()));
+        services.AddSingleton<EngineServices>();
+        services.AddSingleton<DeployProcessesUseCase>();
+        services.AddSingleton<StartInstanceUseCase>();
+        services.AddSingleton<CommandProcessor>();
+        services.AddSingleton<InstanceCommandService>();
+        services.AddSingleton<JobActivationService>();
     }
 }

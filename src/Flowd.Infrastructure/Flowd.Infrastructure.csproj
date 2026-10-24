@@ -2,6 +2,7 @@
   <ItemGroup>
     <PackageReference Include="Npgsql" />
     <PackageReference Include="dbup-postgresql" />
+    <PackageReference Include="Dapper" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Flowd.Application/Flowd.Application.csproj" />

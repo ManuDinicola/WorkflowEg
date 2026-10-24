@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:flowd="http://flowd.io/schema/1.0" id="Defs_1" targetNamespace="http://example.com/bpmn">
+  <bpmn:process id="broken" isExecutable="true">
+    <bpmn:startEvent id="Start"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:serviceTask id="Task"><bpmn:incoming>F1</bpmn:incoming><bpmn:outgoing>F2</bpmn:outgoing></bpmn:serviceTask>
+    <bpmn:endEvent id="End"><bpmn:incoming>F2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Task"/>
+    <bpmn:sequenceFlow id="F2" sourceRef="Task" targetRef="Nowhere"/>
+    <bpmn:sequenceFlow id="F3" sourceRef="Ghost" targetRef="End"/>
+  </bpmn:process>
+</bpmn:definitions>
