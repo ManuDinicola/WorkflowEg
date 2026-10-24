@@ -14,3 +14,6 @@ Configure on GitHub (Settings → Branches → rule for `main`):
 - Require a pull request with 1 approving review before merging.
 - Require status check `build-test (14)` and `build-test (17)` to pass.
 - Disallow force pushes and deletions.
+
+## Releasing
+Tag `main` with `vMAJOR.MINOR.PATCH` and push the tag; the `release` workflow tests, packages and publishes (see README, "Releases"). Only tag a commit whose `ci` run on `main` is green.
