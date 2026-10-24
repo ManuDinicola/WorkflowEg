@@ -76,7 +76,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Incidents and resolve
 - [x] .NET worker SDK
 - [ ] Job streaming (push)
-- [ ] Worker SDK for TypeScript
+- [x] Worker SDK for TypeScript
 - [ ] Worker SDK for Java
 - [ ] Worker SDK for Python
 - [x] Fetch-variable filtering and tenant-aware activation
@@ -142,4 +142,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 84 of 113 = 74 %. Target: 95 % (108 of 113).
+Score (2026-10-24): 85 of 113 = 75 %. Target: 95 % (108 of 113).
