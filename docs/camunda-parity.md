@@ -130,8 +130,9 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Retention / janitor
 - [x] Windows service and Linux deployment
 - [x] Backup and restore tooling
-- [ ] Horizontal scaling proven by load tests
-- [ ] Published benchmark numbers for throughput
+- [x] Multi-node operation correct under load (no lost or duplicated jobs; see docs/benchmarks.md)
+- [ ] Throughput scaling with nodes demonstrated on separate hardware
+- [x] Published benchmark numbers for throughput
 
 ## Tooling and UI
 - [x] Operate-like UI: definitions, instances, incidents, variables, history
@@ -144,4 +145,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 94 of 115 = 81 %. Target: 95 % (110 of 115).
+Score (2026-10-24): 96 of 116 = 82 %. Target: 95 % (111 of 116).
