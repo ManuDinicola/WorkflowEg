@@ -54,3 +54,7 @@ Format: date · question · choice · reason.
 - Chaos test is scaled down (30 instances, 3 kills) and starts the host as a child process configured through environment variables.
 - Benchmarks run in-process: BenchmarkDotNet 0.15.8 does not recognise the .NET 11 preview runtime. The bench project is not in `Flowd.slnx`, so it is not part of the gate.
 - UNI-005 (union boxing check) and end-to-end load scripts are not implemented; documented in `docs/benchmarks.md`.
+
+## Camunda parity roadmap (2026-10-24)
+- The user asked for everything Camunda covers and more. Recorded as milestones M8-M14 in PLAN.md. Order chosen by dependency: BPMN completeness and expressions first (engine core), then operations, human work, connectors/SDKs, UI, scale.
+- Zeebe-style clustering is replaced by PostgreSQL-based multi-node scaling (SKIP LOCKED); true partitioned execution is M14 and may stay out of scope.
