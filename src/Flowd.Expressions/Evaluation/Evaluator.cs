@@ -24,6 +24,7 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
             BetweenExpr between => EvaluateBetween(between, scope),
             InExpr membership => EvaluateIn(membership, scope),
             QuantifiedExpr quantified => EvaluateQuantified(quantified, scope),
+            RangeExpr => throw new EvaluationFailure(ExpressionErrorCodes.Syntax, "A range is only allowed after 'in'."),
         };
     }
 
@@ -87,9 +88,21 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
         };
     }
 
+    private ExpressionValue InRange(ExpressionValue value, RangeExpr range, Scope scope)
+    {
+        var low = Operators.Compare(range.LowInclusive ? ">=" : ">", value, Evaluate(range.Low, scope));
+        var high = Operators.Compare(range.HighInclusive ? "<=" : "<", value, Evaluate(range.High, scope));
+        return Operators.And(low, high);
+    }
+
     private ExpressionValue EvaluateIn(InExpr membership, Scope scope)
     {
         var value = Evaluate(membership.Value, scope);
+        if (membership.Collection is RangeExpr range)
+        {
+            return InRange(value, range, scope);
+        }
+
         var collection = Evaluate(membership.Collection, scope);
         return collection is ListValue list ? list.Items.Any(i => Operators.ValuesEqual(value, i)) : Operators.ValuesEqual(value, collection);
     }

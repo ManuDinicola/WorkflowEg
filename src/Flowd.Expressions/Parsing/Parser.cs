@@ -105,7 +105,7 @@ internal sealed class Parser
         if (IsKeyword("in"))
         {
             Advance();
-            return new InExpr(left, ParseAdditive());
+            return new InExpr(left, LooksLikeRange() ? ParseRange() : ParseAdditive());
         }
 
         var op = Comparisons.FirstOrDefault(IsSymbol);
@@ -116,6 +116,43 @@ internal sealed class Parser
 
         Advance();
         return new BinaryExpr(op, left, ParseAdditive());
+    }
+
+    /// <summary>True when the bracket group that starts here contains a top-level <c>..</c>, i.e. it is an interval and not a list.</summary>
+    private bool LooksLikeRange()
+    {
+        if (!(IsSymbol("[") || IsSymbol("(")))
+        {
+            return false;
+        }
+
+        var depth = 0;
+        for (var i = _position; i < _tokens.Count && _tokens[i].Kind != TokenKind.End; i++)
+        {
+            var token = _tokens[i];
+            depth += token.Kind == TokenKind.Symbol ? token.Text switch { "(" or "[" or "{" => 1, ")" or "]" or "}" => -1, _ => 0 } : 0; // non-union: token text
+            if (depth == 1 && token.Kind == TokenKind.Symbol && token.Text == "..")
+            {
+                return true;
+            }
+
+            if (depth == 0)
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    private RangeExpr ParseRange()
+    {
+        var lowInclusive = Advance().Text == "[";
+        var low = ParseAdditive();
+        ExpectSymbol("..");
+        var high = ParseAdditive();
+        var closing = Advance().Text;
+        return new RangeExpr(low, high, lowInclusive, closing == "]");
     }
 
     private Expr ParseAdditive()

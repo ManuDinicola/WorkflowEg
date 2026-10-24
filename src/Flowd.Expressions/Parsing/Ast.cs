@@ -99,3 +99,15 @@ internal sealed class QuantifiedExpr(string kind, string variable, Expr source, 
 
     public Expr Body { get; } = body;
 }
+
+/// <summary>An interval such as <c>[1..5]</c> or <c>(1..5)</c>; only valid as the right side of <c>in</c>.</summary>
+internal sealed class RangeExpr(Expr low, Expr high, bool lowInclusive, bool highInclusive) : Expr
+{
+    public Expr Low { get; } = low;
+
+    public Expr High { get; } = high;
+
+    public bool LowInclusive { get; } = lowInclusive;
+
+    public bool HighInclusive { get; } = highInclusive;
+}
