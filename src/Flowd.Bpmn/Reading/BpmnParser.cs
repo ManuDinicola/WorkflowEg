@@ -116,6 +116,20 @@ public sealed class BpmnParser
 
     private FlowNode ParseNode(XElement e)
     {
+        var node = ParseNodeCore(e);
+        node.Listeners = ReadListeners(e);
+        return node;
+    }
+
+    private static ListenerDefinition[] ReadListeners(XElement e) =>
+        [.. (e.Element(Bpmn + "extensionElements")?.Elements() ?? [])
+            .Where(x => x.Name == Flowd + "executionListeners" || x.Name == Flowd + "taskListeners")
+            .SelectMany(x => x.Elements(Flowd + "listener"))
+            .Where(l => l.Attribute("event") is not null && l.Attribute("type") is not null)
+            .Select(l => new ListenerDefinition(((string)l.Attribute("event")!).ToLowerInvariant(), (string)l.Attribute("type")!))];
+
+    private FlowNode ParseNodeCore(XElement e)
+    {
         var id = (string?)e.Attribute("id") ?? string.Empty;
         var name = (string?)e.Attribute("name");
         return e.Name.LocalName switch

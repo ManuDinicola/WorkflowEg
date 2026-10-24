@@ -6,6 +6,9 @@ public closed class FlowNode
     public required string Id { get; init; }
 
     public string? Name { get; init; }
+
+    /// <summary>Listener jobs declared on this element: execution listeners (<c>start</c>, <c>end</c>) and, on user tasks, task listeners (<c>created</c>, <c>assigned</c>, <c>completed</c>) (FR-LST-001).</summary>
+    public IReadOnlyList<ListenerDefinition> Listeners { get; internal set; } = [];
 }
 
 /// <summary>None start event (message, timer and signal variants arrive in M4/M5).</summary>
@@ -257,3 +260,6 @@ public sealed class LinkEventDefinition : EventDefinition
 {
     public required string Name { get; init; }
 }
+
+/// <summary>A listener: when <see cref="Event"/> happens on the element, a job of type <see cref="JobType"/> is created. It never delays or changes the flow.</summary>
+public sealed record ListenerDefinition(string Event, string JobType);

@@ -34,7 +34,7 @@ internal static class JobFactory
     }
 
     public static bool HasOpenJob(StepContext context, ElementInstance instance) =>
-        context.State.Jobs.Values.Any(j => j.ElementInstanceKey == instance.Key && j.State is JobState.Activatable or JobState.Activated);
+        context.State.Jobs.Values.Any(j => j.ElementInstanceKey == instance.Key && !j.CustomHeaders.ContainsKey("_flowdListener") && j.State is JobState.Activatable or JobState.Activated);
 }
 
 /// <summary>Intermediate throw events: none, message (creates a job) or signal (broadcast after the commit).</summary>
@@ -167,6 +167,7 @@ public sealed class UserTaskElementHandler : ElementHandler<UserTask>
         context.Emit(new UserTaskChanged(task.Copy()));
         context.Record(HistoryEventTypes.UserTaskCreated, instance, new JsonObject { ["userTaskKey"] = task.Key.ToString(CultureInfo.InvariantCulture) });
         context.MarkActive(instance);
+        ListenerJobs.Fire(context, element, instance, "created");
     }
 
     public override void Complete(StepContext context, UserTask element, ElementInstance instance)

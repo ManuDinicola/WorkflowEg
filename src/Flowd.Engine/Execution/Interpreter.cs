@@ -186,6 +186,7 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
             return;
         }
 
+        ListenerJobs.Fire(context, node, instance, "start");
         context.ActivationFromTrigger = activate.Triggered;
         handlers.For(node).Activate(context, node, instance);
         context.ActivationFromTrigger = false;

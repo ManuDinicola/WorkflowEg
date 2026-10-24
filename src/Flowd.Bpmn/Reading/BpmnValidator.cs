@@ -74,6 +74,7 @@ public static class BpmnValidator
         var knownIds = nodes.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var node in nodes)
         {
+            ValidateListeners(node, issues);
             ValidateNode(node, nodes, flows, issues, inEventSubProcess);
             if (node is SubProcess sub)
             {
@@ -165,6 +166,18 @@ public static class BpmnValidator
             case ParallelGateway or StartEvent or EndEvent or ManualTask:
                 RejectConditions(node, outgoing, issues);
                 break;
+        }
+    }
+
+    private static void ValidateListeners(FlowNode node, List<BpmnIssue> issues)
+    {
+        foreach (var listener in node.Listeners)
+        {
+            var allowed = listener.Event is "start" or "end" || (node is UserTask && listener.Event is "created" or "assigned" or "completed");
+            if (!allowed || string.IsNullOrWhiteSpace(listener.JobType))
+            {
+                issues.Add(new BpmnIssue(node.Id, BpmnIssueCodes.InvalidEventDefinition, $"Listener event '{listener.Event}' of '{node.Id}' is not supported (use start and end; created, assigned and completed on user tasks) or has no type."));
+            }
         }
     }
 

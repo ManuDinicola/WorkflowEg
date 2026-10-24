@@ -60,7 +60,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] FEEL: time-of-day type, years-and-months durations and the rarer standard functions
 - [ ] FEEL: user defined functions
 - [x] Variable and message payload size limits and truncation rules
-- [ ] Execution listeners
+- [x] Execution listeners (non-blocking jobs: start and end; Camunda 8.6 listeners can block, Flowd's cannot)
 
 ## Decisions (DMN)
 - [x] Decision tables with all hit policies
@@ -105,7 +105,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Candidate groups and users, due date
 - [x] Forms (definition and submit)
 - [x] Follow-up date, priority
-- [ ] Task listeners
+- [x] Task listeners (created, assigned, completed on user tasks; non-blocking jobs)
 - [x] Task search with filters and paging
 
 ## APIs
@@ -147,4 +147,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 102 of 118 = 86 %. Target: 95 % (113 of 118).
+Score (2026-10-24): 104 of 118 = 88 %. Target: 95 % (113 of 118).

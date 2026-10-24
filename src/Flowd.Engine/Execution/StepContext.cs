@@ -128,6 +128,7 @@ public sealed class StepContext
         Emit(new ElementChanged(instance.Copy()));
         Record(HistoryEventTypes.ElementCompleted, instance);
         CloseTriggersOf(instance);
+        ListenerJobs.Fire(this, instance, "end");
     }
 
     public void Terminate(ElementInstance instance)
