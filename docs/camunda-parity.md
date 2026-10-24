@@ -57,7 +57,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] FEEL: ranges and unary tests
 - [ ] FEEL: full built-in function library
 - [ ] FEEL: user defined functions
-- [ ] Variable and message payload size limits and truncation rules
+- [x] Variable and message payload size limits and truncation rules
 - [ ] Execution listeners
 
 ## Decisions (DMN)
@@ -94,16 +94,17 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Process instance modification
 - [ ] Process instance migration
 - [ ] Batch operations
-- [ ] Delete / archive instances and definitions on demand
+- [x] Delete finished instances on demand
+- [ ] Delete process definitions on demand
 - [ ] Start instance with start instructions at an element
 
 ## Human tasks
 - [x] Claim, unclaim, assign, complete
 - [x] Candidate groups and users, due date
 - [ ] Forms (definition and submit)
-- [ ] Follow-up date, priority
+- [x] Follow-up date, priority
 - [ ] Task listeners
-- [ ] Task search with filters and paging
+- [x] Task search with filters and paging
 
 ## APIs
 - [x] REST API with OpenAPI document
@@ -126,7 +127,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Health and readiness
 - [x] Retention / janitor
 - [x] Windows service and Linux deployment
-- [ ] Backup and restore tooling
+- [x] Backup and restore tooling
 - [ ] Horizontal scaling proven by load tests
 - [ ] Published benchmark numbers for throughput
 
@@ -140,4 +141,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 69 of 111 = 62 %. Target: 95 % (106 of 111).
+Score (2026-10-24): 74 of 112 = 66 %. Target: 95 % (107 of 112).

@@ -105,6 +105,7 @@ public sealed class UserTaskElementHandler : ElementHandler<UserTask>
         if (!MappingSupport.TryApplyInputs(context, element.Inputs, element.Id, instance)
             || !TryResolve(context, element.Assignee, instance, out var assignee)
             || !TryResolve(context, element.DueDate, instance, out var dueDate)
+            || !TryResolve(context, element.FollowUpDate, instance, out var followUpDate)
             || !TryResolve(context, element.FormKey, instance, out var formKey))
         {
             return;
@@ -120,6 +121,8 @@ public sealed class UserTaskElementHandler : ElementHandler<UserTask>
             CandidateGroups = element.CandidateGroups,
             CandidateUsers = element.CandidateUsers,
             DueDate = dueDate,
+            FollowUpDate = followUpDate,
+            Priority = element.Priority,
             FormKey = formKey,
             State = UserTaskState.Created,
             TenantId = context.State.TenantId,

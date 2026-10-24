@@ -198,6 +198,11 @@ public sealed class UserTask : FlowNode
 
     public string? DueDate { get; init; }
 
+    public string? FollowUpDate { get; init; }
+
+    /// <summary>Task priority 0-100, higher is more urgent (default 50).</summary>
+    public int Priority { get; init; } = 50;
+
     public string? FormKey { get; init; }
 
     public IReadOnlyList<IoMapping> Inputs { get; init; } = [];

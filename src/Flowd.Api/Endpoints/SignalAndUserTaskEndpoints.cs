@@ -49,18 +49,20 @@ public static class SignalAndUserTaskEndpoints
         string? candidateUser,
         string? state,
         string? processInstanceKey,
+        int? minPriority,
+        DateTimeOffset? dueBefore,
         int? pageSize,
         string? after,
         CancellationToken cancellationToken)
     {
         var page = await queries.ListAsync(
             user.TenantId(),
-            new UserTaskFilter(assignee, candidateGroup, candidateUser, state, InstanceEndpoints.TryKey(processInstanceKey)),
+            new UserTaskFilter(assignee, candidateGroup, candidateUser, state, InstanceEndpoints.TryKey(processInstanceKey), minPriority, dueBefore),
             Math.Clamp(pageSize ?? 100, 1, MaxPageSize),
             InstanceEndpoints.TryKey(after),
             cancellationToken).ConfigureAwait(false);
         var items = page.Items.Select(t => new UserTaskDto(
-            InstanceEndpoints.Id(t.Key), InstanceEndpoints.Id(t.InstanceKey), t.ElementId, t.Assignee, t.CandidateGroups, t.CandidateUsers, t.DueDate, t.FormKey, t.State, t.CreatedAt));
+            InstanceEndpoints.Id(t.Key), InstanceEndpoints.Id(t.InstanceKey), t.ElementId, t.Assignee, t.CandidateGroups, t.CandidateUsers, t.DueDate, t.FollowUpDate, t.Priority, t.FormKey, t.State, t.CreatedAt));
         return Results.Ok(new PageDto<UserTaskDto>([.. items], page.NextCursor is { } c ? InstanceEndpoints.Id(c) : null));
     }
 

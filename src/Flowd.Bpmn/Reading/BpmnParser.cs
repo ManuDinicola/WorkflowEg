@@ -231,6 +231,8 @@ public sealed class BpmnParser
             CandidateGroups = Split((string?)assignment?.Attribute("candidateGroups")),
             CandidateUsers = Split((string?)assignment?.Attribute("candidateUsers")),
             DueDate = (string?)extensions?.Element(Flowd + "taskSchedule")?.Attribute("dueDate"),
+            FollowUpDate = (string?)extensions?.Element(Flowd + "taskSchedule")?.Attribute("followUpDate"),
+            Priority = int.TryParse((string?)extensions?.Element(Flowd + "taskSchedule")?.Attribute("priority"), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var priority) ? Math.Min(priority, 100) : 50,
             FormKey = (string?)extensions?.Element(Flowd + "formDefinition")?.Attribute("formKey"),
             Inputs = ParseMappings(mapping, "input"),
             Outputs = ParseMappings(mapping, "output"),

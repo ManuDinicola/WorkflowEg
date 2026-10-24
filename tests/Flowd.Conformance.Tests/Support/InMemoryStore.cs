@@ -374,9 +374,10 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
             .Where(t => (filter.Assignee is null || t.Assignee == filter.Assignee)
                 && (filter.State is null || string.Equals(t.State.ToString(), filter.State, StringComparison.OrdinalIgnoreCase))
                 && (filter.CandidateGroup is null || t.CandidateGroups.Contains(filter.CandidateGroup))
-                && (filter.InstanceKey is null || t.InstanceKey == filter.InstanceKey))
+                && (filter.InstanceKey is null || t.InstanceKey == filter.InstanceKey)
+                && (filter.MinPriority is null || t.Priority >= filter.MinPriority))
             .OrderBy(t => t.Key)
-            .Select(t => new UserTaskView(t.Key, t.InstanceKey, t.ElementInstanceKey, t.ElementId, t.Assignee, t.CandidateGroups, t.CandidateUsers, t.DueDate, t.FormKey, t.State.ToString().ToUpperInvariant(), t.CreatedAt));
+            .Select(t => new UserTaskView(t.Key, t.InstanceKey, t.ElementInstanceKey, t.ElementId, t.Assignee, t.CandidateGroups, t.CandidateUsers, t.DueDate, t.FollowUpDate, t.Priority, t.FormKey, t.State.ToString().ToUpperInvariant(), t.CreatedAt));
         return Task.FromResult(new UserTaskPage([.. tasks.Take(pageSize)], null));
     }
 

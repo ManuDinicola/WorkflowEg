@@ -14,11 +14,13 @@ public sealed record UserTaskView(
     IReadOnlyList<string> CandidateGroups,
     IReadOnlyList<string> CandidateUsers,
     string? DueDate,
+    string? FollowUpDate,
+    int Priority,
     string? FormKey,
     string State,
     DateTimeOffset CreatedAt);
 
-public sealed record UserTaskFilter(string? Assignee, string? CandidateGroup, string? CandidateUser, string? State, long? InstanceKey);
+public sealed record UserTaskFilter(string? Assignee, string? CandidateGroup, string? CandidateUser, string? State, long? InstanceKey, int? MinPriority = null, DateTimeOffset? DueBefore = null);
 
 public sealed record UserTaskPage(IReadOnlyList<UserTaskView> Items, long? NextCursor);
 
