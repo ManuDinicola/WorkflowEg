@@ -48,6 +48,11 @@ public static class InstanceEndpoints
             return FailureMapper.ToProblem(new Failure(new ValidationFailure("bpmnProcessId is required.")));
         }
 
+        if (!user.MayUseProcess(request.BpmnProcessId))
+        {
+            return FailureMapper.ToProblem(new Failure(new PermissionDenied($"This API key may not use process '{request.BpmnProcessId}'.")));
+        }
+
         var result = await useCase.ExecuteAsync(
             new StartInstanceRequest(user.TenantId(), request.BpmnProcessId, request.Version, request.Variables, request.BusinessKey, request.StartElementId),
             cancellationToken).ConfigureAwait(false);
@@ -70,6 +75,34 @@ public static class InstanceEndpoints
         return variables is null ? NotFound("Process instance", key) : Results.Ok(variables);
     }
 
+    /// <summary><c>variable=name:value</c> matches a root variable (the value is JSON, or plain text taken as a string); <c>order=desc</c> lists newest first.</summary>
+    private static InstanceFilter ParseFilter(string? state, string? bpmnProcessId, string? businessKey, DateTimeOffset? startedAfter, DateTimeOffset? startedBefore, string? variable, string? order)
+    {
+        string? name = null;
+        string? valueJson = null;
+        if (variable is { Length: > 0 } && variable.IndexOf(':', StringComparison.Ordinal) is var split and > 0)
+        {
+            name = variable[..split];
+            var raw = variable[(split + 1)..];
+            valueJson = IsJson(raw) ? raw : System.Text.Json.JsonSerializer.Serialize(raw);
+        }
+
+        return new InstanceFilter(state, bpmnProcessId, businessKey, startedAfter, startedBefore, name, valueJson, string.Equals(order, "desc", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsJson(string text)
+    {
+        try
+        {
+            using var _ = System.Text.Json.JsonDocument.Parse(text);
+            return true;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
+        }
+    }
+
     private static async Task<IResult> ListAsync(
         ClaimsPrincipal user,
         IInstanceQueries queries,
@@ -78,13 +111,15 @@ public static class InstanceEndpoints
         string? businessKey,
         DateTimeOffset? startedAfter,
         DateTimeOffset? startedBefore,
+        string? variable,
+        string? order,
         int? pageSize,
         string? after,
         CancellationToken cancellationToken)
     {
         var page = await queries.ListInstancesAsync(
             user.TenantId(),
-            new InstanceFilter(state, bpmnProcessId, businessKey, startedAfter, startedBefore),
+            ParseFilter(state, bpmnProcessId, businessKey, startedAfter, startedBefore, variable, order),
             Math.Clamp(pageSize ?? 100, 1, MaxPageSize),
             TryKey(after),
             cancellationToken).ConfigureAwait(false);

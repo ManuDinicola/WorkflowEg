@@ -50,11 +50,11 @@ internal static class FlowdHostBuilder
         return options;
     }
 
-    public static async Task<string> CreateApiKeyAsync(FlowdOptions options, string name, IReadOnlyList<string> roles, string tenant, CancellationToken cancellationToken)
+    public static async Task<string> CreateApiKeyAsync(FlowdOptions options, string name, IReadOnlyList<string> roles, string tenant, IReadOnlyList<string> processes, CancellationToken cancellationToken)
     {
         await using var dataSource = NpgsqlDataSource.Create(options.ConnectionString);
         var key = ApiKeyHasher.NewKey();
-        await new PostgresApiKeyStore(dataSource).CreateAsync(ApiKeyHasher.Hash(key), new ApiKeyInfo(name, roles, tenant), DateTimeOffset.UtcNow, cancellationToken).ConfigureAwait(false);
+        await new PostgresApiKeyStore(dataSource).CreateAsync(ApiKeyHasher.Hash(key), new ApiKeyInfo(name, roles, tenant, processes), DateTimeOffset.UtcNow, cancellationToken).ConfigureAwait(false);
         return key;
     }
 
@@ -89,6 +89,8 @@ internal static class FlowdHostBuilder
         app.MapOperationalEndpoints();
         app.MapDeploymentEndpoints();
         app.MapDecisionEndpoints();
+        app.MapJobStreamEndpoints();
+        app.MapJobSearchEndpoints();
         app.MapFormEndpoints();
         app.MapBatchEndpoints();
         app.MapAuditAndEventEndpoints();
@@ -200,6 +202,7 @@ internal static class FlowdHostBuilder
             new SnowflakeKeyGenerator(sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IOptions<FlowdOptions>>().Value.NodeId));
         services.AddSingleton<IProcessDefinitionStore, PostgresProcessDefinitionStore>();
         services.AddSingleton<IDecisionStore, PostgresDecisionStore>();
+        services.AddSingleton<IJobQueries, PostgresJobQueries>();
         services.AddSingleton<IFormStore, PostgresFormStore>();
         services.AddSingleton<IInstanceMigrationStore, PostgresMigrationStore>();
         services.AddSingleton<IAuditLog, PostgresAuditLog>();

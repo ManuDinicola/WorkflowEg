@@ -75,7 +75,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Update job retries and timeout
 - [x] Incidents and resolve
 - [x] .NET worker SDK
-- [ ] Job streaming (push)
+- [x] Job streaming (push)
 - [x] Worker SDK for TypeScript
 - [ ] Worker SDK for Java
 - [x] Worker SDK for Python
@@ -111,7 +111,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] REST API with OpenAPI document
 - [x] Idempotency keys, rate limit
 - [x] Search / list with paging (basic)
-- [ ] Search with rich filters and sorting on all entities
+- [x] Search with rich filters on instances, jobs, tasks and incidents; newest-first sorting on instances
 - [ ] gRPC API
 - [x] Event stream / export (beyond webhooks)
 - [x] Webhooks with signature (outbox)
@@ -120,7 +120,8 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] API keys and JWT, roles
 - [x] Multi-tenancy
 - [ ] OIDC login flows for UIs
-- [ ] Fine-grained resource permissions
+- [x] Fine-grained permissions: API keys limited to process ids (deploy, start, batch)
+- [ ] Fine-grained permissions on every instance-level read and command
 - [x] Audit log
 
 ## Observability and operations
@@ -142,4 +143,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 86 of 113 = 76 %. Target: 95 % (108 of 113).
+Score (2026-10-24): 89 of 114 = 78 %. Target: 95 % (109 of 114).

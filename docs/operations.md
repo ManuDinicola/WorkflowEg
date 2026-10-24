@@ -81,3 +81,13 @@ Each runs the single-item operation for up to 1000 matches, one by one; one fail
 - `POST /v1/batch/cancel-instances` `{ "bpmnProcessId": "order", "maxItems": 500 }`
 - `POST /v1/batch/resolve-incidents` `{ "processInstanceKey": "...", "maxItems": 500 }` (an incident whose job has no retries left needs `PATCH /v1/jobs/{key}` with retries first)
 - `POST /v1/batch/migrate-instances` `{ "bpmnProcessId": "order", "targetDefinitionKey": "...", "mapping": { } }`
+
+## Job streaming
+Instead of polling, a worker can hold one connection open: `GET /v1/jobs/stream?type=charge-card&worker=w1&timeoutMs=30000&maxJobs=10&fetchVariables=amount,card` answers with server-sent events (`event: job`, `data:` a job as in the activate response; `: keep-alive` comments while idle). Report results with the normal complete / fail / error calls. A job pushed to a connection that dies is handed out again after `timeoutMs`.
+
+## Search
+- `GET /v1/jobs?type=&state=&processInstanceKey=&worker=` finds jobs (for example `state=ACTIVATED` jobs of a stuck worker).
+- `GET /v1/process-instances?variable=customer:acme&order=desc` filters by a root variable (the value is JSON, or text taken as a string) and lists newest first; the usual `state`, `bpmnProcessId`, `businessKey`, `startedAfter`, `startedBefore` still apply.
+
+## Limiting an API key to some processes
+`flowd apikey create --name ci --roles developer --processes order,invoice` (JWT: add `flowd:processes` claims). Such a key can deploy only those process ids, start only those, and run batch operations only on those (batch cancel must name a process). Reading or changing a single instance by key is not restricted by process yet; use tenants for hard separation.

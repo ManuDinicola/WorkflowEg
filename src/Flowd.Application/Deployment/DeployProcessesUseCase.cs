@@ -12,9 +12,14 @@ public sealed class DeployProcessesUseCase(IProcessDefinitionStore store, IStart
 {
     public const int MaxResourceBytes = 2 * 1024 * 1024;
 
+    public Task<Result<IReadOnlyList<DeployedDefinition>>> ExecuteAsync(IReadOnlyList<DeploymentResource> resources, string tenantId, CancellationToken cancellationToken) =>
+        ExecuteAsync(resources, tenantId, null, cancellationToken);
+
+    /// <summary>Like the plain overload, but every process in the resources must be in <paramref name="allowedProcessIds"/> (null: no limit, FR-SEC-006).</summary>
     public async Task<Result<IReadOnlyList<DeployedDefinition>>> ExecuteAsync(
         IReadOnlyList<DeploymentResource> resources,
         string tenantId,
+        IReadOnlySet<string>? allowedProcessIds,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(resources);
@@ -30,6 +35,7 @@ public sealed class DeployProcessesUseCase(IProcessDefinitionStore store, IStart
         foreach (var resource in resources)
         {
             CollectDrafts(resource, tenantId, now, drafts, plans, details);
+            RejectForbidden(resource.Name, drafts, allowedProcessIds, details);
         }
 
         if (details.Count > 0)
@@ -45,6 +51,19 @@ public sealed class DeployProcessesUseCase(IProcessDefinitionStore store, IStart
         }
 
         return deployed;
+    }
+
+    private static void RejectForbidden(string resourceName, List<DefinitionDraft> drafts, IReadOnlySet<string>? allowed, List<FailureDetail> details)
+    {
+        if (allowed is null)
+        {
+            return;
+        }
+
+        foreach (var draft in drafts.Where(d => string.Equals(d.ResourceName, resourceName, StringComparison.Ordinal) && !allowed.Contains(d.BpmnProcessId)))
+        {
+            details.Add(new FailureDetail(resourceName, "PROCESS_NOT_ALLOWED", $"This API key may not deploy process '{draft.BpmnProcessId}'."));
+        }
     }
 
     private void CollectDrafts(DeploymentResource resource, string tenantId, DateTimeOffset now, List<DefinitionDraft> drafts, Dictionary<string, StartTriggerPlan> plans, List<FailureDetail> details)

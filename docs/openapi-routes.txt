@@ -9,6 +9,8 @@ GET /v1/events/stream
 GET /v1/forms
 GET /v1/forms/{formId}
 GET /v1/incidents
+GET /v1/jobs
+GET /v1/jobs/stream
 GET /v1/process-definitions
 GET /v1/process-definitions/{key}
 GET /v1/process-definitions/{key}/xml

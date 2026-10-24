@@ -28,15 +28,20 @@ public sealed class PostgresInstanceQueries(NpgsqlDataSource dataSource) : IInst
         ArgumentNullException.ThrowIfNull(filter);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         var rows = (await connection.QueryAsync<InstanceRow>(new CommandDefinition(
-            $"{InstanceSelect} WHERE p.tenant_id = @tenantId AND p.key > @after " +
+            $"{InstanceSelect} WHERE p.tenant_id = @tenantId AND ((@desc AND p.key < @afterDesc) OR (NOT @desc AND p.key > @after)) " +
+            "AND (@varName::text IS NULL OR EXISTS (SELECT 1 FROM variable v WHERE v.scope_key = p.key AND v.name = @varName AND v.value = @varValue::jsonb)) " +
             "AND (@state::text IS NULL OR p.state = @state) AND (@process::text IS NULL OR d.bpmn_process_id = @process) " +
             "AND (@business::text IS NULL OR p.business_key = @business) " +
             "AND (@from::timestamptz IS NULL OR p.started_at >= @from) AND (@to::timestamptz IS NULL OR p.started_at < @to) " +
-            "ORDER BY p.key LIMIT @take",
+            "ORDER BY CASE WHEN @desc THEN -p.key ELSE p.key END LIMIT @take",
             new
             {
                 tenantId,
                 after = afterKey ?? 0L,
+                afterDesc = afterKey ?? long.MaxValue,
+                desc = filter.Descending,
+                varName = filter.VariableName,
+                varValue = filter.VariableValueJson,
                 state = filter.State?.ToUpperInvariant(),
                 process = filter.BpmnProcessId,
                 business = filter.BusinessKey,
