@@ -8,6 +8,7 @@ using Flowd.Application.Messaging;
 using Flowd.Application.Observability;
 using Flowd.Application.Queries;
 using Flowd.Application.Readiness;
+using Flowd.Application.Retention;
 using Flowd.Application.Security;
 using Flowd.Application.Timers;
 using Flowd.Application.UserTasks;
@@ -198,6 +199,10 @@ internal static class FlowdHostBuilder
         services.AddSingleton<IUserTaskQueries, PostgresUserTaskQueries>();
         services.AddSingleton<IChildInstanceStore, PostgresChildInstanceStore>();
         services.AddSingleton<IApiKeyStore, PostgresApiKeyStore>();
+        services.AddSingleton<IRetentionStore, PostgresRetentionStore>();
+        services.AddOptions<RetentionOptions>().BindConfiguration(RetentionOptions.SectionName);
+        services.AddSingleton<Janitor>();
+        services.AddHostedService(sp => sp.GetRequiredService<Janitor>());
         services.AddSingleton<IIdempotencyStore, PostgresIdempotencyStore>();
         services.AddSingleton<IMigrationRunner>(sp =>
             new PostgresMigrationRunner(sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString));
