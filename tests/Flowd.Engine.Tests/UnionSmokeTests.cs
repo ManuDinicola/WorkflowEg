@@ -1,4 +1,3 @@
-using Flowd.Bpmn.Model;
 using Flowd.Engine.Results;
 
 namespace Flowd.Engine.Tests;
@@ -9,6 +8,12 @@ public sealed record Square(double Side);
 
 public union Shape(Circle, Square);
 
+public closed class Animal;
+
+public sealed class Cat : Animal;
+
+public sealed class Dog : Animal;
+
 /// <summary>T-BOOT-01 (UNI-001): C# 15 unions and closed hierarchies compile and behave as the spec assumes.</summary>
 public sealed class UnionSmokeTests
 {
@@ -18,10 +23,10 @@ public sealed class UnionSmokeTests
         Square s => $"square:{s.Side}",
     };
 
-    private static string Describe(FlowNode node) => node switch
+    private static string Describe(Animal animal) => animal switch
     {
-        StartEvent => "start",
-        EndEvent => "end",
+        Cat => "cat",
+        Dog => "dog",
     };
 
     [Fact]
@@ -44,8 +49,8 @@ public sealed class UnionSmokeTests
     [Fact]
     public void T_BOOT_01_closed_hierarchy_switch_is_exhaustive_without_discard()
     {
-        Describe(new StartEvent { Id = "s" }).ShouldBe("start");
-        Describe(new EndEvent { Id = "e" }).ShouldBe("end");
+        Describe(new Cat()).ShouldBe("cat");
+        Describe(new Dog()).ShouldBe("dog");
     }
 
     [Fact]

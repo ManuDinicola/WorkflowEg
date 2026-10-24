@@ -18,6 +18,7 @@
     <Project Path="src/Flowd.Host/Flowd.Host.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Flowd.Bpmn.Tests/Flowd.Bpmn.Tests.csproj" />
     <Project Path="tests/Flowd.Engine.Tests/Flowd.Engine.Tests.csproj" />
     <Project Path="tests/Flowd.Conformance.Tests/Flowd.Conformance.Tests.csproj" />
     <Project Path="tests/Flowd.Integration.Tests/Flowd.Integration.Tests.csproj" />

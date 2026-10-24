@@ -74,6 +74,11 @@ dotnet_diagnostic.S125.severity = suggestion
 # Marker types and small grouped records are intentional
 dotnet_diagnostic.S2094.severity = none
 dotnet_diagnostic.MA0048.severity = none
+# XML namespace URIs are identifiers, not network calls
+dotnet_diagnostic.S5332.severity = none
+dotnet_diagnostic.S3267.severity = none
+# CA1508 misreads union switch arms as always-true
+dotnet_diagnostic.CA1508.severity = none
 # Compiler-generated union structs do not override Equals
 dotnet_diagnostic.CA1815.severity = none
 
