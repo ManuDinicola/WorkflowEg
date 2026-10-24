@@ -119,6 +119,7 @@ Use subagents for exploration, test runs and independent slices as described in 
 ---
 
 ## Beyond the original spec: Camunda parity and more (added 2026-10-24 at the user's request)
+Progress is tracked by the scorecard `docs/camunda-parity.md` (goal: 95 %).
 One branch and PR per milestone, stacked on the previous one. Each item needs conformance tests and a README/docs update.
 
 ### M8 - BPMN completeness (feat/m8-bpmn-completeness)
