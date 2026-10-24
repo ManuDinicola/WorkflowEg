@@ -220,6 +220,11 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
     public Task<JsonObject?> GetVariablesAsync(string tenantId, long instanceKey, CancellationToken cancellationToken) =>
         Task.FromResult(_instances.TryGetValue(instanceKey, out var s) && s.TenantId == tenantId ? s.Variables.Visible(s.InstanceKey) : null);
 
+    public Task<IReadOnlyList<ElementView>?> ListLiveElementsAsync(string tenantId, long instanceKey, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ElementView>?>(_instances.TryGetValue(instanceKey, out var s) && s.TenantId == tenantId
+            ? [.. s.LiveElements().Select(e => new ElementView(e.Key, e.ElementId, e.ElementType, e.State.ToString().ToUpperInvariant(), e.ScopeKey))]
+            : null);
+
     public Task<HistoryPage> GetHistoryAsync(string tenantId, long instanceKey, int pageSize, long? afterSeq, CancellationToken cancellationToken)
     {
         var entries = HistoryOf(instanceKey).Select((h, i) => new HistoryEntry(i + 1, instanceKey, h.ElementInstanceKey, h.EventType, h.ElementId, h.Payload ?? [], h.OccurredAt));

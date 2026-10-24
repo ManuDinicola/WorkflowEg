@@ -57,3 +57,13 @@ Every mutating API call (POST, PUT, PATCH, DELETE) is recorded with time, caller
 ```
 curl -N -H "X-Api-Key: ..." http://localhost:8080/v1/events/stream
 ```
+
+## Fixing a stuck or wrong instance (modification)
+List what is running: `GET /v1/process-instances/{key}/elements` (element instance keys, element ids, scope).
+Move tokens: `POST /v1/process-instances/{key}/modify` with
+```
+{ "terminateElementInstanceKeys": ["372..."], "activateElementIds": ["Review"], "variables": { "approved": true } }
+```
+The listed element instances are ended (with everything inside them), the listed elements are started in their scope (the process root, or the running sub-process that contains them), and the variables are set on the instance. Boundary events and event sub-processes cannot be activated directly. A finished instance answers 409.
+
+Start somewhere else: `POST /v1/process-instances` with `"startElementId": "Review"` starts a new instance at any element of the process root instead of the start event.

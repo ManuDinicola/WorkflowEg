@@ -23,6 +23,9 @@ public sealed record CancelInstance;
 /// <summary>Sets variables from outside (API-006).</summary>
 public sealed record SetVariables(JsonObject Variables, long? ScopeKey, bool Local);
 
+/// <summary>Operator moves tokens: terminates live element instances and activates elements, optionally setting root variables (FR-OPS-001).</summary>
+public sealed record ModifyInstance(IReadOnlyList<long> TerminateElementInstanceKeys, IReadOnlyList<string> ActivateElementIds, JsonObject? Variables);
+
 /// <summary>Re-executes the step that raised an incident (FR-INC-002).</summary>
 public sealed record ResolveIncident(long IncidentKey);
 
@@ -63,6 +66,7 @@ public union EngineCommand(
     UpdateJobRetries,
     CancelInstance,
     SetVariables,
+    ModifyInstance,
     ResolveIncident,
     TriggerTimer,
     CorrelateMessage,

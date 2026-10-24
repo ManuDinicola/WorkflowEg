@@ -43,7 +43,13 @@ public interface IInstanceQueries
     /// <summary>Root-scope variables of the instance; null when the instance does not exist.</summary>
     Task<JsonObject?> GetVariablesAsync(string tenantId, long instanceKey, CancellationToken cancellationToken);
 
+    /// <summary>The live element instances of the instance; null when the instance does not exist.</summary>
+    Task<IReadOnlyList<ElementView>?> ListLiveElementsAsync(string tenantId, long instanceKey, CancellationToken cancellationToken);
+
     Task<HistoryPage> GetHistoryAsync(string tenantId, long instanceKey, int pageSize, long? afterSeq, CancellationToken cancellationToken);
 
     Task<IncidentPage> ListIncidentsAsync(string tenantId, long? instanceKey, string? state, int pageSize, long? afterKey, CancellationToken cancellationToken);
 }
+
+/// <summary>A running element instance of an instance (a token or an active scope), for operators who modify the instance.</summary>
+public sealed record ElementView(long Key, string ElementId, string ElementType, string State, long ScopeKey);

@@ -104,6 +104,9 @@ public sealed class TestEngine
     public Task<Result<ProcessedCommand>> UpdateRetriesAsync(long jobKey, int retries) =>
         _commands.UpdateJobRetriesAsync(Tenant, new UpdateJobRetries(jobKey, retries), CancellationToken.None);
 
+    public Task<Result<ProcessedCommand>> ModifyAsync(long instanceKey, long[] terminate, string[] activate, JsonObject? variables = null) =>
+        _commands.ModifyAsync(Tenant, instanceKey, new ModifyInstance(terminate, activate, variables), CancellationToken.None);
+
     public Task<Result<ProcessedCommand>> CancelAsync(long instanceKey) =>
         _commands.CancelAsync(Tenant, instanceKey, CancellationToken.None);
 

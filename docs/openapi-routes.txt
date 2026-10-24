@@ -11,6 +11,7 @@ GET /v1/process-definitions/{key}
 GET /v1/process-definitions/{key}/xml
 GET /v1/process-instances
 GET /v1/process-instances/{key}
+GET /v1/process-instances/{key}/elements
 GET /v1/process-instances/{key}/history
 GET /v1/process-instances/{key}/variables
 GET /v1/user-tasks
@@ -26,6 +27,7 @@ POST /v1/jobs/{key}/fail
 POST /v1/messages
 POST /v1/process-instances
 POST /v1/process-instances/{key}/cancel
+POST /v1/process-instances/{key}/modify
 POST /v1/signals
 POST /v1/user-tasks/{key}/assign
 POST /v1/user-tasks/{key}/claim
