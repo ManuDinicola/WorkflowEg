@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="../../BannedSymbols.txt" Link="BannedSymbols.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Flowd.Bpmn/Flowd.Bpmn.csproj" />
+    <ProjectReference Include="../Flowd.Expressions/Flowd.Expressions.csproj" />
+  </ItemGroup>
+</Project>

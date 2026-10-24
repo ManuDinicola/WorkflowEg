@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="dbup-postgresql" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Flowd.Application/Flowd.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../../db/migrations/*.sql" LogicalName="Flowd.Migrations.%(Filename)%(Extension)" />
+    <InternalsVisibleTo Include="Flowd.Integration.Tests" />
+  </ItemGroup>
+</Project>

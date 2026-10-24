@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/Flowd.Engine/Flowd.Engine.csproj" />
+    <ProjectReference Include="../../src/Flowd.Bpmn/Flowd.Bpmn.csproj" />
+  </ItemGroup>
+</Project>
