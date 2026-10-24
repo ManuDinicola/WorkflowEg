@@ -11,6 +11,13 @@ public sealed class IntermediateCatchEventElementHandler : ElementHandler<Interm
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(element);
+        if (element.Definition is LinkEventDefinition)
+        {
+            context.MarkActive(instance); // a link catch event is only entered through its throw event
+            Complete(context, element, instance);
+            return;
+        }
+
         if (context.ActivationFromTrigger)
         {
             context.MarkActive(instance);

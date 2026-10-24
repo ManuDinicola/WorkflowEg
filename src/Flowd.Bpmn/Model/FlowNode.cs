@@ -236,3 +236,9 @@ public sealed class EscalationEventDefinition : EventDefinition
 {
     public string? Code { get; init; }
 }
+
+/// <summary>Link event: a throw event jumps to the catch event of the same <see cref="Name"/> in the same scope (off-page connector).</summary>
+public sealed class LinkEventDefinition : EventDefinition
+{
+    public required string Name { get; init; }
+}

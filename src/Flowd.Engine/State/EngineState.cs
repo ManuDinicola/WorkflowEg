@@ -38,6 +38,20 @@ public sealed class ProcessGraph
         return [.. nodes.OfType<SubProcess>().Where(s => s.IsEventSubProcess)];
     }
 
+    /// <summary>The link catch event named <paramref name="linkName"/> in the same scope as <paramref name="throwId"/>, or null.</summary>
+    public IntermediateCatchEvent? LinkCatch(string throwId, string linkName) =>
+        ScopeOf(Process.Nodes, throwId)?.OfType<IntermediateCatchEvent>().FirstOrDefault(c => c.Definition is LinkEventDefinition l && string.Equals(l.Name, linkName, StringComparison.Ordinal));
+
+    private static IReadOnlyList<FlowNode>? ScopeOf(IReadOnlyList<FlowNode> nodes, string id)
+    {
+        if (nodes.Any(n => string.Equals(n.Id, id, StringComparison.Ordinal)))
+        {
+            return nodes;
+        }
+
+        return nodes.OfType<SubProcess>().Select(s => ScopeOf(s.Nodes, id)).FirstOrDefault(s => s is not null);
+    }
+
     public SequenceFlow Flow(string id) =>
         Process.AllFlows().FirstOrDefault(f => string.Equals(f.Id, id, StringComparison.Ordinal))
         ?? throw new InvalidOperationException($"Unknown flow '{id}'.");

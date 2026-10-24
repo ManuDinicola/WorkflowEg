@@ -118,6 +118,12 @@ public static class Bpmn
     public static string EscalationEnd(string id, string? escalationRef = null) =>
         $"<bpmn:endEvent id=\"{id}\"><bpmn:escalationEventDefinition{(escalationRef is null ? string.Empty : $" escalationRef=\"{escalationRef}\"")}/></bpmn:endEvent>";
 
+    public static string ThrowLink(string id, string name) =>
+        $"<bpmn:intermediateThrowEvent id=\"{id}\"><bpmn:linkEventDefinition name=\"{name}\"/></bpmn:intermediateThrowEvent>";
+
+    public static string CatchLink(string id, string name) =>
+        $"<bpmn:intermediateCatchEvent id=\"{id}\"><bpmn:linkEventDefinition name=\"{name}\"/></bpmn:intermediateCatchEvent>";
+
     public static string ThrowNone(string id) => $"<bpmn:intermediateThrowEvent id=\"{id}\"/>";
 
     public static string ThrowMessage(string id, string jobType) =>
