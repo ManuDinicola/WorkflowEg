@@ -84,6 +84,11 @@ public static class BpmnValidator
     private static void ValidateNode(FlowNode node, BpmnProcess process, List<BpmnIssue> issues)
     {
         var outgoing = process.Flows.Where(f => string.Equals(f.SourceRef, node.Id, StringComparison.Ordinal)).ToList();
+        if (node is ServiceTask task)
+        {
+            ValidateMappings(task, issues);
+        }
+
         switch (node)
         {
             case UnsupportedNode unsupported:
@@ -99,6 +104,21 @@ public static class BpmnValidator
             case ParallelGateway or StartEvent or EndEvent or ManualTask or ServiceTask:
                 RejectConditions(node, outgoing, issues);
                 break;
+        }
+    }
+
+    private static void ValidateMappings(ServiceTask task, List<BpmnIssue> issues)
+    {
+        foreach (var mapping in task.Inputs.Concat(task.Outputs))
+        {
+            if (string.IsNullOrWhiteSpace(mapping.Target) || string.IsNullOrWhiteSpace(mapping.Source))
+            {
+                issues.Add(new BpmnIssue(task.Id, BpmnIssueCodes.InvalidMapping, $"A mapping on '{task.Id}' needs both source and target."));
+            }
+            else if (mapping.Target.StartsWith("_flowd", StringComparison.Ordinal))
+            {
+                issues.Add(new BpmnIssue(task.Id, BpmnIssueCodes.InvalidMapping, $"Mapping target '{mapping.Target}' uses the reserved prefix '_flowd' (FR-VAR-003)."));
+            }
         }
     }
 

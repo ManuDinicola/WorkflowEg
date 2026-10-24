@@ -18,4 +18,6 @@ public static class BpmnIssueCodes
     public const string MissingCondition = "MISSING_CONDITION";
     public const string InvalidDefaultFlow = "INVALID_DEFAULT_FLOW";
     public const string ConditionNotAllowed = "CONDITION_NOT_ALLOWED";
+    public const string InvalidMapping = "INVALID_MAPPING";
+    public const string InvalidExpression = "INVALID_EXPRESSION";
 }

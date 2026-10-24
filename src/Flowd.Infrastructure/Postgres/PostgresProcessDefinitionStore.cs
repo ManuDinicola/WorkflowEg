@@ -35,6 +35,16 @@ public sealed class PostgresProcessDefinitionStore(NpgsqlDataSource dataSource) 
         return (await connection.QuerySingleOrDefaultAsync<Row>(command).ConfigureAwait(false))?.ToInfo();
     }
 
+    public async Task<ProcessDefinitionInfo?> FindAsync(string tenantId, string bpmnProcessId, int? version, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var command = new CommandDefinition(
+            $"SELECT {Columns} FROM process_definition WHERE tenant_id = @tenantId AND bpmn_process_id = @bpmnProcessId AND (@version::int IS NULL OR version = @version) ORDER BY version DESC LIMIT 1",
+            new { tenantId, bpmnProcessId, version },
+            cancellationToken: cancellationToken);
+        return (await connection.QuerySingleOrDefaultAsync<Row>(command).ConfigureAwait(false))?.ToInfo();
+    }
+
     public async Task<byte[]?> GetResourceAsync(string tenantId, long key, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);

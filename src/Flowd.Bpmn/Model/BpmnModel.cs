@@ -22,3 +22,6 @@ public sealed record BpmnInvalid(IReadOnlyList<BpmnIssue> Issues);
 
 /// <summary>Result of reading BPMN XML: a valid model or the full list of issues (CC-008).</summary>
 public union BpmnReadResult(BpmnDefinitions, BpmnInvalid);
+
+/// <summary>One <c>flowd:input</c> or <c>flowd:output</c>: an expression (or literal) and the variable it is written to.</summary>
+public sealed record IoMapping(string Source, string Target);

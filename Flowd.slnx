@@ -22,6 +22,7 @@
     <Project Path="tests/Flowd.Bpmn.Tests/Flowd.Bpmn.Tests.csproj" />
     <Project Path="tests/Flowd.Infrastructure.Tests/Flowd.Infrastructure.Tests.csproj" />
     <Project Path="tests/Flowd.Engine.Tests/Flowd.Engine.Tests.csproj" />
+    <Project Path="tests/Flowd.Expressions.Tests/Flowd.Expressions.Tests.csproj" />
     <Project Path="tests/Flowd.Conformance.Tests/Flowd.Conformance.Tests.csproj" />
     <Project Path="tests/Flowd.Integration.Tests/Flowd.Integration.Tests.csproj" />
     <Project Path="tests/Flowd.Architecture.Tests/Flowd.Architecture.Tests.csproj" />

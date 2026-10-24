@@ -19,7 +19,7 @@ public sealed record PermissionDenied(string Message);
 public sealed record RateLimited(string Message);
 
 /// <summary>Expected failure: a dependency is temporarily unavailable.</summary>
-public sealed record Unavailable(string Message);
+public sealed record Unavailable(string Message, string Code = "UNAVAILABLE");
 
 /// <summary>Closed set of expected failures, mapped to API error codes in exactly one place (UNI-002).</summary>
 public union Failure(ValidationFailure, NotFound, Conflict, PermissionDenied, RateLimited, Unavailable);
