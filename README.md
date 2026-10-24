@@ -59,6 +59,7 @@ To install a release on a Windows Server: extract the zip, then in an elevated P
 It applies the migrations and registers an auto-start service named `Flowd`. Run each engine node with a different `-NodeId`.
 
 ## Docs
+- Decisions (DMN): `docs/dmn.md`.
 - Start here: `docs/overview.md` (what it is, what it is for, how to use it) - `docs/architecture.md` - `docs/bpmn-support.md` - `docs/operations.md` - `docs/benchmarks.md`.
 - Spec index: `docs/spec/00-index.md` - plan: `PLAN.md` - decisions: `DECISIONS.md` - contributing: `docs/contributing.md`.
 - Worker SDK: `Flowd.Worker.Client` (`FlowdClient.Create(...).CreateWorker(type, handler)`), API contract: `docs/openapi-routes.txt`, live document at `/openapi/v1.json`.
