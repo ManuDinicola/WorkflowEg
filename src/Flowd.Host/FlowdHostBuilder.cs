@@ -5,7 +5,12 @@ using Flowd.Application.Jobs;
 using Flowd.Application.Messaging;
 using Flowd.Application.Queries;
 using Flowd.Application.Readiness;
+using Flowd.Api.Security;
+using Flowd.Application.Security;
 using Flowd.Application.Timers;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Flowd.Application.UserTasks;
 using Flowd.Engine.Execution;
 using Flowd.Engine.Handlers;
@@ -34,6 +39,14 @@ internal static class FlowdHostBuilder
         return options;
     }
 
+    public static async Task<string> CreateApiKeyAsync(FlowdOptions options, string name, IReadOnlyList<string> roles, string tenant, CancellationToken cancellationToken)
+    {
+        await using var dataSource = NpgsqlDataSource.Create(options.ConnectionString);
+        var key = ApiKeyHasher.NewKey();
+        await new PostgresApiKeyStore(dataSource).CreateAsync(ApiKeyHasher.Hash(key), new ApiKeyInfo(name, roles, tenant), DateTimeOffset.UtcNow, cancellationToken).ConfigureAwait(false);
+        return key;
+    }
+
     public static IMigrationRunner CreateMigrationRunner(FlowdOptions options) =>
         new PostgresMigrationRunner(options.ConnectionString);
 
@@ -48,8 +61,12 @@ internal static class FlowdHostBuilder
             .ValidateOnStart();
         AddInfrastructure(builder.Services);
         AddApplication(builder.Services);
+        AddSecurity(builder.Services, builder.Configuration);
 
         var app = builder.Build();
+        app.UseProblemStatusCodes();
+        app.UseAuthentication();
+        app.UseAuthorization();
         app.MapOperationalEndpoints();
         app.MapDeploymentEndpoints();
         app.MapInstanceEndpoints();
@@ -57,6 +74,42 @@ internal static class FlowdHostBuilder
         app.MapMessageEndpoints();
         app.MapSignalAndUserTaskEndpoints();
         return app;
+    }
+
+    private static void AddSecurity(IServiceCollection services, ConfigurationManager configuration)
+    {
+        services.AddOptions<AuthOptions>().BindConfiguration(AuthOptions.SectionName);
+        var auth = configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>() ?? new AuthOptions();
+        var jwtConfigured = !string.IsNullOrWhiteSpace(auth.JwtAuthority) || !string.IsNullOrWhiteSpace(auth.JwtSigningKey);
+        var authentication = services
+            .AddAuthentication(options =>
+            {
+                options.DefaultScheme = "Flowd";
+                options.DefaultChallengeScheme = "Flowd";
+            })
+            .AddPolicyScheme("Flowd", "Flowd", options =>
+                options.ForwardDefaultSelector = context =>
+                    jwtConfigured && !context.Request.Headers.ContainsKey(ApiKeyAuthenticationHandler.HeaderName) ? JwtBearerDefaults.AuthenticationScheme : ApiKeyAuthenticationHandler.SchemeName)
+            .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, _ => { });
+        if (jwtConfigured)
+        {
+            authentication.AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
+            {
+                options.Authority = auth.JwtAuthority;
+                options.Audience = auth.JwtAudience;
+                options.MapInboundClaims = false;
+                options.TokenValidationParameters.ValidateAudience = auth.JwtAudience is not null;
+                if (!string.IsNullOrWhiteSpace(auth.JwtSigningKey))
+                {
+                    options.TokenValidationParameters.IssuerSigningKey = new SymmetricSecurityKey(Convert.FromBase64String(auth.JwtSigningKey));
+                    options.TokenValidationParameters.ValidateIssuer = true;
+                    options.TokenValidationParameters.ValidIssuer = auth.JwtIssuer ?? throw new InvalidOperationException("Flowd:Auth:JwtIssuer is required together with JwtSigningKey.");
+                }
+            });
+        }
+
+        services.AddSingleton<IClaimsTransformation, FlowdClaimsTransformation>();
+        services.AddAuthorizationPolicies(auth.Insecure);
     }
 
     private static void AddInfrastructure(IServiceCollection services)
@@ -77,6 +130,7 @@ internal static class FlowdHostBuilder
         services.AddSingleton<ISignalStore, PostgresSignalStore>();
         services.AddSingleton<IUserTaskQueries, PostgresUserTaskQueries>();
         services.AddSingleton<IChildInstanceStore, PostgresChildInstanceStore>();
+        services.AddSingleton<IApiKeyStore, PostgresApiKeyStore>();
         services.AddSingleton<IMigrationRunner>(sp =>
             new PostgresMigrationRunner(sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString));
         services.AddSingleton<IReadinessProbe>(sp =>

@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Flowd.Api.Security;
 using Flowd.Api.Errors;
 using Flowd.Application.Messaging;
 using Flowd.Application.UserTasks;
@@ -13,34 +15,34 @@ namespace Flowd.Api.Endpoints;
 /// <summary>Signals (API-009) and native user tasks (API-011).</summary>
 public static class SignalAndUserTaskEndpoints
 {
-    private const string DefaultTenant = "";
     private const int MaxPageSize = 1000;
 
     public static IEndpointRouteBuilder MapSignalAndUserTaskEndpoints(this IEndpointRouteBuilder routes)
     {
         ArgumentNullException.ThrowIfNull(routes);
-        routes.MapPost("/v1/signals", BroadcastAsync);
+        routes.MapPost("/v1/signals", BroadcastAsync).RequireAuthorization(Policies.Publish);
         var tasks = routes.MapGroup("/v1/user-tasks");
-        tasks.MapGet(string.Empty, ListAsync);
-        tasks.MapPost("/{key}/claim", ClaimAsync);
-        tasks.MapPost("/{key}/unclaim", UnclaimAsync);
-        tasks.MapPost("/{key}/assign", AssignAsync);
-        tasks.MapPost("/{key}/complete", CompleteAsync);
+        tasks.MapGet(string.Empty, ListAsync).RequireAuthorization(Policies.UserTask);
+        tasks.MapPost("/{key}/claim", ClaimAsync).RequireAuthorization(Policies.UserTask);
+        tasks.MapPost("/{key}/unclaim", UnclaimAsync).RequireAuthorization(Policies.UserTask);
+        tasks.MapPost("/{key}/assign", AssignAsync).RequireAuthorization(Policies.UserTask);
+        tasks.MapPost("/{key}/complete", CompleteAsync).RequireAuthorization(Policies.UserTask);
         return routes;
     }
 
-    private static async Task<IResult> BroadcastAsync(BroadcastSignalRequestDto request, ISignalBroadcaster signals, CancellationToken cancellationToken)
+    private static async Task<IResult> BroadcastAsync(ClaimsPrincipal user, BroadcastSignalRequestDto request, ISignalBroadcaster signals, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
         {
             return FailureMapper.ToProblem(new Failure(new ValidationFailure("A signal needs a name.")));
         }
 
-        var triggered = await signals.BroadcastAsync(DefaultTenant, request.Name, request.Variables, cancellationToken).ConfigureAwait(false);
+        var triggered = await signals.BroadcastAsync(user.TenantId(), request.Name, request.Variables, cancellationToken).ConfigureAwait(false);
         return Results.Ok(new BroadcastSignalResponseDto(triggered));
     }
 
     private static async Task<IResult> ListAsync(
+        ClaimsPrincipal user,
         IUserTaskQueries queries,
         string? assignee,
         string? candidateGroup,
@@ -52,7 +54,7 @@ public static class SignalAndUserTaskEndpoints
         CancellationToken cancellationToken)
     {
         var page = await queries.ListAsync(
-            DefaultTenant,
+            user.TenantId(),
             new UserTaskFilter(assignee, candidateGroup, candidateUser, state, InstanceEndpoints.TryKey(processInstanceKey)),
             Math.Clamp(pageSize ?? 100, 1, MaxPageSize),
             InstanceEndpoints.TryKey(after),
@@ -62,15 +64,15 @@ public static class SignalAndUserTaskEndpoints
         return Results.Ok(new PageDto<UserTaskDto>([.. items], page.NextCursor is { } c ? InstanceEndpoints.Id(c) : null));
     }
 
-    private static Task<IResult> ClaimAsync(string key, ClaimUserTaskRequestDto request, UserTaskService tasks, CancellationToken cancellationToken) =>
-        InstanceEndpoints.RunAsync(key, k => tasks.ClaimAsync(DefaultTenant, k, request.User, cancellationToken));
+    private static Task<IResult> ClaimAsync(ClaimsPrincipal user, string key, ClaimUserTaskRequestDto request, UserTaskService tasks, CancellationToken cancellationToken) =>
+        InstanceEndpoints.RunAsync(key, k => tasks.ClaimAsync(user.TenantId(), k, request.User, cancellationToken));
 
-    private static Task<IResult> UnclaimAsync(string key, UserTaskService tasks, CancellationToken cancellationToken) =>
-        InstanceEndpoints.RunAsync(key, k => tasks.UnclaimAsync(DefaultTenant, k, cancellationToken));
+    private static Task<IResult> UnclaimAsync(ClaimsPrincipal user, string key, UserTaskService tasks, CancellationToken cancellationToken) =>
+        InstanceEndpoints.RunAsync(key, k => tasks.UnclaimAsync(user.TenantId(), k, cancellationToken));
 
-    private static Task<IResult> AssignAsync(string key, AssignUserTaskRequestDto request, UserTaskService tasks, CancellationToken cancellationToken) =>
-        InstanceEndpoints.RunAsync(key, k => tasks.AssignAsync(DefaultTenant, k, request.User, cancellationToken));
+    private static Task<IResult> AssignAsync(ClaimsPrincipal user, string key, AssignUserTaskRequestDto request, UserTaskService tasks, CancellationToken cancellationToken) =>
+        InstanceEndpoints.RunAsync(key, k => tasks.AssignAsync(user.TenantId(), k, request.User, cancellationToken));
 
-    private static Task<IResult> CompleteAsync(string key, CompleteUserTaskRequestDto request, UserTaskService tasks, CancellationToken cancellationToken) =>
-        InstanceEndpoints.RunAsync(key, k => tasks.CompleteAsync(DefaultTenant, k, request.Variables, request.User, cancellationToken));
+    private static Task<IResult> CompleteAsync(ClaimsPrincipal user, string key, CompleteUserTaskRequestDto request, UserTaskService tasks, CancellationToken cancellationToken) =>
+        InstanceEndpoints.RunAsync(key, k => tasks.CompleteAsync(user.TenantId(), k, request.Variables, request.User, cancellationToken));
 }
