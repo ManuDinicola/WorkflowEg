@@ -22,7 +22,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Event sub-process: timer, message, signal, error start
 - [x] Escalation throw / end / boundary / event sub-process
 - [ ] Message throw and send task as real message publication
-- [ ] Link events
+- [x] Link events
 - [ ] Conditional events (boundary, catch, start)
 - [ ] Multiple and parallel multiple events
 - [ ] Compensation (events, handlers)
@@ -139,4 +139,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Connector runtime and secrets
 
 ## Current score
-Score when this file was written (2026-10-24): 60 of 110 = 54 %. Target: 105 of 110 (95 %). Recompute with the two grep commands: `grep -c "^- [x]" docs/camunda-parity.md` and `grep -c "^- [[ x]]" docs/camunda-parity.md`.
+Score (2026-10-24): 61 of 110 = 55 %. Target: 105 of 110 (95 %).

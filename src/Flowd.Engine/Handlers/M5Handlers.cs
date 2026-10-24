@@ -55,6 +55,18 @@ public sealed class IntermediateThrowEventElementHandler : ElementHandler<Interm
             return;
         }
 
+        if (element.Definition is LinkEventDefinition link)
+        {
+            context.MarkActive(instance);
+            context.Complete(instance);
+            if (context.State.Graph.LinkCatch(element.Id, link.Name) is { } target)
+            {
+                context.Enqueue(new ActivateElement(target.Id, instance.ScopeKey, null));
+            }
+
+            return;
+        }
+
         if (element.Definition is EscalationEventDefinition escalation)
         {
             context.MarkActive(instance);

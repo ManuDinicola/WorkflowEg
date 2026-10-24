@@ -127,7 +127,7 @@ One branch and PR per milestone, stacked on the previous one. Each item needs co
 |---|---|---|
 | [x] 8.1 | Escalation events (throw, boundary, event sub-process) | like error, but non-fatal when uncaught |
 | [ ] 8.2 | Message throw / send task, intermediate message throw | publishes a message to the correlation store |
-| [ ] 8.3 | Link events, conditional events (boundary, catch, start) | |
+| [~] 8.3 | Link events, conditional events (boundary, catch, start) | |
 | [ ] 8.4 | Terminate end event, multiple/parallel-multiple events, none-end variants | |
 | [ ] 8.5 | Compensation (compensate events, handlers, transactions, cancel) | |
 | [ ] 8.6 | Complex gateway, ad-hoc sub-process | |

@@ -128,6 +128,7 @@ public sealed class BpmnParser
             "endEvent" when HasOnlyEventDefinition(e, "messageEventDefinition") && TaskType(e) is { } endJob => new EndEvent { Id = id, Name = name, MessageJobType = endJob },
             "intermediateThrowEvent" when !HasEventDefinition(e) => new IntermediateThrowEvent { Id = id, Name = name },
             "intermediateThrowEvent" when HasOnlyEventDefinition(e, "messageEventDefinition") && TaskType(e) is { } throwJob => new IntermediateThrowEvent { Id = id, Name = name, JobType = throwJob },
+            "intermediateThrowEvent" when HasOnlyEventDefinition(e, "linkEventDefinition") => new IntermediateThrowEvent { Id = id, Name = name, Definition = ReadLink(e) },
             "intermediateThrowEvent" when HasOnlyEventDefinition(e, "escalationEventDefinition") => new IntermediateThrowEvent { Id = id, Name = name, Definition = ReadEscalation(e) },
             "intermediateThrowEvent" when ReadDefinition(e) is SignalEventDefinition signal => new IntermediateThrowEvent { Id = id, Name = name, Definition = signal },
             "userTask" => ParseUserTask(e, id, name),
@@ -178,6 +179,11 @@ public sealed class BpmnParser
             return _signals.TryGetValue((string?)signal.Attribute("signalRef") ?? string.Empty, out var name) ? new SignalEventDefinition { Name = name } : null;
         }
 
+        if (e.Element(Bpmn + "linkEventDefinition") is not null)
+        {
+            return ReadLink(e);
+        }
+
         if (e.Element(Bpmn + "escalationEventDefinition") is not null)
         {
             return ReadEscalation(e);
@@ -197,6 +203,9 @@ public sealed class BpmnParser
         var reference = (string?)e.Element(Bpmn + "errorEventDefinition")?.Attribute("errorRef");
         return new ErrorEventDefinition { Code = reference is not null && _errors.TryGetValue(reference, out var code) ? code : null };
     }
+
+    private static LinkEventDefinition ReadLink(XElement e) =>
+        new() { Name = (string?)e.Element(Bpmn + "linkEventDefinition")?.Attribute("name") ?? string.Empty };
 
     /// <summary>An escalation definition; without an <c>escalationRef</c> it catches every escalation.</summary>
     private EscalationEventDefinition ReadEscalation(XElement e)

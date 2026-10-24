@@ -70,6 +70,7 @@ public static class BpmnValidator
             issues.Add(new BpmnIssue(scopeId, BpmnIssueCodes.NoStartEvent, $"'{scopeId}' has no (supported) start event."));
         }
 
+        ValidateLinks(nodes, issues);
         var knownIds = nodes.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var node in nodes)
         {
@@ -167,6 +168,24 @@ public static class BpmnValidator
         }
     }
 
+    private static void ValidateLinks(IReadOnlyList<FlowNode> nodes, List<BpmnIssue> issues)
+    {
+        var catches = nodes.OfType<IntermediateCatchEvent>().Select(c => (c.Id, Link: c.Definition as LinkEventDefinition)).Where(c => c.Link is not null).ToList();
+        foreach (var duplicate in catches.GroupBy(c => c.Link!.Name, StringComparer.Ordinal).Where(g => g.Count() > 1))
+        {
+            issues.Add(new BpmnIssue(duplicate.First().Id, BpmnIssueCodes.InvalidEventDefinition, $"Link name '{duplicate.Key}' is used by more than one catch event in the same scope."));
+        }
+
+        foreach (var thrower in nodes.OfType<IntermediateThrowEvent>().Where(t => t.Definition is LinkEventDefinition))
+        {
+            var name = ((LinkEventDefinition)thrower.Definition!).Name;
+            if (!catches.Any(c => string.Equals(c.Link!.Name, name, StringComparison.Ordinal)))
+            {
+                issues.Add(new BpmnIssue(thrower.Id, BpmnIssueCodes.InvalidEventDefinition, $"Link throw event '{thrower.Id}' has no catch event named '{name}' in the same scope."));
+            }
+        }
+    }
+
     private static void ValidateBoundary(BoundaryEvent boundary, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues)
     {
         var attached = nodes.FirstOrDefault(n => string.Equals(n.Id, boundary.AttachedToRef, StringComparison.Ordinal));
@@ -217,6 +236,9 @@ public static class BpmnValidator
                 break;
             case ErrorEventDefinition when !allowError:
                 issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"'{ownerId}' cannot use an error definition (only interrupting boundary events and error end events can)."));
+                break;
+            case LinkEventDefinition { Name: var linkName } when string.IsNullOrWhiteSpace(linkName):
+                issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"The link of '{ownerId}' has no name."));
                 break;
             case EscalationEventDefinition when !allowEscalation:
                 issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"'{ownerId}' cannot use an escalation definition (only boundary events, event sub-process start events, escalation throw and end events can)."));
