@@ -235,6 +235,10 @@ public sealed class UserTaskRecord
 
     public string? DueDate { get; init; }
 
+    public string? FollowUpDate { get; init; }
+
+    public int Priority { get; init; } = 50;
+
     public string? FormKey { get; init; }
 
     public UserTaskState State { get; set; }

@@ -29,6 +29,30 @@ public sealed class PostgresRetentionStore(NpgsqlDataSource dataSource) : IReten
         return new RetentionResult(instances, history, outbox, keys);
     }
 
+    public async Task<DeleteInstanceOutcome> DeleteInstanceAsync(string tenantId, long instanceKey, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var state = await connection.QuerySingleOrDefaultAsync<string>(new CommandDefinition(
+            "SELECT state FROM process_instance WHERE key = @instanceKey AND tenant_id = @tenantId FOR UPDATE",
+            new { instanceKey, tenantId },
+            transaction,
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+        if (state is null)
+        {
+            return DeleteInstanceOutcome.NotFound;
+        }
+
+        if (state is not ("COMPLETED" or "TERMINATED"))
+        {
+            return DeleteInstanceOutcome.StillRunning;
+        }
+
+        await DeleteRowsAsync(connection, transaction, [instanceKey], cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return DeleteInstanceOutcome.Deleted;
+    }
+
     private static async Task<int> PurgeInstancesAsync(NpgsqlConnection connection, DateTimeOffset cutoff, int batch, CancellationToken cancellationToken)
     {
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
@@ -42,13 +66,18 @@ public sealed class PostgresRetentionStore(NpgsqlDataSource dataSource) : IReten
             return 0;
         }
 
+        await DeleteRowsAsync(connection, transaction, keys, cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return keys.Length;
+    }
+
+    private static async Task DeleteRowsAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, long[] keys, CancellationToken cancellationToken)
+    {
         foreach (var table in new[] { "variable", "job", "incident", "user_task", "timer", "message_subscription", "element_instance" })
         {
             await connection.ExecuteAsync(new CommandDefinition($"DELETE FROM {table} WHERE instance_key = ANY(@keys)", new { keys }, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
         }
 
         await connection.ExecuteAsync(new CommandDefinition("DELETE FROM process_instance WHERE key = ANY(@keys)", new { keys }, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-        return keys.Length;
     }
 }

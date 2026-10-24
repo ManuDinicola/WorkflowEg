@@ -4,6 +4,7 @@ using Flowd.Api.Errors;
 using Flowd.Api.Security;
 using Flowd.Application.Execution;
 using Flowd.Application.Queries;
+using Flowd.Application.Retention;
 using Flowd.Contracts.Deployments;
 using Flowd.Contracts.Execution;
 using Flowd.Engine.Commands;
@@ -28,6 +29,7 @@ public static class InstanceEndpoints
         group.MapGet("/process-instances/{key}", GetAsync).RequireAuthorization(Policies.Read);
         group.MapGet("/process-instances/{key}/variables", GetVariablesAsync).RequireAuthorization(Policies.Read);
         group.MapPost("/process-instances/{key}/cancel", CancelAsync).RequireAuthorization(Policies.Operate);
+        group.MapDelete("/process-instances/{key}", DeleteAsync).RequireAuthorization(Policies.Operate);
         group.MapPut("/process-instances/{key}/variables", SetVariablesAsync).RequireAuthorization(Policies.Operate);
         group.MapGet("/process-instances/{key}/history", HistoryAsync).RequireAuthorization(Policies.Read);
         group.MapGet("/incidents", ListIncidentsAsync).RequireAuthorization(Policies.Read);
@@ -83,6 +85,21 @@ public static class InstanceEndpoints
             TryKey(after),
             cancellationToken).ConfigureAwait(false);
         return Results.Ok(new PageDto<InstanceDto>([.. page.Items.Select(ToDto)], page.NextCursor is { } c ? Id(c) : null));
+    }
+
+    private static async Task<IResult> DeleteAsync(ClaimsPrincipal user, string key, IRetentionStore store, CancellationToken cancellationToken)
+    {
+        if (InstanceEndpoints.TryKey(key) is not { } instanceKey)
+        {
+            return FailureMapper.ToProblem(new Failure(new NotFound("Process instance not found.")));
+        }
+
+        return await store.DeleteInstanceAsync(user.TenantId(), instanceKey, cancellationToken).ConfigureAwait(false) switch
+        {
+            DeleteInstanceOutcome.Deleted => Results.NoContent(),
+            DeleteInstanceOutcome.StillRunning => FailureMapper.ToProblem(new Failure(new Conflict("INSTANCE_RUNNING", "Only finished instances can be deleted; cancel it first."))),
+            _ => FailureMapper.ToProblem(new Failure(new NotFound("Process instance not found."))), // non-union: enum
+        };
     }
 
     private static Task<IResult> CancelAsync(ClaimsPrincipal user, string key, InstanceCommandService commands, CancellationToken cancellationToken) =>

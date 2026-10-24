@@ -16,4 +16,15 @@ public sealed record RetentionResult(int Instances, int HistoryEvents, int Outbo
 public interface IRetentionStore
 {
     Task<RetentionResult> PurgeAsync(DateTimeOffset now, RetentionPolicy policy, CancellationToken cancellationToken);
+
+    /// <summary>Deletes one finished instance of the tenant with all its rows (FR-DB-003). Running instances are refused.</summary>
+    Task<DeleteInstanceOutcome> DeleteInstanceAsync(string tenantId, long instanceKey, CancellationToken cancellationToken);
+}
+
+/// <summary>Outcome of deleting one instance on demand.</summary>
+public enum DeleteInstanceOutcome
+{
+    Deleted,
+    NotFound,
+    StillRunning,
 }

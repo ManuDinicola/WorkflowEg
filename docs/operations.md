@@ -10,6 +10,9 @@
 
 The install script has not been tested on a real Windows Server yet; try it on a staging machine first.
 
+## Human tasks
+User tasks carry `dueDate`, `followUpDate` and `priority` (0-100, default 50) in `<flowd:taskSchedule .../>`. `GET /v1/user-tasks` filters by `assignee`, `candidateGroup`, `candidateUser`, `state`, `processInstanceKey`, `minPriority` and `dueBefore`, with paging.
+
 ## Configuration (environment variables or `appsettings.json`, section `Flowd`)
 | Setting | Meaning |
 |---|---|
@@ -34,3 +37,14 @@ Migrations are forward-only. Stop the old version, run `flowd migrate` (or start
 - Instance stuck: `GET /v1/incidents`, fix the cause (variable, worker), then `POST /v1/incidents/{key}/resolve`.
 - 429 responses: the rate limit was reached; clients should back off.
 - 422 `IDEMPOTENCY_KEY_REUSED`: the same `Idempotency-Key` was sent with a different body.
+
+## Backup and restore
+All state is in PostgreSQL. `scripts/backup.ps1` wraps `pg_dump` / `pg_restore` (custom format, compressed):
+```
+.\backup.ps1 -Action Backup  -ConnectionString "Host=localhost;Database=flowd;Username=flowd;Password=..." -File D:\backups\flowd.dump
+.\backup.ps1 -Action Restore -ConnectionString "Host=localhost;Database=flowd_restored;Username=flowd;Password=..." -File D:\backups\flowd.dump
+```
+Pass `-PgBin "C:\Program Files\PostgreSQL\16\bin"` when the PostgreSQL tools are not on the PATH. Restore into an empty database, then start Flowd against it. Test your restore regularly.
+
+## Deleting data on demand
+`DELETE /v1/process-instances/{key}` removes a finished (completed or terminated) instance with its variables, jobs, incidents, user tasks and timers; a running instance answers 409 (cancel it first). The janitor does the same automatically after the retention period.

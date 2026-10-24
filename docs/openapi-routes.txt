@@ -1,3 +1,4 @@
+DELETE /v1/process-instances/{key}
 GET /healthz
 GET /metrics
 GET /readyz

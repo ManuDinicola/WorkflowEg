@@ -14,6 +14,8 @@ public sealed record UserTaskDto(
     IReadOnlyList<string> CandidateGroups,
     IReadOnlyList<string> CandidateUsers,
     string? DueDate,
+    string? FollowUpDate,
+    int Priority,
     string? FormKey,
     string State,
     DateTimeOffset CreatedAt);

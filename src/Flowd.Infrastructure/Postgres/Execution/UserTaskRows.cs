@@ -12,7 +12,7 @@ internal static class UserTaskRows
 {
     private const string Columns =
         "key AS Key, instance_key AS InstanceKey, element_instance_key AS ElementInstanceKey, element_id AS ElementId, assignee AS Assignee, " +
-        "candidate_groups AS CandidateGroups, candidate_users AS CandidateUsers, due_date AS DueDate, form_key AS FormKey, state AS State, " +
+        "candidate_groups AS CandidateGroups, candidate_users AS CandidateUsers, due_date AS DueDate, follow_up_date AS FollowUpDate, priority AS Priority, form_key AS FormKey, state AS State, " +
         "result_variables::text AS ResultVariables, tenant_id AS TenantId, created_at AS CreatedAt";
 
     public static async Task LoadAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, EngineState state, CancellationToken cancellationToken)
@@ -34,6 +34,8 @@ internal static class UserTaskRows
                 CandidateGroups = r.CandidateGroups,
                 CandidateUsers = r.CandidateUsers,
                 DueDate = r.DueDate?.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                FollowUpDate = r.FollowUpDate?.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                Priority = r.Priority,
                 FormKey = r.FormKey,
                 State = Enum.Parse<UserTaskState>(r.State, ignoreCase: true),
                 ResultVariables = r.ResultVariables is null ? null : JsonNode.Parse(r.ResultVariables)!.AsObject(),
@@ -46,8 +48,8 @@ internal static class UserTaskRows
     public static void Write(NpgsqlBatch batch, UserTaskRecord t)
     {
         var command = new NpgsqlBatchCommand(
-            "INSERT INTO user_task (key, instance_key, element_instance_key, element_id, assignee, candidate_groups, candidate_users, due_date, form_key, state, result_variables, tenant_id, created_at) " +
-            "VALUES (@k, @i, @e, @eid, @assignee, @groups, @users, @due, @form, @state, @result, @tenant, @created) " +
+            "INSERT INTO user_task (key, instance_key, element_instance_key, element_id, assignee, candidate_groups, candidate_users, due_date, follow_up_date, priority, form_key, state, result_variables, tenant_id, created_at) " +
+            "VALUES (@k, @i, @e, @eid, @assignee, @groups, @users, @due, @followup, @priority, @form, @state, @result, @tenant, @created) " +
             "ON CONFLICT (key) DO UPDATE SET assignee = EXCLUDED.assignee, state = EXCLUDED.state, result_variables = EXCLUDED.result_variables");
         command.Parameters.Add(new NpgsqlParameter("k", t.Key));
         command.Parameters.Add(new NpgsqlParameter("i", t.InstanceKey));
@@ -57,6 +59,8 @@ internal static class UserTaskRows
         command.Parameters.Add(new NpgsqlParameter("groups", NpgsqlDbType.Array | NpgsqlDbType.Text) { Value = t.CandidateGroups.ToArray() });
         command.Parameters.Add(new NpgsqlParameter("users", NpgsqlDbType.Array | NpgsqlDbType.Text) { Value = t.CandidateUsers.ToArray() });
         command.Parameters.Add(new NpgsqlParameter("due", NpgsqlDbType.TimestampTz) { Value = DateTimeOffset.TryParse(t.DueDate, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var due) ? due.UtcDateTime : DBNull.Value });
+        command.Parameters.Add(new NpgsqlParameter("followup", NpgsqlDbType.TimestampTz) { Value = DateTimeOffset.TryParse(t.FollowUpDate, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var followUp) ? followUp.UtcDateTime : DBNull.Value });
+        command.Parameters.Add(new NpgsqlParameter("priority", t.Priority));
         command.Parameters.Add(new NpgsqlParameter("form", (object?)t.FormKey ?? DBNull.Value));
         command.Parameters.Add(new NpgsqlParameter("state", t.State.ToString().ToUpperInvariant()));
         command.Parameters.Add(new NpgsqlParameter("result", NpgsqlDbType.Jsonb) { Value = t.ResultVariables is null ? DBNull.Value : t.ResultVariables.ToJsonString() });
@@ -83,6 +87,10 @@ internal static class UserTaskRows
 
         public DateTime? DueDate { get; set; }
 
+        public DateTime? FollowUpDate { get; set; }
+
+        public int Priority { get; set; }
+
         public string? FormKey { get; set; }
 
         public string State { get; set; } = string.Empty;
@@ -95,7 +103,7 @@ internal static class UserTaskRows
 
         public UserTaskView ToView() => new(
             Key, InstanceKey, ElementInstanceKey, ElementId, Assignee, CandidateGroups, CandidateUsers,
-            DueDate?.ToString("O", System.Globalization.CultureInfo.InvariantCulture), FormKey, State, PostgresInstanceTransaction.Utc(CreatedAt));
+            DueDate?.ToString("O", System.Globalization.CultureInfo.InvariantCulture), FollowUpDate?.ToString("O", System.Globalization.CultureInfo.InvariantCulture), Priority, FormKey, State, PostgresInstanceTransaction.Utc(CreatedAt));
     }
 
     public const string SelectColumns = Columns;
@@ -112,7 +120,7 @@ public sealed class PostgresUserTaskQueries(NpgsqlDataSource dataSource) : IUser
             $"SELECT {UserTaskRows.SelectColumns} FROM user_task WHERE tenant_id = @tenantId AND key > @after " +
             "AND (@assignee::text IS NULL OR assignee = @assignee) AND (@state::text IS NULL OR state = @state) " +
             "AND (@group::text IS NULL OR @group = ANY (candidate_groups)) AND (@user::text IS NULL OR @user = ANY (candidate_users)) " +
-            "AND (@instance::bigint IS NULL OR instance_key = @instance) ORDER BY key LIMIT @take",
+            "AND (@instance::bigint IS NULL OR instance_key = @instance) AND (@minPriority::int IS NULL OR priority >= @minPriority) AND (@dueBefore::timestamptz IS NULL OR due_date < @dueBefore) ORDER BY key LIMIT @take",
             new
             {
                 tenantId,
@@ -122,6 +130,8 @@ public sealed class PostgresUserTaskQueries(NpgsqlDataSource dataSource) : IUser
                 group = filter.CandidateGroup,
                 user = filter.CandidateUser,
                 instance = filter.InstanceKey,
+                minPriority = filter.MinPriority,
+                dueBefore = filter.DueBefore?.UtcDateTime,
                 take = pageSize + 1,
             },
             cancellationToken: cancellationToken)).ConfigureAwait(false)).ToList();
