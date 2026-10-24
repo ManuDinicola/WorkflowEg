@@ -73,8 +73,18 @@ public sealed class LimitsApiTests(PostgresFixture postgres) : IClassFixture<Pos
         await using var app = await TestApp.StartAsync(postgres);
         using var content = new StringContent("{\"bpmnProcessId\":\"p\",\"variables\":{\"big\":\"" + new string('x', 5 * 1024 * 1024) + "\"}}", Encoding.UTF8, "application/json");
 
-        var response = await app.Client.PostAsync(new Uri("/v1/process-instances", UriKind.Relative), content);
+        // Kestrel either answers 413 or, on some platforms, closes the connection while the client is still sending.
+        var status = HttpStatusCode.RequestEntityTooLarge;
+        try
+        {
+            status = (await app.Client.PostAsync(new Uri("/v1/process-instances", UriKind.Relative), content)).StatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            // connection closed by the server: the request was refused
+        }
 
+        status.ShouldBe(HttpStatusCode.RequestEntityTooLarge);
         response.StatusCode.ShouldBe(HttpStatusCode.RequestEntityTooLarge);
     }
 
