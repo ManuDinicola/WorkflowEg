@@ -108,7 +108,7 @@ public static class BpmnValidator
                 ValidateEventGateway(node, nodes, outgoing, issues);
                 break;
             case StartEvent { Definition: { } startDefinition } start:
-                ValidateDefinition(start.Id, startDefinition, allowCycle: true, requireCorrelation: false, issues, allowError: inEventSubProcess);
+                ValidateDefinition(start.Id, startDefinition, allowCycle: true, requireCorrelation: false, issues, allowError: inEventSubProcess, allowEscalation: inEventSubProcess);
                 RejectConditions(node, outgoing, issues);
                 break;
             case ExclusiveGateway gateway:
@@ -158,7 +158,7 @@ public static class BpmnValidator
                 ValidateThrowEvent(throwEvent, issues);
                 RejectConditions(node, outgoing, issues);
                 break;
-            case EndEvent { Error: not null } or EndEvent { MessageJobType: not null }:
+            case EndEvent { Error: not null } or EndEvent { Escalation: not null } or EndEvent { MessageJobType: not null }:
                 RejectConditions(node, outgoing, issues);
                 break;
             case ParallelGateway or StartEvent or EndEvent or ManualTask:
@@ -180,7 +180,7 @@ public static class BpmnValidator
             issues.Add(new BpmnIssue(boundary.Id, BpmnIssueCodes.InvalidBoundary, $"Boundary event '{boundary.Id}' must not have incoming flows."));
         }
 
-        ValidateDefinition(boundary.Id, boundary.Definition, allowCycle: !boundary.CancelActivity, requireCorrelation: true, issues, allowError: boundary.CancelActivity);
+        ValidateDefinition(boundary.Id, boundary.Definition, allowCycle: !boundary.CancelActivity, requireCorrelation: true, issues, allowError: boundary.CancelActivity, allowEscalation: true);
     }
 
     private static void ValidateEventGateway(FlowNode gateway, IReadOnlyList<FlowNode> nodes, List<SequenceFlow> outgoing, List<BpmnIssue> issues)
@@ -200,7 +200,7 @@ public static class BpmnValidator
         }
     }
 
-    private static void ValidateDefinition(string ownerId, EventDefinition definition, bool allowCycle, bool requireCorrelation, List<BpmnIssue> issues, bool allowError = false)
+    private static void ValidateDefinition(string ownerId, EventDefinition definition, bool allowCycle, bool requireCorrelation, List<BpmnIssue> issues, bool allowError = false, bool allowEscalation = false)
     {
         switch (definition)
         {
@@ -217,6 +217,9 @@ public static class BpmnValidator
                 break;
             case ErrorEventDefinition when !allowError:
                 issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"'{ownerId}' cannot use an error definition (only interrupting boundary events and error end events can)."));
+                break;
+            case EscalationEventDefinition when !allowEscalation:
+                issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"'{ownerId}' cannot use an escalation definition (only boundary events, event sub-process start events, escalation throw and end events can)."));
                 break;
             case SignalEventDefinition { Name: var signalName } when string.IsNullOrWhiteSpace(signalName):
                 issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"The signal of '{ownerId}' has no name."));
@@ -257,7 +260,7 @@ public static class BpmnValidator
         var start = sub.Nodes.OfType<StartEvent>().FirstOrDefault();
         if (start?.Definition is null)
         {
-            issues.Add(new BpmnIssue(sub.Id, BpmnIssueCodes.InvalidEventSubProcess, $"Event sub-process '{sub.Id}' needs a timer, message, signal or error start event."));
+            issues.Add(new BpmnIssue(sub.Id, BpmnIssueCodes.InvalidEventSubProcess, $"Event sub-process '{sub.Id}' needs a timer, message, signal, error or escalation start event."));
         }
         else if (start.Definition is ErrorEventDefinition && !start.IsInterrupting)
         {

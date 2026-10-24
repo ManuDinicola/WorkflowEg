@@ -107,6 +107,17 @@ public static class Bpmn
     public static string ThrowSignal(string id, string signalRef) =>
         $"<bpmn:intermediateThrowEvent id=\"{id}\"><bpmn:signalEventDefinition signalRef=\"{signalRef}\"/></bpmn:intermediateThrowEvent>";
 
+    public static string EscalationDef(string id, string code) => $"<bpmn:escalation id=\"{id}\" name=\"{id}\" escalationCode=\"{code}\"/>";
+
+    public static string BoundaryEscalation(string id, string attachedTo, string? escalationRef = null, bool cancel = true) =>
+        $"<bpmn:boundaryEvent id=\"{id}\" attachedToRef=\"{attachedTo}\" cancelActivity=\"{(cancel ? "true" : "false")}\"><bpmn:escalationEventDefinition{(escalationRef is null ? string.Empty : $" escalationRef=\"{escalationRef}\"")}/></bpmn:boundaryEvent>";
+
+    public static string ThrowEscalation(string id, string? escalationRef = null) =>
+        $"<bpmn:intermediateThrowEvent id=\"{id}\"><bpmn:escalationEventDefinition{(escalationRef is null ? string.Empty : $" escalationRef=\"{escalationRef}\"")}/></bpmn:intermediateThrowEvent>";
+
+    public static string EscalationEnd(string id, string? escalationRef = null) =>
+        $"<bpmn:endEvent id=\"{id}\"><bpmn:escalationEventDefinition{(escalationRef is null ? string.Empty : $" escalationRef=\"{escalationRef}\"")}/></bpmn:endEvent>";
+
     public static string ThrowNone(string id) => $"<bpmn:intermediateThrowEvent id=\"{id}\"/>";
 
     public static string ThrowMessage(string id, string jobType) =>

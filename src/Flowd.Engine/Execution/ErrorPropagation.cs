@@ -25,14 +25,14 @@ public union ErrorHandlerMatch(BoundaryErrorHandler, EventSubProcessErrorHandler
 public static class ErrorPropagation
 {
     /// <summary>Finds the handler for <paramref name="code"/> starting at the throwing element and walking up the scopes.</summary>
-    public static ErrorHandlerMatch Find(StepContext context, ElementInstance thrower, string code)
+    public static ErrorHandlerMatch Find(StepContext context, ElementInstance thrower, string code, bool escalation = false)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(thrower);
         var current = thrower;
         while (true)
         {
-            var boundary = MatchingBoundary(context, current, code);
+            var boundary = MatchingBoundary(context, current, code, escalation);
             if (boundary is not null)
             {
                 return new BoundaryErrorHandler(boundary, current);
@@ -40,7 +40,7 @@ public static class ErrorPropagation
 
             var scopeIsRoot = current.ScopeKey == context.State.InstanceKey;
             var scopeNodeId = scopeIsRoot ? null : context.State.Elements[current.ScopeKey].ElementId;
-            if (MatchingEventSubProcess(context, scopeNodeId, current.ScopeKey, code) is { } esp)
+            if (MatchingEventSubProcess(context, scopeNodeId, current.ScopeKey, code, escalation) is { } esp)
             {
                 return new EventSubProcessErrorHandler(esp, current.ScopeKey);
             }
@@ -75,6 +75,34 @@ public static class ErrorPropagation
         return false;
     }
 
+    /// <summary>
+    /// Raises an escalation (FR-ESC-001). A catching interrupting boundary or event sub-process ends the thrower's work; a
+    /// non-interrupting one runs beside it; an uncaught escalation is ignored. The thrower continues when it is still alive.
+    /// </summary>
+    public static void Escalate(StepContext context, ElementInstance thrower, string code, JsonObject? variables)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        switch (Find(context, thrower, code, escalation: true))
+        {
+            case BoundaryErrorHandler handler:
+                Handle(context, thrower, handler.Activity.ScopeKey, variables, () =>
+                {
+                    if (handler.Boundary.CancelActivity)
+                    {
+                        TriggerCommands.TerminateTree(context, handler.Activity);
+                    }
+
+                    context.Enqueue(new ActivateElement(handler.Boundary.Id, handler.Activity.ScopeKey, null));
+                });
+                break;
+            case EventSubProcessErrorHandler handler:
+                Handle(context, thrower, handler.ScopeKey, variables, () => TriggerCommands.StartEventSubProcess(context, handler.ScopeKey, handler.EventSubProcess));
+                break;
+            case UnhandledError:
+                break;
+        }
+    }
+
     private static bool Handle(StepContext context, ElementInstance thrower, long variableScope, JsonObject? variables, Action start)
     {
         foreach (var (name, value) in variables ?? [])
@@ -102,23 +130,28 @@ public static class ErrorPropagation
         context.Emit(new ChildErrorThrown(parent, parentElement, code));
         return true;
     }
-
-    private static BoundaryEvent? MatchingBoundary(StepContext context, ElementInstance current, string code)
+    private static BoundaryEvent? MatchingBoundary(StepContext context, ElementInstance current, string code, bool escalation)
     {
-        var candidates = context.State.Graph.BoundaryEventsOf(current.ElementId).Where(b => b.Definition is ErrorEventDefinition).ToList();
-        return candidates.FirstOrDefault(b => b.Definition is ErrorEventDefinition { Code: { } c } && string.Equals(c, code, StringComparison.Ordinal))
-            ?? candidates.FirstOrDefault(b => b.Definition is ErrorEventDefinition { Code: null });
+        var candidates = context.State.Graph.BoundaryEventsOf(current.ElementId).Where(b => IsKind(b.Definition, escalation)).ToList();
+        return candidates.FirstOrDefault(b => CodeOf(b.Definition) is { } c && string.Equals(c, code, StringComparison.Ordinal))
+            ?? candidates.FirstOrDefault(b => CodeOf(b.Definition) is null);
     }
 
-    /// <summary>An error event sub-process of the scope that is not already running (so it cannot catch its own errors).</summary>
-    private static SubProcess? MatchingEventSubProcess(StepContext context, string? scopeNodeId, long scopeKey, string code)
+    /// <summary>An event sub-process of the scope that is not already running (so it cannot catch its own errors).</summary>
+    private static SubProcess? MatchingEventSubProcess(StepContext context, string? scopeNodeId, long scopeKey, string code, bool escalation)
     {
         var candidates = context.State.Graph.EventSubProcessesIn(scopeNodeId)
             .Where(esp => !context.State.LiveElements().Any(e => e.ScopeKey == scopeKey && string.Equals(e.ElementId, esp.Id, StringComparison.Ordinal)))
             .Select(esp => (Esp: esp, Start: esp.Nodes.OfType<StartEvent>().First()))
-            .Where(x => x.Start.Definition is ErrorEventDefinition)
+            .Where(x => x.Start.Definition is { } d && IsKind(d, escalation))
             .ToList();
-        return candidates.FirstOrDefault(x => x.Start.Definition is ErrorEventDefinition { Code: { } c } && string.Equals(c, code, StringComparison.Ordinal)).Esp
-            ?? candidates.FirstOrDefault(x => x.Start.Definition is ErrorEventDefinition { Code: null }).Esp;
+        return candidates.FirstOrDefault(x => CodeOf(x.Start.Definition!) is { } c && string.Equals(c, code, StringComparison.Ordinal)).Esp
+            ?? candidates.FirstOrDefault(x => CodeOf(x.Start.Definition!) is null).Esp;
     }
+
+    private static bool IsKind(EventDefinition definition, bool escalation) =>
+        escalation ? definition is EscalationEventDefinition : definition is ErrorEventDefinition;
+
+    private static string? CodeOf(EventDefinition definition) =>
+        definition is ErrorEventDefinition error ? error.Code : (definition as EscalationEventDefinition)?.Code;
 }
