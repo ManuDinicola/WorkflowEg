@@ -1,6 +1,7 @@
 GET /healthz
 GET /metrics
 GET /readyz
+GET /v1/decisions
 GET /v1/incidents
 GET /v1/process-definitions
 GET /v1/process-definitions/{key}
@@ -11,6 +12,8 @@ GET /v1/process-instances/{key}/history
 GET /v1/process-instances/{key}/variables
 GET /v1/user-tasks
 PATCH /v1/jobs/{key}
+POST /v1/decisions
+POST /v1/decisions/{decisionId}/evaluate
 POST /v1/deployments
 POST /v1/incidents/{key}/resolve
 POST /v1/jobs/activate

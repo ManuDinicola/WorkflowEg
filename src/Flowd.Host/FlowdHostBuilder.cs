@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using Flowd.Api.Endpoints;
 using Flowd.Api.Security;
+using Flowd.Application.Decisions;
 using Flowd.Application.Deployment;
 using Flowd.Application.Execution;
 using Flowd.Application.Jobs;
@@ -82,6 +83,7 @@ internal static class FlowdHostBuilder
         app.MapOpenApi().AllowAnonymous();
         app.MapOperationalEndpoints();
         app.MapDeploymentEndpoints();
+        app.MapDecisionEndpoints();
         app.MapInstanceEndpoints();
         app.MapJobEndpoints();
         app.MapMessageEndpoints();
@@ -189,6 +191,7 @@ internal static class FlowdHostBuilder
         services.AddSingleton<IKeyGenerator>(sp =>
             new SnowflakeKeyGenerator(sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IOptions<FlowdOptions>>().Value.NodeId));
         services.AddSingleton<IProcessDefinitionStore, PostgresProcessDefinitionStore>();
+        services.AddSingleton<IDecisionStore, PostgresDecisionStore>();
         services.AddSingleton<IProcessModelProvider, ProcessModelProvider>();
         services.AddSingleton<IInstanceTransactionFactory, PostgresInstanceTransactionFactory>();
         services.AddSingleton<IInstanceLookup, PostgresInstanceLookup>();
@@ -224,6 +227,8 @@ internal static class FlowdHostBuilder
         services.AddSingleton(new Interpreter(ElementHandlerRegistry.CreateDefault()));
         services.AddSingleton<EngineServices>();
         services.AddSingleton<DeployProcessesUseCase>();
+        services.AddSingleton<DeployDecisionsUseCase>();
+        services.AddSingleton<EvaluateDecisionUseCase>();
         services.AddSingleton<StartInstanceUseCase>();
         services.AddSingleton<CommandProcessor>();
         services.AddSingleton<InstanceCommandService>();

@@ -61,10 +61,10 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Execution listeners
 
 ## Decisions (DMN)
-- [ ] Decision tables with all hit policies
-- [ ] Literal expression decisions
+- [x] Decision tables with all hit policies
+- [x] Literal expression decisions
 - [ ] Decision requirements graph
-- [ ] Deploy and evaluate decisions through the API
+- [x] Deploy and evaluate decisions through the API
 - [ ] Business rule task calling a decision
 
 ## Jobs and workers
@@ -140,4 +140,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 63 of 111 = 56 %. Target: 95 % (106 of 111).
+Score (2026-10-24): 66 of 111 = 59 %. Target: 95 % (106 of 111).
