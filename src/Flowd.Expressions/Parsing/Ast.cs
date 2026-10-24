@@ -87,3 +87,15 @@ internal sealed class InExpr(Expr value, Expr collection) : Expr
 
     public Expr Collection { get; } = collection;
 }
+
+/// <summary><c>some x in list satisfies cond</c>, <c>every x in list satisfies cond</c> or <c>for x in list return expr</c>.</summary>
+internal sealed class QuantifiedExpr(string kind, string variable, Expr source, Expr body) : Expr
+{
+    public string Kind { get; } = kind;
+
+    public string Variable { get; } = variable;
+
+    public Expr Source { get; } = source;
+
+    public Expr Body { get; } = body;
+}

@@ -53,7 +53,8 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] FEEL: literals, arithmetic, comparison, boolean logic
 - [x] FEEL: strings, lists, contexts (subset)
 - [x] FEEL: date, time, duration (subset)
-- [ ] FEEL: ranges, filters, path expressions, for / some / every
+- [x] FEEL: filters, path expressions, for / some / every
+- [ ] FEEL: ranges and unary tests
 - [ ] FEEL: full built-in function library
 - [ ] FEEL: user defined functions
 - [ ] Variable and message payload size limits and truncation rules
@@ -139,4 +140,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 62 of 110 = 56 %. Target: 105 of 110 (95 %).
+Score (2026-10-24): 63 of 111 = 56 %. Target: 95 % (106 of 111).
