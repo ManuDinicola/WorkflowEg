@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>flowd</AssemblyName>
+    <RootNamespace>Flowd.Host</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Flowd.Architecture.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Flowd.Api\Flowd.Api.csproj" />
+    <ProjectReference Include="..\Flowd.Infrastructure\Flowd.Infrastructure.csproj" />
+    <ProjectReference Include="..\Flowd.Application\Flowd.Application.csproj" />
+  </ItemGroup>
+</Project>

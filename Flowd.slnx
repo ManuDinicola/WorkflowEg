@@ -4,5 +4,23 @@
     <File Path="Directory.Packages.props" />
     <File Path="global.json" />
     <File Path=".editorconfig" />
+    <File Path="BannedSymbols.txt" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Flowd.Bpmn/Flowd.Bpmn.csproj" />
+    <Project Path="src/Flowd.Expressions/Flowd.Expressions.csproj" />
+    <Project Path="src/Flowd.Engine/Flowd.Engine.csproj" />
+    <Project Path="src/Flowd.Application/Flowd.Application.csproj" />
+    <Project Path="src/Flowd.Contracts/Flowd.Contracts.csproj" />
+    <Project Path="src/Flowd.Infrastructure/Flowd.Infrastructure.csproj" />
+    <Project Path="src/Flowd.Api/Flowd.Api.csproj" />
+    <Project Path="src/Flowd.Worker.Client/Flowd.Worker.Client.csproj" />
+    <Project Path="src/Flowd.Host/Flowd.Host.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Flowd.Engine.Tests/Flowd.Engine.Tests.csproj" />
+    <Project Path="tests/Flowd.Conformance.Tests/Flowd.Conformance.Tests.csproj" />
+    <Project Path="tests/Flowd.Integration.Tests/Flowd.Integration.Tests.csproj" />
+    <Project Path="tests/Flowd.Architecture.Tests/Flowd.Architecture.Tests.csproj" />
   </Folder>
 </Solution>

@@ -26,8 +26,8 @@ The rows below are the commit checklist inside each milestone branch (branch col
 | # | Slice | Requirement IDs | Tests | Branch | Size | Depends on | Executor |
 |---|---|---|---|---|---|---|---|
 | [x] 0.1 | `git init -b main`, first commit (`.gitignore`, README, LICENSE); split spec into `docs/spec/` + index; create `PLAN.md`, `CLAUDE.md`, `DECISIONS.md`, `PROGRESS.md` | GIT-001a, PLAN-006 | none (docs) | `chore/m0-bootstrap-spec-split` | S | — | main |
-| [ ] 0.2 | `Flowd.slnx`, `global.json` (RC SDK, rollForward latestFeature), `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`, analyzers | §2.1, CC-010, CC-011 | `dotnet build -warnaserror` green | `chore/m0-solution-scaffold` | M | 0.1 | impl-worker |
-| [ ] 0.3 | Project skeleton (Section 2.4), architecture tests, union + closed-hierarchy smoke test | ARC-001, UNI-001..003 | T-BOOT-01, architecture tests | `feat/m0-project-skeleton` | M | 0.2 | impl-worker |
+| [x] 0.2 | `Flowd.slnx`, `global.json` (RC SDK, rollForward latestFeature), `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`, analyzers | §2.1, CC-010, CC-011 | `dotnet build -warnaserror` green | `chore/m0-solution-scaffold` | M | 0.1 | impl-worker |
+| [x] 0.3 | Project skeleton (Section 2.4), architecture tests, union + closed-hierarchy smoke test | ARC-001, UNI-001..003 | T-BOOT-01, architecture tests | `feat/m0-project-skeleton` | M | 0.2 | impl-worker |
 | [ ] 0.4 | Makefile gate targets, CI workflow, Dockerfile, docker-compose | §21.3, CI-001..004 | `make ci` green locally and in CI | `chore/m0-ci-docker` | M | 0.3 | impl-worker |
 | [ ] 0.5 | DbUp runner, `flowd migrate`, `/healthz`, `/readyz` | FR-DB-001, API-013 | integration: migrate creates schema; health 200 | `feat/m0-migrations-health` | M | 0.4 | impl-worker |
 

@@ -1,6 +1,7 @@
 <Project>
   <ItemGroup>
     <!-- Analyzers -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" />
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.1" />
     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.316" />
     <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.35.0.4138" />

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="NetArchTest.Rules" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Flowd.Bpmn/Flowd.Bpmn.csproj" />
+    <ProjectReference Include="../../src/Flowd.Expressions/Flowd.Expressions.csproj" />
+    <ProjectReference Include="../../src/Flowd.Engine/Flowd.Engine.csproj" />
+    <ProjectReference Include="../../src/Flowd.Application/Flowd.Application.csproj" />
+    <ProjectReference Include="../../src/Flowd.Contracts/Flowd.Contracts.csproj" />
+    <ProjectReference Include="../../src/Flowd.Infrastructure/Flowd.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Flowd.Api/Flowd.Api.csproj" />
+    <ProjectReference Include="../../src/Flowd.Worker.Client/Flowd.Worker.Client.csproj" />
+    <ProjectReference Include="../../src/Flowd.Host/Flowd.Host.csproj" />
+  </ItemGroup>
+</Project>

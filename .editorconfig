@@ -58,6 +58,12 @@ dotnet_diagnostic.MA0004.severity = none
 dotnet_diagnostic.S1075.severity = none
 dotnet_diagnostic.S125.severity = suggestion
 
+# Marker types and small grouped records are intentional
+dotnet_diagnostic.S2094.severity = none
+dotnet_diagnostic.MA0048.severity = none
+# Compiler-generated union structs do not override Equals
+dotnet_diagnostic.CA1815.severity = none
+
 [tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1515.severity = none
@@ -65,3 +71,6 @@ dotnet_diagnostic.CA1861.severity = none
 dotnet_diagnostic.MA0051.severity = none
 dotnet_diagnostic.S2699.severity = none
 dotnet_diagnostic.S3881.severity = none
+dotnet_diagnostic.xUnit1051.severity = none
+dotnet_diagnostic.MA0006.severity = none
+dotnet_diagnostic.MA0002.severity = none
