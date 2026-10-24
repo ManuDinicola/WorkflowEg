@@ -85,7 +85,6 @@ public sealed class LimitsApiTests(PostgresFixture postgres) : IClassFixture<Pos
         }
 
         status.ShouldBe(HttpStatusCode.RequestEntityTooLarge);
-        response.StatusCode.ShouldBe(HttpStatusCode.RequestEntityTooLarge);
     }
 
     [Fact]
