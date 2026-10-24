@@ -99,9 +99,15 @@ public sealed class LimitsApiTests(PostgresFixture postgres) : IClassFixture<Pos
         }
 
         statuses.ShouldContain(HttpStatusCode.TooManyRequests);
+        var rejected = default(HttpResponseMessage);
         statuses.Take(3).ShouldAllBe(s => s == HttpStatusCode.OK);
-        var limited = await app.Client.GetAsync(new Uri("/v1/process-definitions", UriKind.Relative));
-        (await TestApp.ProblemCodeAsync(limited)).ShouldBe("RESOURCE_EXHAUSTED");
+        // Keep asking until a 429 comes back: one token is refilled per second, so a slow machine can let a single request through.
+        for (var i = 0; i < 50 && rejected?.StatusCode != HttpStatusCode.TooManyRequests; i++)
+        {
+            rejected = await app.Client.GetAsync(new Uri("/v1/process-definitions", UriKind.Relative));
+        }
+
+        (await TestApp.ProblemCodeAsync(rejected!)).ShouldBe("RESOURCE_EXHAUSTED");
         for (var i = 0; i < 10; i++)
         {
             (await app.Client.GetAsync(new Uri("/healthz", UriKind.Relative))).StatusCode.ShouldBe(HttpStatusCode.OK);

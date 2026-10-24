@@ -5,11 +5,13 @@ using Flowd.Expressions.Values;
 namespace Flowd.Expressions.Evaluation;
 
 /// <summary>The built-in function library (section 8.2). Functions are pure; <c>now()</c> reads the injected instant.</summary>
+internal delegate ExpressionValue BuiltinFunction(IReadOnlyList<ExpressionValue> args, DateTimeOffset now);
+
 internal static class Builtins
 {
-    private delegate ExpressionValue Function(IReadOnlyList<ExpressionValue> args, DateTimeOffset now);
 
-    private static readonly Dictionary<string, Function> Table = new(StringComparer.Ordinal)
+
+    private static readonly Dictionary<string, BuiltinFunction> CoreTable = new(StringComparer.Ordinal)
     {
         ["count"] = (a, _) => (decimal)List(a, 0).Count,
         ["sum"] = (a, _) => Numbers(a).Aggregate(0m, (x, y) => x + y),
@@ -36,6 +38,8 @@ internal static class Builtins
         ["is defined"] = (a, _) => Arg(a, 0) is not NullValue,
     };
 
+    private static readonly Dictionary<string, BuiltinFunction> Table = CoreTable.Concat(ExtendedBuiltins.All).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
+
     public static bool Exists(string name) => Table.ContainsKey(name);
 
     public static ExpressionValue Call(string name, IReadOnlyList<ExpressionValue> args, DateTimeOffset now) =>
@@ -55,20 +59,20 @@ internal static class Builtins
         ContextValue c => "{" + string.Join(", ", c.Entries.Select(e => $"{e.Key}: {ToText(e.Value)}")) + "}",
     };
 
-    private static ExpressionValue Arg(IReadOnlyList<ExpressionValue> args, int index) =>
+    internal static ExpressionValue Arg(IReadOnlyList<ExpressionValue> args, int index) =>
         index < args.Count ? args[index] : throw TypeError($"Missing argument {index + 1}.");
 
-    private static string Text(IReadOnlyList<ExpressionValue> args, int index) =>
+    internal static string Text(IReadOnlyList<ExpressionValue> args, int index) =>
         Arg(args, index) is string s ? s : throw TypeError($"Argument {index + 1} must be a string.");
 
-    private static decimal Number(IReadOnlyList<ExpressionValue> args, int index) =>
+    internal static decimal Number(IReadOnlyList<ExpressionValue> args, int index) =>
         Arg(args, index) is decimal d ? d : throw TypeError($"Argument {index + 1} must be a number.");
 
-    private static IReadOnlyList<ExpressionValue> List(IReadOnlyList<ExpressionValue> args, int index) =>
+    internal static IReadOnlyList<ExpressionValue> List(IReadOnlyList<ExpressionValue> args, int index) =>
         Arg(args, index) is ListValue l ? l.Items : throw TypeError($"Argument {index + 1} must be a list.");
 
     /// <summary>Numbers of a single list argument, or of all arguments when called with several numbers.</summary>
-    private static List<decimal> Numbers(IReadOnlyList<ExpressionValue> args)
+    internal static List<decimal> Numbers(IReadOnlyList<ExpressionValue> args)
     {
         var source = args is [ListValue only] ? only.Items : args;
         return [.. source.Select(v => v is decimal d ? d : throw TypeError("Expected numbers."))];
@@ -106,5 +110,5 @@ internal static class Builtins
         }
     }
 
-    private static EvaluationFailure TypeError(string message) => new(ExpressionErrorCodes.Type, message);
+    internal static EvaluationFailure TypeError(string message) => new(ExpressionErrorCodes.Type, message);
 }
