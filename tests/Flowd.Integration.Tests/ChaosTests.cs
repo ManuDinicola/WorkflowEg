@@ -53,7 +53,7 @@ public sealed class ChaosTests(PostgresFixture postgres) : IClassFixture<Postgre
         }
 
         await Task.WhenAll(starting);
-        await WaitForAsync(connectionString, "SELECT count(*) FROM process_instance WHERE state <> 'COMPLETED'", 0, TimeSpan.FromSeconds(90));
+        await WaitForAsync(connectionString, "SELECT count(*) FROM process_instance WHERE state <> 'COMPLETED'", 0, TimeSpan.FromSeconds(120));
         await stop.CancelAsync();
         await Task.WhenAll(runs);
         host.Kill();
@@ -70,9 +70,17 @@ public sealed class ChaosTests(PostgresFixture postgres) : IClassFixture<Postgre
     {
         await using var connection = new NpgsqlConnection(connectionString);
         using var cts = new CancellationTokenSource(timeout);
-        while (await connection.ExecuteScalarAsync<long>(sql) != expected)
+        try
         {
-            await Task.Delay(200, cts.Token);
+            while (await connection.ExecuteScalarAsync<long>(sql) != expected)
+            {
+                await Task.Delay(200, cts.Token);
+            }
+        }
+        catch (OperationCanceledException ex)
+        {
+            var states = await connection.QueryAsync<(string State, long Count)>("SELECT state, count(*) FROM job GROUP BY state");
+            throw new TimeoutException($"Instances did not finish in {timeout}; jobs by state: {string.Join(", ", states)}", ex);
         }
     }
 

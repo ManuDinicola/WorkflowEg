@@ -64,7 +64,7 @@ public sealed class JobWorker(FlowdClient client, string type, Func<WorkerJob, C
             {
                 break;
             }
-            catch (HttpRequestException)
+            catch (Exception ex) when (IsTransportFailure(ex))
             {
                 failures++;
                 await DelayAsync(Backoff(failures), stoppingToken).ConfigureAwait(false);
@@ -74,6 +74,10 @@ public sealed class JobWorker(FlowdClient client, string type, Func<WorkerJob, C
         await Task.WhenAll(running).ConfigureAwait(false); // graceful shutdown: let in-flight handlers report
         slots.Dispose();
     }
+
+    /// <summary>Anything a dropped connection, a restarting host or a client timeout can throw; the worker backs off and tries again.</summary>
+    private static bool IsTransportFailure(Exception ex) =>
+        ex is HttpRequestException or IOException or TaskCanceledException or System.Text.Json.JsonException;
 
     private TimeSpan Backoff(int failures)
     {
@@ -133,8 +137,13 @@ public sealed class JobWorker(FlowdClient client, string type, Func<WorkerJob, C
                 await client.ReportAsync(job, result, options.WorkerName, CancellationToken.None).ConfigureAwait(false);
                 return;
             }
-            catch (HttpRequestException) when (++attempt < 5)
+            catch (Exception ex) when (IsTransportFailure(ex))
             {
+                if (++attempt >= 5)
+                {
+                    return; // give up: the job deadline hands it to another delivery (at-least-once)
+                }
+
                 await DelayAsync(Backoff(attempt), CancellationToken.None).ConfigureAwait(false);
             }
         }
