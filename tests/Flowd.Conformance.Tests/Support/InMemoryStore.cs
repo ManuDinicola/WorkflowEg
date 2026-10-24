@@ -3,7 +3,9 @@ using System.Text.Json.Nodes;
 using Flowd.Application.Deployment;
 using Flowd.Application.Execution;
 using Flowd.Application.Jobs;
+using Flowd.Application.Messaging;
 using Flowd.Application.Queries;
+using Flowd.Application.Timers;
 using Flowd.Engine.Effects;
 using Flowd.Engine.Keys;
 using Flowd.Engine.State;
@@ -22,11 +24,16 @@ public sealed class SequentialKeys : IKeyGenerator
 /// In-memory implementation of every storage port, so the real Application pipeline and Interpreter run without a database
 /// (section 22: "in-memory store + FakeTimeProvider").
 /// </summary>
-public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactionFactory, IInstanceLookup, IJobQueue, IInstanceQueries
+public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactionFactory, IInstanceLookup, IJobQueue, IInstanceQueries, ITimerQueue, IStartTriggerStore, IMessageStore
 {
     private readonly Dictionary<long, (ProcessDefinitionInfo Info, byte[] Xml, byte[] Checksum)> _definitions = [];
     private readonly Dictionary<long, EngineState> _instances = [];
     private readonly Dictionary<long, List<HistoryAppended>> _history = [];
+    private readonly List<StartTimerRow> _startTimers = [];
+    private readonly List<SubscriptionRecord> _startMessages = [];
+    private readonly Dictionary<long, DateTimeOffset> _leases = [];
+    private readonly List<BufferedMessage> _buffered = [];
+    private readonly HashSet<(long Message, long Definition)> _correlations = [];
 
     public IReadOnlyDictionary<long, EngineState> Instances => _instances;
 
@@ -97,6 +104,14 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
         {
             _working = state;
             _pendingHistory.AddRange(effects.Select(e => e is HistoryAppended h ? h : null).OfType<HistoryAppended>());
+            foreach (var correlated in effects.Select(e => e is MessageCorrelated m ? m : null).OfType<MessageCorrelated>())
+            {
+                if (!store._correlations.Add((correlated.MessageKey, correlated.DefinitionKey)))
+                {
+                    throw new CorrelationConflictException("already correlated");
+                }
+            }
+
             return Task.CompletedTask;
         }
 
@@ -223,4 +238,114 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
         var info = _definitions[s.DefinitionKey].Info;
         return new InstanceView(s.InstanceKey, s.DefinitionKey, info.BpmnProcessId, info.Version, s.State.ToString().ToUpperInvariant(), s.StartedAt, s.EndedAt, s.BusinessKey);
     }
+
+    // ---- timers and start triggers ------------------------------------------------------------------------------
+
+    private sealed class StartTimerRow
+    {
+        public required long Key { get; init; }
+
+        public required string TenantId { get; init; }
+
+        public required string ProcessId { get; init; }
+
+        public required long DefinitionKey { get; init; }
+
+        public required string ElementId { get; init; }
+
+        public DateTimeOffset? DueAt { get; set; }
+
+        public int? Repetitions { get; set; }
+
+        public TimeSpan? Interval { get; init; }
+    }
+
+    public Task ReplaceAsync(string tenantId, string bpmnProcessId, long definitionKey, IReadOnlyList<StartTimerDraft> timers, IReadOnlyList<StartMessageDraft> messages, CancellationToken cancellationToken)
+    {
+        _startTimers.RemoveAll(t => t.TenantId == tenantId && t.ProcessId == bpmnProcessId);
+        _startMessages.RemoveAll(m => m.TenantId == tenantId && m.CorrelationKey == bpmnProcessId);
+        _startTimers.AddRange(timers.Select(t => new StartTimerRow
+        {
+            Key = t.Key,
+            TenantId = tenantId,
+            ProcessId = bpmnProcessId,
+            DefinitionKey = definitionKey,
+            ElementId = t.ElementId,
+            DueAt = t.DueAt,
+            Repetitions = t.Repetitions,
+            Interval = t.Interval,
+        }));
+        _startMessages.AddRange(messages.Select(m => new SubscriptionRecord
+        {
+            Key = m.Key,
+            DefinitionKey = definitionKey,
+            ElementId = m.ElementId,
+            Kind = TriggerKind.Start,
+            MessageName = m.MessageName,
+            CorrelationKey = bpmnProcessId,
+            TenantId = tenantId,
+        }));
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<TimerLease>> LeaseDueAsync(DateTimeOffset now, int limit, TimeSpan leaseFor, CancellationToken cancellationToken)
+    {
+        bool Free(long key) => !_leases.TryGetValue(key, out var until) || until <= now;
+        var instanceTimers = _instances.Values.SelectMany(i => i.Timers.Values.Where(t => t.IsActive && t.DueAt <= now && Free(t.Key)).Select(t =>
+            new TimerLease(t.Key, i.InstanceKey, i.DefinitionKey, t.ElementId, i.TenantId, t.Kind, t.DueAt, t.Repetitions, t.Interval)));
+        var startTimers = _startTimers.Where(t => t.DueAt is { } due && due <= now && Free(t.Key)).Select(t =>
+            new TimerLease(t.Key, null, t.DefinitionKey, t.ElementId, t.TenantId, TriggerKind.Start, t.DueAt!.Value, t.Repetitions, t.Interval));
+        var leases = instanceTimers.Concat(startTimers).OrderBy(l => l.DueAt).ThenBy(l => l.Key).Take(limit).ToList();
+        foreach (var lease in leases)
+        {
+            _leases[lease.Key] = now + leaseFor;
+        }
+
+        return Task.FromResult<IReadOnlyList<TimerLease>>(leases);
+    }
+
+    public Task AdvanceStartTimerAsync(long timerKey, DateTimeOffset? nextDue, int? repetitions, CancellationToken cancellationToken)
+    {
+        var row = _startTimers.First(t => t.Key == timerKey);
+        row.DueAt = nextDue;
+        row.Repetitions = repetitions;
+        _leases.Remove(timerKey);
+        return Task.CompletedTask;
+    }
+
+    public IReadOnlyList<long> StartTimerDefinitions() => [.. _startTimers.Where(t => t.DueAt is not null).Select(t => t.DefinitionKey)];
+
+    // ---- messages -------------------------------------------------------------------------------------------------
+
+    public Task<bool> TryBufferAsync(BufferedMessage message, CancellationToken cancellationToken)
+    {
+        if (message.MessageId is not null && _buffered.Any(m => m.TenantId == message.TenantId && m.Name == message.Name && m.CorrelationKey == message.CorrelationKey && m.MessageId == message.MessageId))
+        {
+            return Task.FromResult(false);
+        }
+
+        _buffered.Add(message);
+        return Task.FromResult(true);
+    }
+
+    public Task<IReadOnlyList<SubscriptionRecord>> FindSubscriptionsAsync(string tenantId, string name, string correlationKey, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<SubscriptionRecord>>([.. _instances.Values
+            .Where(i => i.TenantId == tenantId && i.State == InstanceState.Active)
+            .SelectMany(i => i.Subscriptions.Values)
+            .Where(s => s.MessageName == name && s.CorrelationKey == correlationKey)
+            .OrderBy(s => s.Key)]);
+
+    public Task<IReadOnlyList<SubscriptionRecord>> FindStartSubscriptionsAsync(string tenantId, string name, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<SubscriptionRecord>>([.. _startMessages.Where(m => m.TenantId == tenantId && m.MessageName == name)]);
+
+    public Task<IReadOnlyList<BufferedMessage>> FindBufferedAsync(string tenantId, string name, string correlationKey, DateTimeOffset now, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<BufferedMessage>>([.. _buffered.Where(m => m.TenantId == tenantId && m.Name == name && m.CorrelationKey == correlationKey && m.ExpiresAt > now).OrderBy(m => m.CreatedAt).ThenBy(m => m.Key)]);
+
+    public Task<bool> IsCorrelatedAsync(long messageKey, long definitionKey, CancellationToken cancellationToken) =>
+        Task.FromResult(_correlations.Contains((messageKey, definitionKey)));
+
+    public Task<int> DeleteExpiredAsync(DateTimeOffset now, CancellationToken cancellationToken) =>
+        Task.FromResult(_buffered.RemoveAll(m => m.ExpiresAt <= now));
+
+    public int BufferedCount => _buffered.Count;
 }

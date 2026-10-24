@@ -27,6 +27,10 @@ public sealed class ProcessGraph
 
     public IReadOnlyList<SequenceFlow> Incoming(string nodeId) => [.. _incoming[nodeId]];
 
+    /// <summary>Boundary events attached to an activity, in document order.</summary>
+    public IReadOnlyList<BoundaryEvent> BoundaryEventsOf(string activityId) =>
+        [.. Process.AllNodes().OfType<BoundaryEvent>().Where(b => string.Equals(b.AttachedToRef, activityId, StringComparison.Ordinal))];
+
     public SequenceFlow Flow(string id) =>
         Process.AllFlows().FirstOrDefault(f => string.Equals(f.Id, id, StringComparison.Ordinal))
         ?? throw new InvalidOperationException($"Unknown flow '{id}'.");
@@ -69,6 +73,10 @@ public sealed class EngineState
 
     public Dictionary<long, IncidentRecord> Incidents { get; } = [];
 
+    public Dictionary<long, TimerRecord> Timers { get; } = [];
+
+    public Dictionary<long, SubscriptionRecord> Subscriptions { get; } = [];
+
     /// <summary>The root scope of an instance is the instance key itself; an element's local scope is its own key.</summary>
     public long? ParentScopeOf(long scope)
     {
@@ -104,6 +112,16 @@ public sealed class EngineState
         foreach (var (key, incident) in Incidents)
         {
             copy.Incidents[key] = incident.Copy();
+        }
+
+        foreach (var (key, timer) in Timers)
+        {
+            copy.Timers[key] = timer.Copy();
+        }
+
+        foreach (var (key, subscription) in Subscriptions)
+        {
+            copy.Subscriptions[key] = subscription.Copy();
         }
 
         copy.Variables = Variables.CloneWith(copy.ParentScopeOf);

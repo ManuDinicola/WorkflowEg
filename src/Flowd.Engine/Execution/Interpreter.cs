@@ -43,6 +43,8 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
         CancelInstance => InstanceCommands.Cancel(context),
         SetVariables set => InstanceCommands.SetVariables(context, set),
         ResolveIncident resolve => IncidentCommands.Resolve(context, resolve),
+        TriggerTimer timer => TriggerCommands.FireTimer(context, timer),
+        CorrelateMessage message => TriggerCommands.CorrelateMessage(context, message),
     };
 
     /// <summary>
@@ -116,7 +118,14 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
             case ActivateElement activate:
                 var node = context.State.Graph.Node(activate.ElementId);
                 var instance = context.CreateElement(node, activate.ScopeKey, activate.IncomingFlowId);
+                if (IsActivity(node) && !Triggers.OpenBoundaries(context, node, instance))
+                {
+                    break;
+                }
+
+                context.ActivationFromTrigger = activate.Triggered;
                 handlers.For(node).Activate(context, node, instance);
+                context.ActivationFromTrigger = false;
                 break;
             case CompleteElement complete:
                 RunOnInstance(context, complete.ElementInstanceKey, (handler, n, i) => handler.Complete(context, n, i));
@@ -128,7 +137,7 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
                     {
                         handler.Complete(context, n, i);
                     }
-                    else
+                    else if (!IsActivity(n) || Triggers.OpenBoundaries(context, n, i))
                     {
                         handler.Activate(context, n, i);
                     }
@@ -136,6 +145,8 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
                 break;
         }
     }
+
+    private static bool IsActivity(Bpmn.Model.FlowNode node) => node is Bpmn.Model.ServiceTask or Bpmn.Model.SubProcess or Bpmn.Model.ReceiveTask;
 
     private void RunOnInstance(StepContext context, long key, Action<IElementHandler, Bpmn.Model.FlowNode, ElementInstance> action)
     {

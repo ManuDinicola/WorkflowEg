@@ -3,7 +3,7 @@
 Flowd is a BPMN 2.0 workflow engine (Camunda-like) written in C# 15 on .NET 11, with clean architecture and union types.
 It deploys BPMN definitions, runs process instances durably on PostgreSQL, and coordinates external job workers, timers, messages and incidents through a REST API.
 
-**Status:** milestones M0-M3 are implemented (skeleton, deployment, core execution, structure and control); see `PLAN.md` and `PROGRESS.md`. Next: timers and messages (M4).
+**Status:** milestones M0-M4 are implemented (skeleton, deployment, core execution, structure and control, timers and messages); see `PLAN.md` and `PROGRESS.md`. Next: errors, signals, user tasks (M5).
 
 ## What works today
 - Solution skeleton with enforced dependency rules (architecture tests) and C# 15 `union` / `closed class` smoke tests.
@@ -66,7 +66,7 @@ It applies the migrations and registers an auto-start service named `Flowd`. Run
 curl -F "resources=@testdata/bpmn/order-simple.bpmn" http://localhost:8080/v1/deployments
 curl http://localhost:8080/v1/process-definitions
 ```
-Supported BPMN so far: none start event, none/terminate end event, service/send/business-rule tasks (all worker-based, `flowd:taskDefinition`), script task (expression only), manual task, embedded sub-process, exclusive, parallel and inclusive gateways. Anything else is rejected with its element id (more elements arrive in M4-M6).
+Supported BPMN so far: none/message/timer start events, none/terminate end events, service/send/business-rule tasks (worker-based, `flowd:taskDefinition`), script task (expression only), manual task, receive task, embedded sub-process, exclusive, parallel, inclusive and event-based gateways, intermediate timer/message catch events, and interrupting or non-interrupting timer/message boundary events. Anything else is rejected with its element id (more arrive in M5-M6).
 
 ## Running a process
 ```
@@ -75,3 +75,8 @@ curl -X POST http://localhost:8080/v1/jobs/activate -H "Content-Type: applicatio
 curl -X POST http://localhost:8080/v1/jobs/<jobKey>/complete -H "Content-Type: application/json" -d '{"variables":{"receiptId":"R-1"}}'
 ```
 Jobs are delivered at least once: workers must be idempotent. A job that is not completed before its deadline is handed to another worker.
+
+## Timers and messages
+- Timer values are ISO 8601: `PT15M`, `2026-12-01T10:00:00Z`, cycles `R3/PT10M` (cycles only on start events and non-interrupting boundary events).
+- A message is declared with `<bpmn:message id="m" name="payment"><bpmn:extensionElements><flowd:subscription correlationKey="= orderId"/></bpmn:extensionElements></bpmn:message>`.
+- `POST /v1/messages {"name":"payment","correlationKey":"A-1","variables":{...},"ttlMs":60000,"messageId":"optional-dedupe-id"}` delivers to waiting instances (at most one per process definition), starts instances for message start events, and buffers the message for its TTL so a later subscription still gets it.

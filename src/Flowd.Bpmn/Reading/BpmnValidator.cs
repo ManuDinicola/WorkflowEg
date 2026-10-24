@@ -73,7 +73,7 @@ public static class BpmnValidator
         var knownIds = nodes.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var node in nodes)
         {
-            ValidateNode(node, flows, issues);
+            ValidateNode(node, nodes, flows, issues);
             if (node is SubProcess sub)
             {
                 ValidateScope(sub.Id, sub.Nodes, sub.Flows, issues);
@@ -86,13 +86,30 @@ public static class BpmnValidator
         }
     }
 
-    private static void ValidateNode(FlowNode node, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues)
+    private static void ValidateNode(FlowNode node, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues)
     {
         var outgoing = flows.Where(f => string.Equals(f.SourceRef, node.Id, StringComparison.Ordinal)).ToList();
         switch (node)
         {
             case UnsupportedNode unsupported:
                 issues.Add(new BpmnIssue(node.Id, BpmnIssueCodes.UnsupportedElement, $"Element '{node.Id}' of type '{unsupported.ElementType}' is not supported."));
+                break;
+            case BoundaryEvent boundary:
+                ValidateBoundary(boundary, nodes, flows, issues);
+                break;
+            case IntermediateCatchEvent catchEvent:
+                ValidateDefinition(catchEvent.Id, catchEvent.Definition, allowCycle: false, requireCorrelation: true, issues);
+                break;
+            case ReceiveTask receive:
+                ValidateDefinition(receive.Id, receive.Message, allowCycle: false, requireCorrelation: true, issues);
+                RejectConditions(node, outgoing, issues);
+                break;
+            case EventBasedGateway:
+                ValidateEventGateway(node, nodes, outgoing, issues);
+                break;
+            case StartEvent { Definition: { } startDefinition } start:
+                ValidateDefinition(start.Id, startDefinition, allowCycle: true, requireCorrelation: false, issues);
+                RejectConditions(node, outgoing, issues);
                 break;
             case ExclusiveGateway gateway:
                 ValidateDiverging(gateway.Id, gateway.DefaultFlowId, outgoing, issues);
@@ -114,6 +131,68 @@ public static class BpmnValidator
                 break;
             case ParallelGateway or StartEvent or EndEvent or ManualTask:
                 RejectConditions(node, outgoing, issues);
+                break;
+        }
+    }
+
+    private static void ValidateBoundary(BoundaryEvent boundary, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues)
+    {
+        var attached = nodes.FirstOrDefault(n => string.Equals(n.Id, boundary.AttachedToRef, StringComparison.Ordinal));
+        if (attached is not (ServiceTask or SubProcess or ReceiveTask))
+        {
+            issues.Add(new BpmnIssue(boundary.Id, BpmnIssueCodes.InvalidBoundary, $"Boundary event '{boundary.Id}' must be attached to a task or sub-process in the same scope (attachedToRef='{boundary.AttachedToRef}')."));
+        }
+
+        if (flows.Any(f => string.Equals(f.TargetRef, boundary.Id, StringComparison.Ordinal)))
+        {
+            issues.Add(new BpmnIssue(boundary.Id, BpmnIssueCodes.InvalidBoundary, $"Boundary event '{boundary.Id}' must not have incoming flows."));
+        }
+
+        ValidateDefinition(boundary.Id, boundary.Definition, allowCycle: !boundary.CancelActivity, requireCorrelation: true, issues);
+    }
+
+    private static void ValidateEventGateway(FlowNode gateway, IReadOnlyList<FlowNode> nodes, List<SequenceFlow> outgoing, List<BpmnIssue> issues)
+    {
+        if (outgoing.Count < 2)
+        {
+            issues.Add(new BpmnIssue(gateway.Id, BpmnIssueCodes.InvalidGatewayTarget, $"Event-based gateway '{gateway.Id}' needs at least two outgoing flows."));
+        }
+
+        foreach (var flow in outgoing)
+        {
+            var target = nodes.FirstOrDefault(n => string.Equals(n.Id, flow.TargetRef, StringComparison.Ordinal));
+            if (target is not (IntermediateCatchEvent or ReceiveTask))
+            {
+                issues.Add(new BpmnIssue(flow.Id, BpmnIssueCodes.InvalidGatewayTarget, $"Flow '{flow.Id}' of event-based gateway '{gateway.Id}' must lead to a catch event or receive task."));
+            }
+        }
+    }
+
+    private static void ValidateDefinition(string ownerId, EventDefinition definition, bool allowCycle, bool requireCorrelation, List<BpmnIssue> issues)
+    {
+        switch (definition)
+        {
+            case TimerEventDefinition timer:
+                if (timer.Kind == TimerKind.Cycle && !allowCycle)
+                {
+                    issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidTimer, $"A timer cycle is only allowed on start events and non-interrupting boundary events ('{ownerId}')."));
+                }
+                else if (!timer.Expression.TrimStart().StartsWith('=') && !IsoTimer.IsValid(timer.Kind, timer.Expression))
+                {
+                    issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidTimer, $"Timer '{timer.Expression}' of '{ownerId}' is not a valid ISO 8601 {timer.Kind.ToString().ToLowerInvariant()}."));
+                }
+
+                break;
+            case MessageEventDefinition message:
+                if (string.IsNullOrWhiteSpace(message.Name))
+                {
+                    issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"The message of '{ownerId}' has no name."));
+                }
+                else if (requireCorrelation && string.IsNullOrWhiteSpace(message.CorrelationKey))
+                {
+                    issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"The message '{message.Name}' of '{ownerId}' needs <flowd:subscription correlationKey=\"= ...\"/>."));
+                }
+
                 break;
         }
     }

@@ -68,11 +68,11 @@ The rows below are the commit checklist inside each milestone branch (branch col
 
 | # | Slice | Requirement IDs | Tests | Size | Executor |
 |---|---|---|---|---|---|
-| [ ] 4.1 | Timer store, scheduler `BackgroundService`, cycle re-arming | FR-TMR-001..006 | T-TMR-04, T-TMR-05 | M | impl-worker |
-| [ ] 4.2 | Timer catch and boundary events (interrupting / non-interrupting) | FR-EXEC-013 | T-TMR-01..03 | M | impl-worker |
-| [ ] 4.3 | Message store, buffering, correlation, publish API | FR-MSG-001..005, API-009 | T-MSG-01..05 | M | impl-worker |
-| [ ] 4.4 | Message catch/boundary/start events, receive task | FR-MSG-004 | T-MSG-04 | M | impl-worker |
-| [ ] 4.5 | Event-based gateway | FR-EXEC-014 | T-EVG-01 | S | impl-worker |
+| [x] 4.1 | Timer store, scheduler `BackgroundService`, cycle re-arming | FR-TMR-001..006 | T-TMR-04, T-TMR-05 | M | impl-worker |
+| [x] 4.2 | Timer catch and boundary events (interrupting / non-interrupting) | FR-EXEC-013 | T-TMR-01..03 | M | impl-worker |
+| [x] 4.3 | Message store, buffering, correlation, publish API | FR-MSG-001..005, API-009 | T-MSG-01..05 | M | impl-worker |
+| [x] 4.4 | Message catch/boundary/start events, receive task | FR-MSG-004 | T-MSG-04 | M | impl-worker |
+| [x] 4.5 | Event-based gateway | FR-EXEC-014 | T-EVG-01 | S | impl-worker |
 
 ### M5 — Errors, signals, user tasks (refine at milestone start)
 

@@ -74,9 +74,18 @@ public sealed class PostgresInstanceTransaction(NpgsqlConnection connection, Npg
         ArgumentNullException.ThrowIfNull(effects);
         await using var batch = new NpgsqlBatch(connection, transaction);
         EffectWriter.AddAll(batch, state.InstanceKey, effects);
-        if (batch.BatchCommands.Count > 0)
+        if (batch.BatchCommands.Count == 0)
+        {
+            return;
+        }
+
+        try
         {
             await batch.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (PostgresException ex) when (ex.SqlState == "23505" && string.Equals(ex.TableName, "message_correlation", StringComparison.Ordinal))
+        {
+            throw new CorrelationConflictException("The message already reached this definition.");
         }
     }
 
@@ -142,6 +151,7 @@ internal static class InstanceLoader
         await LoadVariablesAsync(connection, transaction, state, cancellationToken).ConfigureAwait(false);
         await LoadJobsAsync(connection, transaction, state, cancellationToken).ConfigureAwait(false);
         await LoadIncidentsAsync(connection, transaction, state, cancellationToken).ConfigureAwait(false);
+        await TriggerRows.LoadAsync(connection, transaction, state, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task LoadVariablesAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, EngineState state, CancellationToken cancellationToken)
@@ -318,6 +328,9 @@ internal static class EffectWriter
                     break;
                 case HistoryAppended history:
                     InsertHistory(batch, instanceKey, history);
+                    break;
+                case TimerChanged or SubscriptionChanged or SubscriptionClosed or MessageCorrelated:
+                    TriggerRows.Write(batch, effects[i]);
                     break;
                 case ElementChanged or JobChanged or IncidentChanged:
                     break; // superseded by a later snapshot of the same key

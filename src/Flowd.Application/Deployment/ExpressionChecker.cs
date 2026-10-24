@@ -56,8 +56,42 @@ internal static class ExpressionChecker
                 }
 
                 break;
+            case IntermediateCatchEvent catchEvent:
+                foreach (var text in ExpressionsOf(catchEvent.Definition))
+                {
+                    yield return text;
+                }
+
+                break;
+            case BoundaryEvent boundary:
+                foreach (var text in ExpressionsOf(boundary.Definition))
+                {
+                    yield return text;
+                }
+
+                break;
+            case ReceiveTask receive:
+                foreach (var text in ExpressionsOf(receive.Message))
+                {
+                    yield return text;
+                }
+
+                break;
             case ScriptTask { Expression: { } expression } when !string.IsNullOrWhiteSpace(expression):
                 yield return expression;
+                break;
+        }
+    }
+
+    private static IEnumerable<string> ExpressionsOf(EventDefinition definition)
+    {
+        switch (definition)
+        {
+            case TimerEventDefinition timer when FeelEvaluator.IsDynamic(timer.Expression):
+                yield return timer.Expression;
+                break;
+            case MessageEventDefinition { CorrelationKey: { } key } when !string.IsNullOrWhiteSpace(key):
+                yield return key;
                 break;
         }
     }

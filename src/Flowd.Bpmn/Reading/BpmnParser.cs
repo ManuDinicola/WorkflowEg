@@ -8,7 +8,7 @@ namespace Flowd.Bpmn.Reading;
 /// XXE-safe BPMN XML parser (FR-SEC-006). Parsing is lenient: unsupported elements and dangling references are kept in the
 /// model so <see cref="BpmnValidator"/> can report all of them at once.
 /// </summary>
-public static class BpmnParser
+public sealed class BpmnParser
 {
     private static readonly XNamespace Bpmn = "http://www.omg.org/spec/BPMN/20100524/MODEL";
     private static readonly XNamespace Flowd = "http://flowd.io/schema/1.0";
@@ -20,6 +20,10 @@ public static class BpmnParser
         "ioSpecification", "dataInputAssociation", "dataOutputAssociation", "multiInstanceLoopCharacteristics", "standardLoopCharacteristics",
     };
 
+    private readonly Dictionary<string, MessageEventDefinition> _messages;
+
+    private BpmnParser(Dictionary<string, MessageEventDefinition> messages) => _messages = messages;
+
     /// <summary>Parses the stream. Returns null and fills <paramref name="issue"/> when the XML itself cannot be read.</summary>
     public static BpmnDefinitions? TryParse(Stream xml, out BpmnIssue? issue)
     {
@@ -30,7 +34,8 @@ public static class BpmnParser
             var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null };
             using var reader = XmlReader.Create(xml, settings);
             var document = XDocument.Load(reader, LoadOptions.SetLineInfo);
-            return new BpmnDefinitions([.. document.Descendants(Bpmn + "process").Select(ParseProcess)]);
+            var parser = new BpmnParser(ReadMessages(document));
+            return new BpmnDefinitions([.. document.Descendants(Bpmn + "process").Select(parser.ParseProcess)]);
         }
         catch (XmlException ex)
         {
@@ -43,14 +48,33 @@ public static class BpmnParser
         }
     }
 
-    private static BpmnProcess ParseProcess(XElement process) => new(
+    private static Dictionary<string, MessageEventDefinition> ReadMessages(XDocument document)
+    {
+        var result = new Dictionary<string, MessageEventDefinition>(StringComparer.Ordinal);
+        foreach (var message in document.Descendants(Bpmn + "message"))
+        {
+            var id = (string?)message.Attribute("id");
+            var name = (string?)message.Attribute("name");
+            if (id is null || name is null)
+            {
+                continue;
+            }
+
+            var key = (string?)message.Element(Bpmn + "extensionElements")?.Element(Flowd + "subscription")?.Attribute("correlationKey");
+            result[id] = new MessageEventDefinition { Name = name, CorrelationKey = key };
+        }
+
+        return result;
+    }
+
+    private BpmnProcess ParseProcess(XElement process) => new(
         (string?)process.Attribute("id"),
         (string?)process.Attribute("name"),
         string.Equals((string?)process.Attribute("isExecutable"), "true", StringComparison.OrdinalIgnoreCase),
         ParseNodes(process),
         ParseFlows(process));
 
-    private static FlowNode[] ParseNodes(XElement scope) =>
+    private FlowNode[] ParseNodes(XElement scope) =>
         [.. scope.Elements().Where(IsNode).Select(ParseNode)];
 
     private static SequenceFlow[] ParseFlows(XElement scope) =>
@@ -67,15 +91,20 @@ public static class BpmnParser
         (string?)flow.Attribute("targetRef") ?? string.Empty,
         flow.Element(Bpmn + "conditionExpression")?.Value.Trim());
 
-    private static FlowNode ParseNode(XElement e)
+    private FlowNode ParseNode(XElement e)
     {
         var id = (string?)e.Attribute("id") ?? string.Empty;
         var name = (string?)e.Attribute("name");
         return e.Name.LocalName switch
         {
-            "startEvent" when !HasEventDefinition(e) => new StartEvent { Id = id, Name = name },
+            "startEvent" => ParseStartEvent(e, id, name),
             "endEvent" when !HasEventDefinition(e) => new EndEvent { Id = id, Name = name },
             "endEvent" when HasOnlyEventDefinition(e, "terminateEventDefinition") => new EndEvent { Id = id, Name = name, IsTerminate = true },
+            "intermediateCatchEvent" when ReadDefinition(e) is { } definition => new IntermediateCatchEvent { Id = id, Name = name, Definition = definition },
+            "boundaryEvent" when ReadDefinition(e) is { } definition && (string?)e.Attribute("attachedToRef") is { } attached =>
+                new BoundaryEvent { Id = id, Name = name, AttachedToRef = attached, CancelActivity = !string.Equals((string?)e.Attribute("cancelActivity"), "false", StringComparison.OrdinalIgnoreCase), Definition = definition },
+            "receiveTask" when ReadDefinition(e, fromMessageRef: true) is MessageEventDefinition message => new ReceiveTask { Id = id, Name = name, Message = message },
+            "eventBasedGateway" => new EventBasedGateway { Id = id, Name = name },
             "serviceTask" or "sendTask" or "businessRuleTask" => ParseJobTask(e, id, name),
             "scriptTask" => ParseScriptTask(e, id, name),
             "manualTask" => new ManualTask { Id = id, Name = name },
@@ -87,10 +116,51 @@ public static class BpmnParser
         };
     }
 
+    private FlowNode ParseStartEvent(XElement e, string id, string? name)
+    {
+        if (!HasEventDefinition(e))
+        {
+            return new StartEvent { Id = id, Name = name };
+        }
+
+        return ReadDefinition(e) is { } definition
+            ? new StartEvent { Id = id, Name = name, Definition = definition }
+            : new UnsupportedNode { Id = id, Name = name, ElementType = DescribeUnsupported(e) };
+    }
+
+    /// <summary>Reads a timer or message event definition; null for definitions this version does not support.</summary>
+    private EventDefinition? ReadDefinition(XElement e, bool fromMessageRef = false)
+    {
+        if (e.Element(Bpmn + "timerEventDefinition") is { } timer)
+        {
+            return ReadTimer(timer);
+        }
+
+        if (e.Element(Bpmn + "messageEventDefinition") is { } message)
+        {
+            return _messages.GetValueOrDefault((string?)message.Attribute("messageRef") ?? string.Empty);
+        }
+
+        return fromMessageRef ? _messages.GetValueOrDefault((string?)e.Attribute("messageRef") ?? string.Empty) : null;
+    }
+
+    private static TimerEventDefinition? ReadTimer(XElement timer)
+    {
+        foreach (var (element, kind) in new[] { ("timeDate", TimerKind.Date), ("timeDuration", TimerKind.Duration), ("timeCycle", TimerKind.Cycle) })
+        {
+            if (timer.Element(Bpmn + element)?.Value.Trim() is { Length: > 0 } text)
+            {
+                return new TimerEventDefinition { Kind = kind, Expression = text };
+            }
+        }
+
+        return null;
+    }
+
     private static bool IsTrue(XElement e, string attribute) =>
         string.Equals((string?)e.Attribute(attribute), "true", StringComparison.OrdinalIgnoreCase);
 
-    private static SubProcess ParseSubProcess(XElement e, string id, string? name)
+    private SubProcess ParseSubProcess(XElement e, string id, string? name)
     {
         var mapping = e.Element(Bpmn + "extensionElements")?.Element(Flowd + "ioMapping");
         return new SubProcess

@@ -27,6 +27,8 @@ public static class HistoryEventTypes
     public const string IncidentCreated = "INCIDENT_CREATED";
     public const string IncidentResolved = "INCIDENT_RESOLVED";
     public const string JoinTokensAbandoned = "JOIN_TOKENS_ABANDONED";
+    public const string MessageCorrelated = "MESSAGE_CORRELATED";
+    public const string TriggerFired = "TRIGGER_FIRED";
 }
 
 /// <summary>The instance row was created (first effect of <c>StartInstance</c>).</summary>
@@ -50,6 +52,18 @@ public sealed record VariableWritten(long Scope, string Name, JsonNode? Value);
 /// <summary>All variables of a scope were removed (an activity's local scope ends with it).</summary>
 public sealed record ScopeVariablesCleared(long Scope);
 
+/// <summary>Insert or update of a timer (snapshot); inactive timers are done.</summary>
+public sealed record TimerChanged(TimerRecord Snapshot);
+
+/// <summary>A message subscription was opened or updated (snapshot).</summary>
+public sealed record SubscriptionChanged(SubscriptionRecord Snapshot);
+
+/// <summary>A message subscription ended.</summary>
+public sealed record SubscriptionClosed(long Key);
+
+/// <summary>A buffered message was delivered to a definition; each message reaches a definition at most once (FR-MSG-002).</summary>
+public sealed record MessageCorrelated(long MessageKey, long DefinitionKey);
+
 /// <summary>An audit-trail entry (FR-HIS-001).</summary>
 public sealed record HistoryAppended(string EventType, long? ElementInstanceKey, string? ElementId, JsonObject? Payload, DateTimeOffset OccurredAt);
 
@@ -62,6 +76,10 @@ public union EngineEffect(
     IncidentChanged,
     VariableWritten,
     ScopeVariablesCleared,
+    TimerChanged,
+    SubscriptionChanged,
+    SubscriptionClosed,
+    MessageCorrelated,
     HistoryAppended);
 
 /// <summary>Where the instance stands after a command (UNI-002).</summary>

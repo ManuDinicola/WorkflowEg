@@ -17,7 +17,7 @@ public sealed class DeployProcessesUseCaseTests
     private readonly FakeStore _store = new();
     private readonly DeployProcessesUseCase _useCase;
 
-    public DeployProcessesUseCaseTests() => _useCase = new DeployProcessesUseCase(_store, new CountingKeys(), TimeProvider.System);
+    public DeployProcessesUseCaseTests() => _useCase = new DeployProcessesUseCase(_store, new NoStartTriggers(), new CountingKeys(), TimeProvider.System);
 
     private static DeploymentResource Resource(string name, string xml) => new(name, Encoding.UTF8.GetBytes(xml));
 
@@ -72,6 +72,17 @@ public sealed class DeployProcessesUseCaseTests
 
         _ = FailureOf(result);
         _store.Drafts.ShouldBeEmpty();
+    }
+
+    private sealed class NoStartTriggers : Flowd.Application.Timers.IStartTriggerStore
+    {
+        public Task ReplaceAsync(
+            string tenantId,
+            string bpmnProcessId,
+            long definitionKey,
+            IReadOnlyList<Flowd.Application.Timers.StartTimerDraft> timers,
+            IReadOnlyList<Flowd.Application.Timers.StartMessageDraft> messages,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class CountingKeys : IKeyGenerator

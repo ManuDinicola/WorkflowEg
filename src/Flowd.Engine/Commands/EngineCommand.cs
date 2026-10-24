@@ -26,6 +26,12 @@ public sealed record SetVariables(JsonObject Variables, long? ScopeKey, bool Loc
 /// <summary>Re-executes the step that raised an incident (FR-INC-002).</summary>
 public sealed record ResolveIncident(long IncidentKey);
 
+/// <summary>A due timer fires (FR-TMR-002).</summary>
+public sealed record TriggerTimer(long TimerKey);
+
+/// <summary>A message reaches a waiting subscription (FR-MSG-002).</summary>
+public sealed record CorrelateMessage(long SubscriptionKey, long MessageKey, string MessageName, JsonObject? Variables);
+
 /// <summary>Every intent the engine can be asked to process (section 7, UNI-002).</summary>
 public union EngineCommand(
     StartInstance,
@@ -35,4 +41,6 @@ public union EngineCommand(
     UpdateJobRetries,
     CancelInstance,
     SetVariables,
-    ResolveIncident);
+    ResolveIncident,
+    TriggerTimer,
+    CorrelateMessage);
