@@ -326,6 +326,24 @@ public sealed class BpmnParser
         };
     }
 
+    private static string? InternalTaskType(XElement? decision, XElement? connector)
+    {
+        if (decision is not null)
+        {
+            return ServiceTask.DecisionTaskType;
+        }
+
+        return IsHttpConnector(connector) ? ServiceTask.HttpConnectorTaskType : null;
+    }
+
+    private static bool IsHttpConnector(XElement? connector) => string.Equals((string?)connector?.Attribute("type"), "http", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The settings of a <c>flowd:connector</c> element become task headers the built-in connector worker reads (url, method, body, headers, resultVariable, failOnError).</summary>
+    private static IEnumerable<KeyValuePair<string, string>> ConnectorHeaders(XElement? connector) =>
+        connector is null
+            ? []
+            : connector.Attributes().Where(a => a.Name.LocalName != "type").Select(a => new KeyValuePair<string, string>(a.Name.LocalName, a.Value));
+
     /// <summary>A business rule task with <c>flowd:calledDecision</c> becomes an internal decision job carrying the decision id and result variable.</summary>
     private static IEnumerable<KeyValuePair<string, string>> DecisionHeaders(XElement? decision) =>
         decision is null
@@ -338,13 +356,14 @@ public sealed class BpmnParser
         var definition = extensions?.Element(Flowd + "taskDefinition");
         var mapping = extensions?.Element(Flowd + "ioMapping");
         var decision = extensions?.Element(Flowd + "calledDecision");
+        var connector = extensions?.Element(Flowd + "connector");
         return new ServiceTask
         {
             Id = id,
             Name = name,
             BpmnType = e.Name.LocalName,
             Loop = ReadLoop(e),
-            TaskType = decision is null ? (string?)definition?.Attribute("type") : ServiceTask.DecisionTaskType,
+            TaskType = InternalTaskType(decision, connector) ?? (string?)definition?.Attribute("type"),
             Retries = (string?)definition?.Attribute("retries"),
             Inputs = ParseMappings(mapping, "input"),
             Outputs = ParseMappings(mapping, "output"),
@@ -354,6 +373,7 @@ public sealed class BpmnParser
                 .GroupBy(h => (string)h.Attribute("key")!, StringComparer.Ordinal)
                 .ToDictionary(g => g.Key, g => (string?)g.Last().Attribute("value") ?? string.Empty, StringComparer.Ordinal)
                 .Concat(DecisionHeaders(decision))
+                .Concat(ConnectorHeaders(connector))
                 .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal),
         };
     }

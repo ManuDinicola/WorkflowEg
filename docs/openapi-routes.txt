@@ -29,6 +29,7 @@ PATCH /v1/jobs/{key}
 POST /v1/batch/cancel-instances
 POST /v1/batch/migrate-instances
 POST /v1/batch/resolve-incidents
+POST /v1/connectors/webhook/{name}
 POST /v1/decisions
 POST /v1/decisions/{decisionId}/evaluate
 POST /v1/deployments

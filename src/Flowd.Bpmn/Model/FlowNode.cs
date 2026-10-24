@@ -48,6 +48,9 @@ public sealed class ServiceTask : FlowNode
     /// <summary>Job type of the internal worker that evaluates a called decision (business rule task with DMN).</summary>
     public const string DecisionTaskType = "flowd.decision";
 
+    /// <summary>Job type of the built-in HTTP connector (a service task with <c>flowd:connector type="http"</c>).</summary>
+    public const string HttpConnectorTaskType = "io.flowd:http";
+
     /// <summary>Raw <c>retries</c> attribute: a literal or an expression starting with <c>=</c>.</summary>
     public string? Retries { get; init; }
 
