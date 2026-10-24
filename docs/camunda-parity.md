@@ -45,7 +45,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Complex gateway
 - [ ] Ad-hoc sub-process
 - [ ] Business rule task with DMN
-- [ ] Multi-instance completion condition
+- [x] Multi-instance completion condition
 
 ## Variables, mappings, expressions
 - [x] Process variables and scopes
@@ -139,4 +139,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 61 of 110 = 55 %. Target: 105 of 110 (95 %).
+Score (2026-10-24): 62 of 110 = 56 %. Target: 105 of 110 (95 %).

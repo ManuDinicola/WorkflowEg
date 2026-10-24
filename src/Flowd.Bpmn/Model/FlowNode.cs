@@ -212,7 +212,8 @@ public sealed record LoopCharacteristics(
     string InputCollection,
     string InputElement,
     string? OutputCollection,
-    string? OutputElement);
+    string? OutputElement,
+    string? CompletionCondition = null);
 
 /// <summary>Call activity: starts a child instance of another process and waits for it (FR-EXEC-011).</summary>
 public sealed class CallActivity : FlowNode

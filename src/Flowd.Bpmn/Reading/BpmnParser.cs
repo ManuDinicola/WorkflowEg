@@ -272,7 +272,8 @@ public sealed class BpmnParser
             (string?)settings?.Attribute("inputCollection") ?? string.Empty,
             (string?)settings?.Attribute("inputElement") ?? string.Empty,
             (string?)settings?.Attribute("outputCollection"),
-            (string?)settings?.Attribute("outputElement"));
+            (string?)settings?.Attribute("outputElement"),
+            loop.Element(Bpmn + "completionCondition")?.Value.Trim() ?? (string?)settings?.Attribute("completionCondition"));
     }
 
     private static CallActivity ParseCallActivity(XElement e, string id, string? name)

@@ -102,8 +102,14 @@ internal static class MultiInstance
         var done = state["done"]!.GetValue<int>() + 1;
         state["done"] = done;
         var total = state["total"]!.GetValue<int>();
-        if (done >= total)
+        var conditionMet = loop.CompletionCondition is not null && CompletionConditionMet(context, loop, body, state);
+        if (done >= total || conditionMet)
         {
+            if (conditionMet)
+            {
+                CancelRemaining(context, body, child);
+            }
+
             WriteOutput(context, loop, body, state["output"]!.AsArray());
             context.ClearLocalScope(body);
             context.Complete(body);
@@ -119,6 +125,25 @@ internal static class MultiInstance
         }
 
         context.WriteInternal(body.Key, StateVariable, state);
+    }
+
+    /// <summary>Evaluates the completion condition with the output collected so far visible under the output collection name.</summary>
+    private static bool CompletionConditionMet(StepContext context, LoopCharacteristics loop, ElementInstance body, JsonObject state)
+    {
+        if (loop.OutputCollection is { } name && context.WriteVariable(body.Key, name, state["output"]!.DeepClone(), propagate: false) is not null)
+        {
+            return false;
+        }
+
+        return context.Evaluate(loop.CompletionCondition!, body.Key) is EvaluationSuccess { Value: bool met } && met;
+    }
+
+    private static void CancelRemaining(StepContext context, ElementInstance body, ElementInstance finished)
+    {
+        foreach (var sibling in context.State.LiveElements().Where(e => e.ScopeKey == body.Key && e.Key != finished.Key).ToList())
+        {
+            TriggerCommands.TerminateTree(context, sibling);
+        }
     }
 
     private static void WriteOutput(StepContext context, LoopCharacteristics loop, ElementInstance body, JsonArray output)
