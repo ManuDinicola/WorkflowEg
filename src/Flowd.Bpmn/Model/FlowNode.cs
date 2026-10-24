@@ -9,7 +9,11 @@ public closed class FlowNode
 }
 
 /// <summary>None start event (message, timer and signal variants arrive in M4/M5).</summary>
-public sealed class StartEvent : FlowNode;
+public sealed class StartEvent : FlowNode
+{
+    /// <summary>Null for a none start event; a timer or message definition starts instances from outside (FR-TMR-005, FR-MSG-004).</summary>
+    public EventDefinition? Definition { get; init; }
+}
 
 /// <summary>None or terminate end event (FR-EXEC-008).</summary>
 public sealed class EndEvent : FlowNode
@@ -87,3 +91,55 @@ public sealed class ScriptTask : FlowNode
 
     public string? ResultVariable { get; init; }
 }
+
+/// <summary>How a timer event computes its due time (FR-TMR-001).</summary>
+public enum TimerKind
+{
+    Date,
+    Duration,
+    Cycle,
+}
+
+/// <summary>What triggers an event: closed so every consumer handles every kind (UNI-004).</summary>
+public closed class EventDefinition;
+
+/// <summary>Timer event; <see cref="Expression"/> is a literal ISO 8601 value or a <c>=</c> expression.</summary>
+public sealed class TimerEventDefinition : EventDefinition
+{
+    public required TimerKind Kind { get; init; }
+
+    public required string Expression { get; init; }
+}
+
+/// <summary>Message event; the correlation key is an expression evaluated when the event is activated (FR-MSG-005).</summary>
+public sealed class MessageEventDefinition : EventDefinition
+{
+    public required string Name { get; init; }
+
+    public string? CorrelationKey { get; init; }
+}
+
+/// <summary>Intermediate catch event: waits for a timer or a message (section 6.1).</summary>
+public sealed class IntermediateCatchEvent : FlowNode
+{
+    public required EventDefinition Definition { get; init; }
+}
+
+/// <summary>Boundary event attached to an activity; interrupting unless <see cref="CancelActivity"/> is false (FR-EXEC-013).</summary>
+public sealed class BoundaryEvent : FlowNode
+{
+    public required string AttachedToRef { get; init; }
+
+    public bool CancelActivity { get; init; } = true;
+
+    public required EventDefinition Definition { get; init; }
+}
+
+/// <summary>Receive task: waits for a message, can carry boundary events.</summary>
+public sealed class ReceiveTask : FlowNode
+{
+    public required MessageEventDefinition Message { get; init; }
+}
+
+/// <summary>Event-based gateway: the first of its catch-event targets to trigger wins (FR-EXEC-014).</summary>
+public sealed class EventBasedGateway : FlowNode;

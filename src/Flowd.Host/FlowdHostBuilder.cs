@@ -2,8 +2,10 @@ using Flowd.Api.Endpoints;
 using Flowd.Application.Deployment;
 using Flowd.Application.Execution;
 using Flowd.Application.Jobs;
+using Flowd.Application.Messaging;
 using Flowd.Application.Queries;
 using Flowd.Application.Readiness;
+using Flowd.Application.Timers;
 using Flowd.Engine.Execution;
 using Flowd.Engine.Handlers;
 using Flowd.Engine.Keys;
@@ -51,6 +53,7 @@ internal static class FlowdHostBuilder
         app.MapDeploymentEndpoints();
         app.MapInstanceEndpoints();
         app.MapJobEndpoints();
+        app.MapMessageEndpoints();
         return app;
     }
 
@@ -66,6 +69,9 @@ internal static class FlowdHostBuilder
         services.AddSingleton<IInstanceLookup, PostgresInstanceLookup>();
         services.AddSingleton<IJobQueue, PostgresJobQueue>();
         services.AddSingleton<IInstanceQueries, PostgresInstanceQueries>();
+        services.AddSingleton<ITimerQueue, PostgresTimerQueue>();
+        services.AddSingleton<IStartTriggerStore, PostgresStartTriggerStore>();
+        services.AddSingleton<IMessageStore, PostgresMessageStore>();
         services.AddSingleton<IMigrationRunner>(sp =>
             new PostgresMigrationRunner(sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString));
         services.AddSingleton<IReadinessProbe>(sp =>
@@ -73,6 +79,8 @@ internal static class FlowdHostBuilder
                 sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString,
                 sp.GetRequiredService<IMigrationRunner>()));
         services.AddHostedService<JobTimeoutSweeper>();
+        services.AddHostedService<TimerScheduler>();
+        services.AddHostedService<MessageExpirySweeper>();
     }
 
     private static void AddApplication(IServiceCollection services)
@@ -84,5 +92,7 @@ internal static class FlowdHostBuilder
         services.AddSingleton<CommandProcessor>();
         services.AddSingleton<InstanceCommandService>();
         services.AddSingleton<JobActivationService>();
+        services.AddSingleton<TimerService>();
+        services.AddSingleton<MessageService>();
     }
 }

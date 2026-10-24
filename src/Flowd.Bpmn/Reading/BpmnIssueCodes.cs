@@ -20,4 +20,8 @@ public static class BpmnIssueCodes
     public const string ConditionNotAllowed = "CONDITION_NOT_ALLOWED";
     public const string InvalidMapping = "INVALID_MAPPING";
     public const string InvalidExpression = "INVALID_EXPRESSION";
+    public const string InvalidTimer = "INVALID_TIMER";
+    public const string InvalidBoundary = "INVALID_BOUNDARY_EVENT";
+    public const string InvalidEventDefinition = "INVALID_EVENT_DEFINITION";
+    public const string InvalidGatewayTarget = "INVALID_EVENT_GATEWAY";
 }

@@ -37,3 +37,6 @@ public interface IInstanceLookup
 
 /// <summary>Thrown by a store when the instance row stayed locked longer than the lock timeout (FR-CON-001). Mapped to 503 RETRY_LATER.</summary>
 public sealed class InstanceBusyException(string message) : Exception(message);
+
+/// <summary>Thrown by a store when a message would reach the same definition twice (FR-MSG-002).</summary>
+public sealed class CorrelationConflictException(string message) : Exception(message);

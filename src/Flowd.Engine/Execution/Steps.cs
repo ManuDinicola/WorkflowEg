@@ -3,7 +3,7 @@ using Flowd.Bpmn.Model;
 namespace Flowd.Engine.Execution;
 
 /// <summary>Create and activate an element in a scope (arrived over <see cref="IncomingFlowId"/>).</summary>
-internal sealed record ActivateElement(string ElementId, long ScopeKey, string? IncomingFlowId);
+internal sealed record ActivateElement(string ElementId, long ScopeKey, string? IncomingFlowId, bool Triggered = false);
 
 /// <summary>Run the completion logic of an element instance (output mappings, then take flows).</summary>
 internal sealed record CompleteElement(long ElementInstanceKey);
@@ -21,6 +21,10 @@ public static class ElementTypes
     {
         StartEvent => "startEvent",
         EndEvent => "endEvent",
+        IntermediateCatchEvent => "intermediateCatchEvent",
+        BoundaryEvent => "boundaryEvent",
+        ReceiveTask => "receiveTask",
+        EventBasedGateway => "eventBasedGateway",
         ServiceTask task => task.BpmnType,
         ScriptTask => "scriptTask",
         SubProcess => "subProcess",

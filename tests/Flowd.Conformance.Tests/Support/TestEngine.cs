@@ -3,6 +3,8 @@ using System.Text.Json.Nodes;
 using Flowd.Application.Deployment;
 using Flowd.Application.Execution;
 using Flowd.Application.Jobs;
+using Flowd.Application.Messaging;
+using Flowd.Application.Timers;
 using Flowd.Engine.Commands;
 using Flowd.Engine.Effects;
 using Flowd.Engine.Execution;
@@ -25,16 +27,23 @@ public sealed class TestEngine
     private readonly StartInstanceUseCase _starter;
     private readonly InstanceCommandService _commands;
     private readonly JobActivationService _activation;
+    private readonly TimerService _timers;
+    private readonly CommandProcessor _processor;
+    private readonly MessageService _messages;
 
-    public TestEngine(EngineOptions? options = null)
+    public TestEngine(EngineOptions? options = null, InMemoryStore? store = null, FakeTimeProvider? time = null)
     {
-        Time = new FakeTimeProvider(new DateTimeOffset(2026, 10, 24, 12, 0, 0, TimeSpan.Zero));
-        Store = new InMemoryStore();
+        Time = time ?? new FakeTimeProvider(new DateTimeOffset(2026, 10, 24, 12, 0, 0, TimeSpan.Zero));
+        Store = store ?? new InMemoryStore();
         Keys = new SequentialKeys();
         var engine = new EngineServices(new Interpreter(ElementHandlerRegistry.CreateDefault(), options), Keys, Time);
-        _deployer = new DeployProcessesUseCase(Store, Keys, Time);
-        _starter = new StartInstanceUseCase(Store, Store, new ProcessModelProvider(Store), engine);
-        _commands = new InstanceCommandService(new CommandProcessor(Store, engine), Store);
+        var processor = new CommandProcessor(Store, engine, Store);
+        _processor = processor;
+        _deployer = new DeployProcessesUseCase(Store, Store, Keys, Time);
+        _starter = new StartInstanceUseCase(Store, Store, new ProcessModelProvider(Store), engine, processor);
+        _timers = new TimerService(Store, processor, _starter, Time);
+        _messages = new MessageService(Store, processor, _starter, Keys, Time);
+        _commands = new InstanceCommandService(processor, Store);
         _activation = new JobActivationService(Store, Time);
         Queue = Store;
     }
@@ -95,6 +104,16 @@ public sealed class TestEngine
     public Task<Result<ProcessedCommand>> ResolveIncidentAsync(long incidentKey) =>
         _commands.ResolveIncidentAsync(Tenant, incidentKey, CancellationToken.None);
 
+    /// <summary>Fires every timer that is due now; returns how many were handled (FR-TMR-002).</summary>
+    public Task<int> RunTimersAsync() => _timers.RunDueAsync(CancellationToken.None);
+
+    public Task<Result<PublishedMessage>> PublishAsync(string name, string correlationKey, JsonObject? variables = null, TimeSpan? ttl = null, string? messageId = null) =>
+        _messages.PublishAsync(new PublishMessageRequest(Tenant, name, correlationKey, variables, ttl ?? TimeSpan.Zero, messageId), CancellationToken.None);
+
+    /// <summary>Runs any engine command directly, for the rejection paths the API does not expose.</summary>
+    public Task<Result<ProcessedCommand>> ExecuteAsync(long instanceKey, EngineCommand command) =>
+        _processor.ExecuteAsync(Tenant, instanceKey, command, CancellationToken.None);
+
     public Task<int> RequeueTimedOutAsync() => Queue.RequeueTimedOutAsync(Time.GetUtcNow(), CancellationToken.None);
 
     // ---- assertions & inspection ----------------------------------------------------------------------------------
@@ -135,6 +154,8 @@ public sealed class TestEngine
         RateLimited r => $"rate limited: {r.Message}",
         Unavailable u => $"unavailable: {u.Message}",
     };
+
+    public static bool Failed<T>(Result<T> result) => result is Failure;
 
     public static string? ConflictCode<T>(Result<T> result) =>
         result is Failure failure && failure is Conflict conflict ? conflict.Code : null;

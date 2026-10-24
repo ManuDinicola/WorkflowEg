@@ -126,6 +126,7 @@ public sealed class StepContext
         instance.EndedAt = Now;
         Emit(new ElementChanged(instance.Copy()));
         Record(HistoryEventTypes.ElementCompleted, instance);
+        CloseTriggersOf(instance);
     }
 
     public void Terminate(ElementInstance instance)
@@ -136,8 +137,82 @@ public sealed class StepContext
         instance.EndedAt = Now;
         Emit(new ElementChanged(instance.Copy()));
         Record(HistoryEventTypes.ElementTerminated, instance);
+        CloseTriggersOf(instance);
         ClearLocalScope(instance);
         CancelJobsOf(instance);
+    }
+
+    /// <summary>True while an element is being activated because its own trigger already fired (event-based gateway winner).</summary>
+    public bool ActivationFromTrigger { get; internal set; }
+
+    public TimerRecord OpenTimer(ElementInstance owner, string elementId, TriggerKind kind, DateTimeOffset due, CycleSpec? cycle)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        var timer = new TimerRecord
+        {
+            Key = NextKey(),
+            InstanceKey = State.InstanceKey,
+            ElementInstanceKey = owner.Key,
+            DefinitionKey = State.DefinitionKey,
+            ElementId = elementId,
+            Kind = kind,
+            DueAt = due,
+            Repetitions = cycle?.Repetitions,
+            Interval = cycle?.Interval,
+            TenantId = State.TenantId,
+        };
+        State.Timers[timer.Key] = timer;
+        Emit(new TimerChanged(timer.Copy()));
+        return timer;
+    }
+
+    public SubscriptionRecord OpenSubscription(ElementInstance owner, string elementId, TriggerKind kind, string messageName, string correlationKey)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        var subscription = new SubscriptionRecord
+        {
+            Key = NextKey(),
+            InstanceKey = State.InstanceKey,
+            ElementInstanceKey = owner.Key,
+            DefinitionKey = State.DefinitionKey,
+            ElementId = elementId,
+            Kind = kind,
+            MessageName = messageName,
+            CorrelationKey = correlationKey,
+            TenantId = State.TenantId,
+        };
+        State.Subscriptions[subscription.Key] = subscription;
+        Emit(new SubscriptionChanged(subscription.Copy()));
+        return subscription;
+    }
+
+    /// <summary>Removes every timer and subscription owned by the element (it completed or was terminated).</summary>
+    public void CloseTriggersOf(ElementInstance owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        foreach (var timer in State.Timers.Values.Where(t => t.ElementInstanceKey == owner.Key && t.IsActive))
+        {
+            DeactivateTimer(timer);
+        }
+
+        foreach (var subscription in State.Subscriptions.Values.Where(s => s.ElementInstanceKey == owner.Key).ToList())
+        {
+            CloseSubscription(subscription);
+        }
+    }
+
+    public void DeactivateTimer(TimerRecord timer)
+    {
+        ArgumentNullException.ThrowIfNull(timer);
+        timer.IsActive = false;
+        Emit(new TimerChanged(timer.Copy()));
+    }
+
+    public void CloseSubscription(SubscriptionRecord subscription)
+    {
+        ArgumentNullException.ThrowIfNull(subscription);
+        State.Subscriptions.Remove(subscription.Key);
+        Emit(new SubscriptionClosed(subscription.Key));
     }
 
     public void TakeFlows(ElementInstance from, IEnumerable<SequenceFlow> flows)

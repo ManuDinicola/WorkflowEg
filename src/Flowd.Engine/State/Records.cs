@@ -136,3 +136,67 @@ public sealed class IncidentRecord
 
     public IncidentRecord Copy() => (IncidentRecord)MemberwiseClone();
 }
+
+/// <summary>What a timer or message subscription is attached to (section 5.1).</summary>
+public enum TriggerKind
+{
+    Catch,
+    Boundary,
+    EventGateway,
+    Start,
+}
+
+/// <summary>A pending timer. <see cref="ElementInstanceKey"/> is the owner: the waiting event, the attached activity or the event gateway.</summary>
+public sealed class TimerRecord
+{
+    public required long Key { get; init; }
+
+    public long? InstanceKey { get; init; }
+
+    public long? ElementInstanceKey { get; init; }
+
+    public long? DefinitionKey { get; init; }
+
+    /// <summary>The element to continue with when the timer fires (the boundary or catch event).</summary>
+    public required string ElementId { get; init; }
+
+    public required TriggerKind Kind { get; init; }
+
+    public DateTimeOffset DueAt { get; set; }
+
+    /// <summary>Remaining firings of a cycle; null for one-shot timers and endless cycles.</summary>
+    public int? Repetitions { get; set; }
+
+    /// <summary>Set for cycles: the next due time is the previous one plus this interval (FR-TMR-006).</summary>
+    public TimeSpan? Interval { get; init; }
+
+    public bool IsActive { get; set; } = true;
+
+    public string TenantId { get; init; } = string.Empty;
+
+    public TimerRecord Copy() => (TimerRecord)MemberwiseClone();
+}
+
+/// <summary>A process waiting for a message with a name and correlation key (section 11).</summary>
+public sealed class SubscriptionRecord
+{
+    public required long Key { get; init; }
+
+    public long? InstanceKey { get; init; }
+
+    public long? ElementInstanceKey { get; init; }
+
+    public required long DefinitionKey { get; init; }
+
+    public required string ElementId { get; init; }
+
+    public required TriggerKind Kind { get; init; }
+
+    public required string MessageName { get; init; }
+
+    public required string CorrelationKey { get; init; }
+
+    public string TenantId { get; init; } = string.Empty;
+
+    public SubscriptionRecord Copy() => (SubscriptionRecord)MemberwiseClone();
+}

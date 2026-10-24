@@ -52,4 +52,36 @@ public static class Bpmn
 
     public static string SendTask(string id, string type) =>
         $"<bpmn:sendTask id=\"{id}\"><bpmn:extensionElements><flowd:taskDefinition type=\"{type}\"/></bpmn:extensionElements></bpmn:sendTask>";
+
+    /// <summary>Process whose definitions element also declares messages (<c>bpmn:message</c> with a correlation key).</summary>
+    public static string ProcessWithMessages(string id, string messages, params string[] elements) =>
+        Process(id, elements).Replace("<bpmn:process ", messages + "<bpmn:process ", StringComparison.Ordinal);
+
+    public static string MessageDef(string id, string name, string correlationKey = "= key") =>
+        $"<bpmn:message id=\"{id}\" name=\"{name}\"><bpmn:extensionElements><flowd:subscription correlationKey=\"{SecurityElement.Escape(correlationKey)}\"/></bpmn:extensionElements></bpmn:message>";
+
+    private static string TimerDef(string kind, string value) =>
+        $"<bpmn:timerEventDefinition><bpmn:{kind}>{SecurityElement.Escape(value)}</bpmn:{kind}></bpmn:timerEventDefinition>";
+
+    public static string CatchTimer(string id, string value, string kind = "timeDuration") =>
+        $"<bpmn:intermediateCatchEvent id=\"{id}\">{TimerDef(kind, value)}</bpmn:intermediateCatchEvent>";
+
+    public static string CatchMessage(string id, string messageRef) =>
+        $"<bpmn:intermediateCatchEvent id=\"{id}\"><bpmn:messageEventDefinition messageRef=\"{messageRef}\"/></bpmn:intermediateCatchEvent>";
+
+    public static string BoundaryTimer(string id, string attachedTo, string value, string kind = "timeDuration", bool cancel = true) =>
+        $"<bpmn:boundaryEvent id=\"{id}\" attachedToRef=\"{attachedTo}\" cancelActivity=\"{(cancel ? "true" : "false")}\">{TimerDef(kind, value)}</bpmn:boundaryEvent>";
+
+    public static string BoundaryMessage(string id, string attachedTo, string messageRef, bool cancel = true) =>
+        $"<bpmn:boundaryEvent id=\"{id}\" attachedToRef=\"{attachedTo}\" cancelActivity=\"{(cancel ? "true" : "false")}\"><bpmn:messageEventDefinition messageRef=\"{messageRef}\"/></bpmn:boundaryEvent>";
+
+    public static string ReceiveTask(string id, string messageRef) => $"<bpmn:receiveTask id=\"{id}\" messageRef=\"{messageRef}\"/>";
+
+    public static string EventGateway(string id) => $"<bpmn:eventBasedGateway id=\"{id}\"/>";
+
+    public static string StartTimer(string id, string value, string kind = "timeDuration") =>
+        $"<bpmn:startEvent id=\"{id}\">{TimerDef(kind, value)}</bpmn:startEvent>";
+
+    public static string StartMessage(string id, string messageRef) =>
+        $"<bpmn:startEvent id=\"{id}\"><bpmn:messageEventDefinition messageRef=\"{messageRef}\"/></bpmn:startEvent>";
 }

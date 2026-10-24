@@ -69,6 +69,10 @@ public sealed class ElementHandlerRegistry
         new InclusiveGatewayHandler(),
         new SubProcessHandler(),
         new ScriptTaskHandler(),
+        new IntermediateCatchEventElementHandler(),
+        new BoundaryEventElementHandler(),
+        new ReceiveTaskHandler(),
+        new EventBasedGatewayHandler(),
     ]);
 
     public IEnumerable<IReevaluatingHandler> Reevaluating() => _handlers.Values.OfType<IReevaluatingHandler>();
