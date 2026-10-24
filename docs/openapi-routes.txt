@@ -1,8 +1,12 @@
 DELETE /v1/process-definitions/{key}
 DELETE /v1/process-instances/{key}
+GET /
 GET /healthz
 GET /metrics
 GET /readyz
+GET /ui
+GET /v1/analytics/processes/{bpmnProcessId}
+GET /v1/analytics/summary
 GET /v1/audit
 GET /v1/decisions
 GET /v1/events/stream

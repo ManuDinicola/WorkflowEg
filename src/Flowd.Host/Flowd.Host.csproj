@@ -5,6 +5,9 @@
     <RootNamespace>Flowd.Host</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Ui/index.html" LogicalName="Flowd.Ui.index.html" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Flowd.Architecture.Tests" />
     <InternalsVisibleTo Include="Flowd.Integration.Tests" />
   </ItemGroup>

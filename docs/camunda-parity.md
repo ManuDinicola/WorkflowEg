@@ -134,13 +134,14 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Published benchmark numbers for throughput
 
 ## Tooling and UI
-- [ ] Operate-like UI: definitions, instances, incidents, variables, history
-- [ ] Diagram view with token overlay
-- [ ] Tasklist-like UI
-- [ ] Browser modeler
-- [ ] Analytics (Optimize-like): durations, counts, heatmap
+- [x] Operate-like UI: definitions, instances, incidents, variables, history
+- [x] Diagram view with token overlay
+- [x] Tasklist-like UI
+- [ ] Browser modeler (graphical editing)
+- [x] Browser XML editor with live diagram preview and deploy
+- [x] Analytics (Optimize-like): durations, counts, heatmap
 - [ ] Connectors: REST, webhook inbound, e-mail, queue
 - [ ] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 89 of 114 = 78 %. Target: 95 % (109 of 114).
+Score (2026-10-24): 94 of 115 = 81 %. Target: 95 % (110 of 115).

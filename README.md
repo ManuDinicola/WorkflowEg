@@ -61,6 +61,7 @@ It applies the migrations and registers an auto-start service named `Flowd`. Run
 ## Docs
 - Decisions (DMN): `docs/dmn.md`.
 - Forms: `docs/forms.md`.
+- Web UI: `docs/ui.md`.
 - TypeScript worker SDK: `sdk/typescript/README.md`.
 - Python worker SDK: `sdk/python/README.md`.
 - Expressions: `docs/feel.md`.

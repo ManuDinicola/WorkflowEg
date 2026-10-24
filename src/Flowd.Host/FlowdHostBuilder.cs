@@ -87,9 +87,11 @@ internal static class FlowdHostBuilder
         app.UseMiddleware<IdempotencyMiddleware>();
         app.MapOpenApi().AllowAnonymous();
         app.MapOperationalEndpoints();
+        app.MapUi();
         app.MapDeploymentEndpoints();
         app.MapDecisionEndpoints();
         app.MapJobStreamEndpoints();
+        app.MapAnalyticsEndpoints();
         app.MapJobSearchEndpoints();
         app.MapFormEndpoints();
         app.MapBatchEndpoints();
@@ -202,6 +204,7 @@ internal static class FlowdHostBuilder
             new SnowflakeKeyGenerator(sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IOptions<FlowdOptions>>().Value.NodeId));
         services.AddSingleton<IProcessDefinitionStore, PostgresProcessDefinitionStore>();
         services.AddSingleton<IDecisionStore, PostgresDecisionStore>();
+        services.AddSingleton<IAnalyticsQueries, PostgresAnalyticsQueries>();
         services.AddSingleton<IJobQueries, PostgresJobQueries>();
         services.AddSingleton<IFormStore, PostgresFormStore>();
         services.AddSingleton<IInstanceMigrationStore, PostgresMigrationStore>();

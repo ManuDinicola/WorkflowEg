@@ -67,3 +67,20 @@ public interface IJobQueries
 {
     Task<JobPage> SearchAsync(string tenantId, JobFilter filter, int pageSize, long? afterKey, CancellationToken cancellationToken);
 }
+
+/// <summary>Counts for the overview page and monitoring (FR-UI-004).</summary>
+public sealed record AnalyticsSummary(IReadOnlyDictionary<string, int> InstancesByState, int OpenIncidents, IReadOnlyDictionary<string, int> JobsByState, int OpenUserTasks);
+
+/// <summary>Per element of a process: how often it ran and how long it took (the heat map).</summary>
+public sealed record ElementStatistics(string ElementId, string ElementType, int Activations, double? AverageSeconds);
+
+/// <summary>Statistics of one process id over all its versions.</summary>
+public sealed record ProcessAnalytics(string BpmnProcessId, IReadOnlyDictionary<string, int> InstancesByState, double? AverageDurationSeconds, double? MaxDurationSeconds, IReadOnlyList<ElementStatistics> Elements);
+
+/// <summary>Port: read-only statistics.</summary>
+public interface IAnalyticsQueries
+{
+    Task<AnalyticsSummary> SummaryAsync(string tenantId, CancellationToken cancellationToken);
+
+    Task<ProcessAnalytics> ProcessAsync(string tenantId, string bpmnProcessId, CancellationToken cancellationToken);
+}
