@@ -216,6 +216,8 @@ internal static class FlowdHostBuilder
                 sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString,
                 sp.GetRequiredService<IMigrationRunner>()));
         services.AddHostedService<JobTimeoutSweeper>();
+        services.AddSingleton<DecisionJobProcessor>();
+        services.AddHostedService<DecisionWorker>();
         services.AddHttpClient<OutboxPublisher>();
         services.AddHostedService(sp => sp.GetRequiredService<OutboxPublisher>());
         services.AddHostedService<TimerScheduler>();

@@ -42,6 +42,9 @@ public sealed class ServiceTask : FlowNode
     /// <summary>Job type from <c>flowd:taskDefinition type</c>; null when missing (rejected by the validator).</summary>
     public string? TaskType { get; init; }
 
+    /// <summary>Job type of the internal worker that evaluates a called decision (business rule task with DMN).</summary>
+    public const string DecisionTaskType = "flowd.decision";
+
     /// <summary>Raw <c>retries</c> attribute: a literal or an expression starting with <c>=</c>.</summary>
     public string? Retries { get; init; }
 

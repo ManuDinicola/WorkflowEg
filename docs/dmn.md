@@ -18,4 +18,12 @@ Deploying the same file again keeps the version; a changed file creates the next
 - Errors: UNIQUE with several matches `DMN_MULTIPLE_MATCHES`, ANY with different outputs `DMN_ANY_CONFLICT`, failing input or output expressions `DMN_INPUT` / `DMN_OUTPUT`.
 
 ## Not yet
-Decision requirements graphs (a decision calling another), business rule tasks that call a decision from a process, FEEL ranges inside normal expressions, and decision versions pinned by a process.
+Decision requirements graphs (a decision calling another), FEEL ranges inside normal expressions, and decision versions pinned by a process.
+
+## Calling a decision from a process
+```xml
+<bpmn:businessRuleTask id="Rule">
+  <bpmn:extensionElements><flowd:calledDecision decisionId="discount" resultVariable="rate"/></bpmn:extensionElements>
+</bpmn:businessRuleTask>
+```
+The task creates an internal job of type `flowd.decision`. A built-in worker (a hosted service of the engine, every 200 ms, all tenants) evaluates the latest version of the decision with the process variables and completes the job with the result in `resultVariable` (default `decisionResult`). If the decision is missing or fails, the job fails and retries like any other, then raises an incident. Delivery is at-least-once like every job.

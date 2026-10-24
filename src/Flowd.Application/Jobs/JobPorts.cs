@@ -29,6 +29,9 @@ public interface IJobQueue
     /// <summary>Atomically moves up to <c>MaxJobs</c> activatable jobs to ACTIVATED, oldest first (FR-JOB-001, FR-JOB-007).</summary>
     Task<IReadOnlyList<ActivatedJob>> ActivateAsync(ActivateJobsRequest request, DateTimeOffset now, CancellationToken cancellationToken);
 
+    /// <summary>Tenants that have activatable jobs of the given type (used by the internal decision worker).</summary>
+    Task<IReadOnlyList<string>> TenantsWithActivatableAsync(string type, DateTimeOffset now, CancellationToken cancellationToken);
+
     /// <summary>Returns jobs whose deadline passed to ACTIVATABLE without touching retries (FR-JOB-004). Returns how many.</summary>
     Task<int> RequeueTimedOutAsync(DateTimeOffset now, CancellationToken cancellationToken);
 

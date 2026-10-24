@@ -166,6 +166,9 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
         return Task.FromResult<IReadOnlyList<ActivatedJob>>(activated);
     }
 
+    public Task<IReadOnlyList<string>> TenantsWithActivatableAsync(string type, DateTimeOffset now, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<string>>([.. _instances.Values.Where(i => i.Jobs.Values.Any(j => string.Equals(j.Type, type, StringComparison.Ordinal) && j.State == JobState.Activatable)).Select(i => i.TenantId).Distinct(StringComparer.Ordinal)]);
+
     public Task<int> RequeueTimedOutAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {
         var timedOut = _instances.Values.SelectMany(i => i.Jobs.Values).Where(j => j.State == JobState.Activated && j.Deadline < now).ToList();
