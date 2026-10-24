@@ -25,7 +25,7 @@ public sealed class SequentialKeys : IKeyGenerator
 /// In-memory implementation of every storage port, so the real Application pipeline and Interpreter run without a database
 /// (section 22: "in-memory store + FakeTimeProvider").
 /// </summary>
-public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactionFactory, IInstanceLookup, IJobQueue, IInstanceQueries, ITimerQueue, IStartTriggerStore, IMessageStore, ISignalStore, IUserTaskQueries
+public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactionFactory, IInstanceLookup, IJobQueue, IInstanceQueries, ITimerQueue, IStartTriggerStore, IMessageStore, ISignalStore, IUserTaskQueries, IChildInstanceStore
 {
     private readonly Dictionary<long, (ProcessDefinitionInfo Info, byte[] Xml, byte[] Checksum)> _definitions = [];
     private readonly Dictionary<long, EngineState> _instances = [];
@@ -379,4 +379,9 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
 
     public Task<long?> InstanceOfUserTaskAsync(string tenantId, long taskKey, CancellationToken cancellationToken) =>
         Task.FromResult(_instances.Values.Where(i => i.TenantId == tenantId && i.UserTasks.ContainsKey(taskKey)).Select(i => (long?)i.InstanceKey).FirstOrDefault());
+
+    public Task<IReadOnlyList<long>> FindActiveChildrenAsync(string tenantId, long parentElementInstanceKey, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<long>>([.. _instances.Values
+            .Where(i => i.TenantId == tenantId && i.ParentElementInstanceKey == parentElementInstanceKey && i.State == InstanceState.Active)
+            .Select(i => i.InstanceKey)]);
 }

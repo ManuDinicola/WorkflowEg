@@ -45,6 +45,15 @@ public sealed record AssignUserTask(long TaskKey, string User);
 /// <summary>Completes a user task with result variables (API-011).</summary>
 public sealed record CompleteUserTask(long TaskKey, JsonObject? Variables, string? User);
 
+/// <summary>The child instance of a call activity completed (FR-EXEC-011).</summary>
+public sealed record CompleteCallActivity(long ElementInstanceKey, JsonObject Variables);
+
+/// <summary>The child instance could not be started or was terminated: incident CALLED_ELEMENT_ERROR.</summary>
+public sealed record FailCallActivity(long ElementInstanceKey, string Message);
+
+/// <summary>An error left the child instance unhandled; look for a handler at the call activity.</summary>
+public sealed record ThrowFromCallActivity(long ElementInstanceKey, string ErrorCode);
+
 /// <summary>Every intent the engine can be asked to process (section 7, UNI-002).</summary>
 public union EngineCommand(
     StartInstance,
@@ -61,4 +70,7 @@ public union EngineCommand(
     ClaimUserTask,
     UnclaimUserTask,
     AssignUserTask,
-    CompleteUserTask);
+    CompleteUserTask,
+    CompleteCallActivity,
+    FailCallActivity,
+    ThrowFromCallActivity);

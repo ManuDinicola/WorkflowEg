@@ -24,4 +24,7 @@ public static class BpmnIssueCodes
     public const string InvalidBoundary = "INVALID_BOUNDARY_EVENT";
     public const string InvalidEventDefinition = "INVALID_EVENT_DEFINITION";
     public const string InvalidGatewayTarget = "INVALID_EVENT_GATEWAY";
+    public const string InvalidLoop = "INVALID_MULTI_INSTANCE";
+    public const string InvalidCall = "INVALID_CALL_ACTIVITY";
+    public const string InvalidEventSubProcess = "INVALID_EVENT_SUBPROCESS";
 }

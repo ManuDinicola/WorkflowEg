@@ -51,7 +51,7 @@ public static class ExpressionJson
         JsonValueKind.True => true,
         JsonValueKind.False => false,
         JsonValueKind.String => value.GetValue<string>(),
-        JsonValueKind.Number => value.TryGetValue<decimal>(out var d) ? d : (decimal)value.GetValue<double>(),
+        JsonValueKind.Number => decimal.Parse(value.ToJsonString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture),
         _ => NullValue.Instance, // non-union: JsonValueKind is an enum
     };
 }

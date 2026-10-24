@@ -40,7 +40,8 @@ public sealed class PostgresInstanceTransaction(NpgsqlConnection connection, Npg
         try
         {
             row = await connection.QuerySingleOrDefaultAsync<InstanceRow>(new CommandDefinition(
-                "SELECT key AS Key, definition_key AS DefinitionKey, business_key AS BusinessKey, started_at AS StartedAt, ended_at AS EndedAt, state AS State " +
+                "SELECT key AS Key, definition_key AS DefinitionKey, business_key AS BusinessKey, started_at AS StartedAt, ended_at AS EndedAt, state AS State, " +
+                "parent_instance_key AS ParentInstanceKey, parent_element_instance_key AS ParentElementInstanceKey " +
                 "FROM process_instance WHERE key = @instanceKey AND tenant_id = @tenantId FOR UPDATE",
                 new { instanceKey, tenantId },
                 transaction,
@@ -61,6 +62,8 @@ public sealed class PostgresInstanceTransaction(NpgsqlConnection connection, Npg
         var state = new EngineState(row.Key, row.DefinitionKey, graph, tenantId, Utc(row.StartedAt))
         {
             BusinessKey = row.BusinessKey,
+            ParentInstanceKey = row.ParentInstanceKey,
+            ParentElementInstanceKey = row.ParentElementInstanceKey,
             EndedAt = row.EndedAt is { } ended ? Utc(ended) : null,
             State = ParseInstanceState(row.State),
         };
@@ -120,6 +123,10 @@ public sealed class PostgresInstanceTransaction(NpgsqlConnection connection, Npg
         public DateTime? EndedAt { get; set; }
 
         public string State { get; set; } = string.Empty;
+
+        public long? ParentInstanceKey { get; set; }
+
+        public long? ParentElementInstanceKey { get; set; }
     }
 }
 
@@ -130,7 +137,7 @@ internal static class InstanceLoader
     {
         var key = state.InstanceKey;
         var elements = await connection.QueryAsync<ElementRow>(new CommandDefinition(
-            "SELECT key AS Key, element_id AS ElementId, element_type AS ElementType, scope_key AS ScopeKey, state AS State, incoming_flow_id AS IncomingFlowId, started_at AS StartedAt, ended_at AS EndedAt " +
+            "SELECT key AS Key, element_id AS ElementId, element_type AS ElementType, scope_key AS ScopeKey, state AS State, incoming_flow_id AS IncomingFlowId, loop_counter AS LoopCounter, started_at AS StartedAt, ended_at AS EndedAt " +
             "FROM element_instance WHERE instance_key = @key AND state NOT IN ('COMPLETED', 'TERMINATED')",
             new { key }, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
         foreach (var e in elements)
@@ -143,6 +150,7 @@ internal static class InstanceLoader
                 ScopeKey = e.ScopeKey,
                 State = Enum.Parse<ElementState>(e.State, ignoreCase: true),
                 IncomingFlowId = e.IncomingFlowId,
+                LoopCounter = e.LoopCounter,
                 StartedAt = PostgresInstanceTransaction.Utc(e.StartedAt),
                 EndedAt = e.EndedAt is { } end ? PostgresInstanceTransaction.Utc(end) : null,
             };
@@ -234,6 +242,8 @@ internal static class InstanceLoader
         public string State { get; set; } = string.Empty;
 
         public string? IncomingFlowId { get; set; }
+
+        public int? LoopCounter { get; set; }
 
         public DateTime StartedAt { get; set; }
 
@@ -333,8 +343,8 @@ internal static class EffectWriter
                 case UserTaskChanged userTask:
                     UserTaskRows.Write(batch, userTask.Snapshot);
                     break;
-                case SignalThrown:
-                    break; // broadcast after the commit, nothing to store
+                case SignalThrown or ChildInstanceRequested or ChildInstanceEnded or ChildErrorThrown or ChildCancelRequested:
+                    break; // handled after the commit, nothing to store
                 case TimerChanged or SubscriptionChanged or SubscriptionClosed or MessageCorrelated:
                     TriggerRows.Write(batch, effects[i]);
                     break;
@@ -361,17 +371,17 @@ internal static class EffectWriter
     private static void InsertInstance(NpgsqlBatch batch, InstanceStarted s) =>
         Add(
             batch,
-            "INSERT INTO process_instance (key, definition_key, state, business_key, tenant_id, started_at) VALUES (@k, @d, 'ACTIVE', @b, @t, @a)",
-            ("k", s.InstanceKey), ("d", s.DefinitionKey), ("b", (object?)s.BusinessKey ?? DBNull.Value), ("t", s.TenantId), ("a", s.StartedAt.UtcDateTime));
+            "INSERT INTO process_instance (key, definition_key, state, business_key, tenant_id, started_at, parent_instance_key, parent_element_instance_key) VALUES (@k, @d, 'ACTIVE', @b, @t, @a, @pi, @pe)",
+            ("k", s.InstanceKey), ("d", s.DefinitionKey), ("b", (object?)s.BusinessKey ?? DBNull.Value), ("t", s.TenantId), ("a", s.StartedAt.UtcDateTime), ("pi", (object?)s.ParentInstanceKey ?? DBNull.Value), ("pe", (object?)s.ParentElementInstanceKey ?? DBNull.Value));
 
     private static void UpsertElement(NpgsqlBatch batch, long instanceKey, ElementInstance e) =>
         Add(
             batch,
-            "INSERT INTO element_instance (key, instance_key, scope_key, element_id, element_type, state, incoming_flow_id, started_at, ended_at) " +
-            "VALUES (@k, @i, @s, @id, @type, @state, @flow, @started, @ended) " +
+            "INSERT INTO element_instance (key, instance_key, scope_key, element_id, element_type, state, incoming_flow_id, loop_counter, started_at, ended_at) " +
+            "VALUES (@k, @i, @s, @id, @type, @state, @flow, @loop, @started, @ended) " +
             "ON CONFLICT (key) DO UPDATE SET state = EXCLUDED.state, ended_at = EXCLUDED.ended_at",
             ("k", e.Key), ("i", instanceKey), ("s", e.ScopeKey), ("id", e.ElementId), ("type", e.ElementType), ("state", e.State.ToString().ToUpperInvariant()),
-            ("flow", (object?)e.IncomingFlowId ?? DBNull.Value), ("started", e.StartedAt.UtcDateTime), ("ended", Db(e.EndedAt)));
+            ("flow", (object?)e.IncomingFlowId ?? DBNull.Value), ("loop", (object?)e.LoopCounter ?? DBNull.Value), ("started", e.StartedAt.UtcDateTime), ("ended", Db(e.EndedAt)));
 
     private static void UpsertJob(NpgsqlBatch batch, JobRecord j)
     {

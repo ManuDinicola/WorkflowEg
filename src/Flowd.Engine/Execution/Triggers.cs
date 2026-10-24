@@ -25,6 +25,26 @@ internal static class Triggers
         return true;
     }
 
+    /// <summary>Opens the start triggers of the event sub-processes declared in a scope (the process root or one sub-process).</summary>
+    public static bool OpenEventSubProcesses(StepContext context, ElementInstance scopeOwner, string? scopeNodeId)
+    {
+        foreach (var esp in context.State.Graph.EventSubProcessesIn(scopeNodeId))
+        {
+            var start = esp.Nodes.OfType<StartEvent>().First();
+            if (start.Definition is null or ErrorEventDefinition || IsOpen(context, scopeOwner, esp.Id))
+            {
+                continue; // error start events are matched during error propagation, not by a trigger
+            }
+
+            if (!Open(context, scopeOwner, esp.Id, start.Definition, TriggerKind.EventSubProcess))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public static bool IsOpen(StepContext context, ElementInstance owner, string elementId) =>
         context.State.Timers.Values.Any(t => t.IsActive && t.ElementInstanceKey == owner.Key && t.ElementId == elementId)
         || context.State.Subscriptions.Values.Any(s => s.ElementInstanceKey == owner.Key && s.ElementId == elementId);
@@ -157,6 +177,11 @@ internal static class TriggerCommands
 
     private static CommandRejected? Fire(StepContext context, long? ownerKey, TriggerKind kind, string elementId, JsonObject? variables)
     {
+        if (kind == TriggerKind.EventSubProcess)
+        {
+            return FireEventSubProcess(context, ownerKey, elementId, variables);
+        }
+
         if (ownerKey is not { } key || !context.State.Elements.TryGetValue(key, out var owner) || !owner.IsLive)
         {
             return Rejections.Conflict("TRIGGER_OWNER_GONE", "The element waiting for this trigger is gone.");
@@ -188,6 +213,54 @@ internal static class TriggerCommands
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// An event sub-process start fired. The scope is the process root or a live sub-process. Interrupting ones terminate the rest of
+    /// the scope first (section 6.1, T-ESP-01).
+    /// </summary>
+    private static CommandRejected? FireEventSubProcess(StepContext context, long? ownerKey, string espId, JsonObject? variables)
+    {
+        if (ownerKey is not { } scopeKey
+            || (scopeKey != context.State.InstanceKey && !(context.State.Elements.TryGetValue(scopeKey, out var scope) && scope.IsLive)))
+        {
+            return Rejections.Conflict("TRIGGER_OWNER_GONE", "The scope of this event sub-process has ended.");
+        }
+
+        foreach (var (name, value) in variables ?? [])
+        {
+            if (context.WriteVariable(scopeKey, name, value, propagate: true) is { } error)
+            {
+                return Rejections.Invalid(error.Message);
+            }
+        }
+
+        StartEventSubProcess(context, scopeKey, (SubProcess)context.State.Graph.Node(espId));
+        return null;
+    }
+
+    /// <summary>Starts an event sub-process in a scope, interrupting the scope's other work when its start event is interrupting.</summary>
+    public static void StartEventSubProcess(StepContext context, long scopeKey, SubProcess esp)
+    {
+        var start = esp.Nodes.OfType<StartEvent>().First();
+        if (start.IsInterrupting)
+        {
+            foreach (var child in context.State.LiveElements().Where(e => e.ScopeKey == scopeKey).ToList())
+            {
+                TerminateTree(context, child);
+            }
+
+            if (scopeKey == context.State.InstanceKey)
+            {
+                context.CloseTriggersOwnedBy(scopeKey);
+            }
+            else
+            {
+                context.CloseTriggersOf(context.State.Elements[scopeKey]);
+            }
+        }
+
+        context.Enqueue(new ActivateElement(esp.Id, scopeKey, null));
     }
 
     private static void FireBoundary(StepContext context, ElementInstance activity, BoundaryEvent boundary)

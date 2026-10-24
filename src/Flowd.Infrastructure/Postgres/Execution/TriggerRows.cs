@@ -14,6 +14,7 @@ internal static class TriggerRows
         TriggerKind.Catch => "CATCH",
         TriggerKind.Boundary => "BOUNDARY",
         TriggerKind.EventGateway => "EVENT_GATEWAY",
+        TriggerKind.EventSubProcess => "EVENT_SUBPROCESS",
         TriggerKind.Start => "START",
         _ => throw new InvalidOperationException($"Unknown trigger kind {kind}."), // non-union: enum
     };
@@ -23,6 +24,7 @@ internal static class TriggerRows
         "CATCH" => TriggerKind.Catch,
         "BOUNDARY" => TriggerKind.Boundary,
         "EVENT_GATEWAY" => TriggerKind.EventGateway,
+        "EVENT_SUBPROCESS" => TriggerKind.EventSubProcess,
         "START" => TriggerKind.Start,
         _ => throw new InvalidOperationException($"Unknown trigger kind '{text}'."), // non-union: database text
     };

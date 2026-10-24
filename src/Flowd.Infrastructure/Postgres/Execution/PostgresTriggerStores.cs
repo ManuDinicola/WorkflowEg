@@ -203,3 +203,17 @@ public sealed class PostgresMessageStore(NpgsqlDataSource dataSource) : IMessage
         public DateTime CreatedAt { get; set; }
     }
 }
+
+/// <summary>Finds the running child instances of a call activity so they can be cancelled with it (FR-EXEC-015).</summary>
+public sealed class PostgresChildInstanceStore(NpgsqlDataSource dataSource) : Flowd.Application.Execution.IChildInstanceStore
+{
+    public async Task<IReadOnlyList<long>> FindActiveChildrenAsync(string tenantId, long parentElementInstanceKey, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var keys = await connection.QueryAsync<long>(new CommandDefinition(
+            "SELECT key FROM process_instance WHERE tenant_id = @tenantId AND parent_element_instance_key = @parentElementInstanceKey AND state = 'ACTIVE' ORDER BY key",
+            new { tenantId, parentElementInstanceKey },
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+        return [.. keys];
+    }
+}

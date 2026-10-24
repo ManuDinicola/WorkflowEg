@@ -31,6 +31,11 @@ public sealed class SubProcessHandler : ElementHandler<SubProcess>
         }
 
         context.MarkActive(instance);
+        if (!Triggers.OpenEventSubProcesses(context, instance, element.Id))
+        {
+            return;
+        }
+
         var start = element.Nodes.OfType<StartEvent>().First(); // the validator guarantees one
         context.Enqueue(new ActivateElement(start.Id, instance.Key, null));
     }

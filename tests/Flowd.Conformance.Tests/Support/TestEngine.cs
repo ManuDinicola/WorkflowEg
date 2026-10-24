@@ -31,6 +31,7 @@ public sealed class TestEngine
     private readonly TimerService _timers;
     private readonly CommandProcessor _processor;
     private readonly SignalService? _signals;
+    private readonly PostCommitEffects? _postCommit;
     private readonly UserTaskService _userTasks;
     private readonly MessageService _messages;
 
@@ -40,11 +41,12 @@ public sealed class TestEngine
         Store = store ?? new InMemoryStore();
         Keys = new SequentialKeys();
         var engine = new EngineServices(new Interpreter(ElementHandlerRegistry.CreateDefault(), options), Keys, Time);
-        var processor = new CommandProcessor(Store, engine, Store, () => _signals!);
+        var processor = new CommandProcessor(Store, engine, Store, () => _postCommit!);
         _processor = processor;
         _deployer = new DeployProcessesUseCase(Store, Store, Keys, Time);
         _starter = new StartInstanceUseCase(Store, Store, new ProcessModelProvider(Store), engine, processor);
         _signals = new SignalService(Store, processor, _starter);
+        _postCommit = new PostCommitEffects(_signals, _starter, processor, Store);
         _userTasks = new UserTaskService(Store, processor);
         _timers = new TimerService(Store, processor, _starter, Time);
         _messages = new MessageService(Store, processor, _starter, Keys, Time);

@@ -3,7 +3,7 @@
 Flowd is a BPMN 2.0 workflow engine (Camunda-like) written in C# 15 on .NET 11, with clean architecture and union types.
 It deploys BPMN definitions, runs process instances durably on PostgreSQL, and coordinates external job workers, timers, messages and incidents through a REST API.
 
-**Status:** milestones M0-M5 are implemented (skeleton, deployment, core execution, structure, timers and messages, errors, signals and user tasks); see `PLAN.md` and `PROGRESS.md`. Next: call activities, multi-instance, event sub-processes (M6).
+**Status:** milestones M0-M6 are implemented (skeleton, deployment, core execution, structure, timers and messages, errors, signals and user tasks, call activities, multi-instance, event sub-processes); see `PLAN.md` and `PROGRESS.md`. Next: production readiness (M7).
 
 ## What works today
 - Solution skeleton with enforced dependency rules (architecture tests) and C# 15 `union` / `closed class` smoke tests.
@@ -85,3 +85,8 @@ Jobs are delivered at least once: workers must be idempotent. A job that is not 
 - **BPMN errors:** a worker reports `POST /v1/jobs/{key}/error {"errorCode":"PAYMENT_DECLINED"}`. The innermost interrupting error boundary event with that code (or a catch-all) wins, searching outwards through enclosing sub-processes; with no handler an `UNHANDLED_ERROR_EVENT` incident is raised. Error end events throw the same way.
 - **Signals:** `POST /v1/signals {"name":"go","variables":{}}` wakes every waiting signal catch/boundary event and starts instances for signal start events. Signals are never buffered. Signal throw events broadcast after their transaction commits.
 - **User tasks:** `<bpmn:userTask>` with `<flowd:assignmentDefinition assignee="..." candidateGroups="a,b"/>` and optional `<flowd:formDefinition formKey="..."/>`. API: `GET /v1/user-tasks?assignee=&candidateGroup=&state=`, `POST /v1/user-tasks/{key}/claim|unclaim|assign|complete` (a second claimant gets 409 `USER_TASK_ALREADY_CLAIMED`).
+
+## Composition
+- **Call activity:** `<bpmn:callActivity calledElement="child-process-id">` starts a child instance of the latest deployed version and waits. `<flowd:calledElement propagateAllParentVariables="true" propagateAllChildVariables="true"/>` plus `ioMapping` control which variables cross. Cancelling the parent cancels the children; an error nobody handles in the child continues at the call activity's boundary events.
+- **Multi-instance:** `<bpmn:multiInstanceLoopCharacteristics isSequential="false">` with `<flowd:loopCharacteristics inputCollection="= items" inputElement="item" outputCollection="results" outputElement="= out"/>` on a service task, user task, sub-process or call activity. The output collection keeps the input order; an empty collection completes immediately.
+- **Event sub-processes:** `<bpmn:subProcess triggeredByEvent="true">` with a message, timer, signal or error start event; `isInterrupting="false"` keeps the enclosing scope running.

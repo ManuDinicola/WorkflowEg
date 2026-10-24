@@ -33,10 +33,11 @@ public static class HistoryEventTypes
     public const string UserTaskClaimed = "USER_TASK_CLAIMED";
     public const string UserTaskCompleted = "USER_TASK_COMPLETED";
     public const string SignalThrownEvent = "SIGNAL_THROWN";
+    public const string ChildStarted = "CHILD_INSTANCE_REQUESTED";
 }
 
 /// <summary>The instance row was created (first effect of <c>StartInstance</c>).</summary>
-public sealed record InstanceStarted(long InstanceKey, long DefinitionKey, string TenantId, string? BusinessKey, DateTimeOffset StartedAt);
+public sealed record InstanceStarted(long InstanceKey, long DefinitionKey, string TenantId, string? BusinessKey, DateTimeOffset StartedAt, long? ParentInstanceKey = null, long? ParentElementInstanceKey = null);
 
 /// <summary>The instance changed state.</summary>
 public sealed record InstanceStateChanged(InstanceState State, DateTimeOffset? EndedAt);
@@ -68,6 +69,18 @@ public sealed record SubscriptionClosed(long Key);
 /// <summary>A buffered message was delivered to a definition; each message reaches a definition at most once (FR-MSG-002).</summary>
 public sealed record MessageCorrelated(long MessageKey, long DefinitionKey);
 
+/// <summary>A call activity needs a child instance of another process (FR-EXEC-011); started after the commit.</summary>
+public sealed record ChildInstanceRequested(long ParentInstanceKey, long ParentElementInstanceKey, string CalledProcessId, System.Text.Json.Nodes.JsonObject Variables);
+
+/// <summary>A child instance finished; the parent call activity continues, or gets an incident when the child was terminated.</summary>
+public sealed record ChildInstanceEnded(long ParentInstanceKey, long ParentElementInstanceKey, bool Completed, System.Text.Json.Nodes.JsonObject Variables);
+
+/// <summary>An error was not handled inside the child; it continues in the parent at the call activity (section 12.3).</summary>
+public sealed record ChildErrorThrown(long ParentInstanceKey, long ParentElementInstanceKey, string ErrorCode);
+
+/// <summary>A call activity ended while its child may still run: cancel the child (FR-EXEC-015).</summary>
+public sealed record ChildCancelRequested(long ParentElementInstanceKey);
+
 /// <summary>Insert or update of a user task (snapshot).</summary>
 public sealed record UserTaskChanged(UserTaskRecord Snapshot);
 
@@ -92,6 +105,10 @@ public union EngineEffect(
     MessageCorrelated,
     UserTaskChanged,
     SignalThrown,
+    ChildInstanceRequested,
+    ChildInstanceEnded,
+    ChildErrorThrown,
+    ChildCancelRequested,
     HistoryAppended);
 
 /// <summary>Where the instance stands after a command (UNI-002).</summary>

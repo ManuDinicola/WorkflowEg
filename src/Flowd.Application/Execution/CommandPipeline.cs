@@ -25,12 +25,14 @@ public sealed record StartInstanceRequest(
     string? BusinessKey,
     string? StartElementId,
     long? DefinitionKey = null,
-    long? CorrelatedMessageKey = null);
+    long? CorrelatedMessageKey = null,
+    long? ParentInstanceKey = null,
+    long? ParentElementInstanceKey = null);
 
 public sealed record StartedInstance(long InstanceKey, long DefinitionKey, int Version, string BpmnProcessId);
 
 /// <summary>Runs one command on an existing instance in one transaction: lock, interpret, persist, commit (FR-ARCH-002).</summary>
-public sealed class CommandProcessor(IInstanceTransactionFactory transactions, EngineServices engine, IMessageStore messages, Func<ISignalBroadcaster> signals)
+public sealed class CommandProcessor(IInstanceTransactionFactory transactions, EngineServices engine, IMessageStore messages, Func<IPostCommitEffects> postCommit)
 {
     public async Task<Result<ProcessedCommand>> ExecuteAsync(string tenantId, long instanceKey, EngineCommand command, CancellationToken cancellationToken)
     {
@@ -71,19 +73,15 @@ public sealed class CommandProcessor(IInstanceTransactionFactory transactions, E
             return new Failure(new Conflict("MESSAGE_ALREADY_CORRELATED", "The message already reached this process definition."));
         }
 
-        await DeliverBufferedAsync(tenantId, accepted.Effects, cancellationToken).ConfigureAwait(false);
-        await BroadcastThrownSignalsAsync(tenantId, accepted.Effects, cancellationToken).ConfigureAwait(false);
+        await AfterCommitAsync(tenantId, accepted.Effects, cancellationToken).ConfigureAwait(false);
         return new ProcessedCommand(state.InstanceKey, accepted.Outcome);
     }
 
-    /// <summary>Signal throw events broadcast after their transaction committed (FR-SIG-001, FR-CON-002).</summary>
-    public async Task BroadcastThrownSignalsAsync(string tenantId, IReadOnlyList<EngineEffect> effects, CancellationToken cancellationToken)
+    /// <summary>Everything that follows a committed command: buffered messages for new subscriptions, signals, child instances (FR-CON-002).</summary>
+    public async Task AfterCommitAsync(string tenantId, IReadOnlyList<EngineEffect> effects, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(effects);
-        foreach (var thrown in effects.Select(e => e is SignalThrown s ? s : null).OfType<SignalThrown>())
-        {
-            await signals().BroadcastAsync(tenantId, thrown.Name, thrown.Variables, cancellationToken).ConfigureAwait(false);
-        }
+        await DeliverBufferedAsync(tenantId, effects, cancellationToken).ConfigureAwait(false);
+        await postCommit().HandleAsync(tenantId, effects, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -146,6 +144,8 @@ public sealed class StartInstanceUseCase(
         var state = new EngineState(engine.Keys.NextKey(), definition.Key, graph, request.TenantId, engine.Time.GetUtcNow())
         {
             BusinessKey = request.BusinessKey,
+            ParentInstanceKey = request.ParentInstanceKey,
+            ParentElementInstanceKey = request.ParentElementInstanceKey,
         };
         var command = new StartInstance(request.Variables, request.StartElementId);
         var outcome = engine.Interpreter.Execute(state, command, state.StartedAt, engine.Keys);
@@ -173,8 +173,8 @@ public sealed class StartInstanceUseCase(
             return new Failure(new Conflict("MESSAGE_ALREADY_CORRELATED", "The message already started an instance of this definition."));
         }
 
-        await processor.DeliverBufferedAsync(request.TenantId, accepted.Effects, cancellationToken).ConfigureAwait(false);
-        await processor.BroadcastThrownSignalsAsync(request.TenantId, accepted.Effects, cancellationToken).ConfigureAwait(false);
+        await processor.AfterCommitAsync(request.TenantId, accepted.Effects, cancellationToken).ConfigureAwait(false);
+
         return new StartedInstance(state.InstanceKey, definition.Key, definition.Version, definition.BpmnProcessId);
     }
 }

@@ -50,6 +50,9 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
         UnclaimUserTask unclaim => UserTaskCommands.Unclaim(context, unclaim),
         AssignUserTask assign => UserTaskCommands.Assign(context, assign),
         CompleteUserTask complete => UserTaskCommands.Complete(context, complete),
+        CompleteCallActivity childDone => CallActivityCommands.Complete(context, childDone),
+        FailCallActivity childFailed => CallActivityCommands.Fail(context, childFailed),
+        ThrowFromCallActivity childError => CallActivityCommands.ThrowError(context, childError),
     };
 
     /// <summary>
@@ -118,24 +121,15 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
 
     private void Process(StepContext context, Step step)
     {
+        if (context.State.State != InstanceState.Active)
+        {
+            return; // the instance ended (e.g. an unhandled error terminated a child instance) while steps were queued
+        }
+
         switch (step)
         {
             case ActivateElement activate:
-                if (activate.ScopeKey != context.State.InstanceKey && !(context.State.Elements.TryGetValue(activate.ScopeKey, out var scope) && scope.IsLive))
-                {
-                    break; // the scope ended (error, interrupting boundary) while this step was queued
-                }
-
-                var node = context.State.Graph.Node(activate.ElementId);
-                var instance = context.CreateElement(node, activate.ScopeKey, activate.IncomingFlowId);
-                if (IsActivity(node) && !Triggers.OpenBoundaries(context, node, instance))
-                {
-                    break;
-                }
-
-                context.ActivationFromTrigger = activate.Triggered;
-                handlers.For(node).Activate(context, node, instance);
-                context.ActivationFromTrigger = false;
+                Activate(context, activate);
                 break;
             case CompleteElement complete:
                 RunOnInstance(context, complete.ElementInstanceKey, (handler, n, i) => handler.Complete(context, n, i));
@@ -147,6 +141,10 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
                     {
                         handler.Complete(context, n, i);
                     }
+                    else if (MultiInstance.IsBody(i))
+                    {
+                        MultiInstance.ActivateBody(context, n, i, MultiInstance.LoopOf(n)!);
+                    }
                     else if (!IsActivity(n) || Triggers.OpenBoundaries(context, n, i))
                     {
                         handler.Activate(context, n, i);
@@ -156,7 +154,43 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
         }
     }
 
-    private static bool IsActivity(Bpmn.Model.FlowNode node) => node is Bpmn.Model.ServiceTask or Bpmn.Model.SubProcess or Bpmn.Model.ReceiveTask or Bpmn.Model.UserTask;
+    private void Activate(StepContext context, ActivateElement activate)
+    {
+        if (activate.ScopeKey != context.State.InstanceKey && !(context.State.Elements.TryGetValue(activate.ScopeKey, out var scope) && scope.IsLive))
+        {
+            return; // the scope ended (error, interrupting boundary) while this step was queued
+        }
+
+        var node = context.State.Graph.Node(activate.ElementId);
+        var loop = MultiInstance.LoopOf(node);
+        if (loop is not null && activate.LoopIndex is null)
+        {
+            var body = context.CreateElement(node, activate.ScopeKey, activate.IncomingFlowId, multiInstanceBody: true);
+            if (Triggers.OpenBoundaries(context, node, body))
+            {
+                MultiInstance.ActivateBody(context, node, body, loop);
+            }
+
+            return;
+        }
+
+        var instance = context.CreateElement(node, activate.ScopeKey, activate.IncomingFlowId, activate.LoopIndex);
+        if (loop is not null && !MultiInstance.PrepareChild(context, instance, loop))
+        {
+            return;
+        }
+
+        if (loop is null && IsActivity(node) && !Triggers.OpenBoundaries(context, node, instance))
+        {
+            return;
+        }
+
+        context.ActivationFromTrigger = activate.Triggered;
+        handlers.For(node).Activate(context, node, instance);
+        context.ActivationFromTrigger = false;
+    }
+
+    private static bool IsActivity(Bpmn.Model.FlowNode node) => node is Bpmn.Model.ServiceTask or Bpmn.Model.SubProcess or Bpmn.Model.ReceiveTask or Bpmn.Model.UserTask or Bpmn.Model.CallActivity;
 
     private void RunOnInstance(StepContext context, long key, Action<IElementHandler, Bpmn.Model.FlowNode, ElementInstance> action)
     {
@@ -194,10 +228,15 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
             context.Terminate(token);
         }
 
+        context.CloseTriggersOwnedBy(state.InstanceKey);
         state.State = InstanceState.Completed;
         state.EndedAt = context.Now;
         context.Emit(new InstanceStateChanged(InstanceState.Completed, context.Now));
         context.Record(HistoryEventTypes.InstanceCompleted);
+        if (state is { ParentInstanceKey: { } parent, ParentElementInstanceKey: { } parentElement })
+        {
+            context.Emit(new ChildInstanceEnded(parent, parentElement, true, new JsonObject(state.Variables.InScope(state.InstanceKey).Select(p => KeyValuePair.Create(p.Key, p.Value?.DeepClone())))));
+        }
     }
 
     private static bool IsWaitingJoinToken(StepContext context, ElementInstance element) =>

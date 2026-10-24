@@ -63,7 +63,7 @@ public static class BpmnValidator
     }
 
     /// <summary>Validates one scope (the process itself or one embedded sub-process) and recurses into nested scopes.</summary>
-    private static void ValidateScope(string? scopeId, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues)
+    private static void ValidateScope(string? scopeId, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues, bool inEventSubProcess = false)
     {
         if (!nodes.Any(n => n is StartEvent))
         {
@@ -73,10 +73,10 @@ public static class BpmnValidator
         var knownIds = nodes.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var node in nodes)
         {
-            ValidateNode(node, nodes, flows, issues);
+            ValidateNode(node, nodes, flows, issues, inEventSubProcess);
             if (node is SubProcess sub)
             {
-                ValidateScope(sub.Id, sub.Nodes, sub.Flows, issues);
+                ValidateScope(sub.Id, sub.Nodes, sub.Flows, issues, sub.IsEventSubProcess);
             }
         }
 
@@ -86,7 +86,7 @@ public static class BpmnValidator
         }
     }
 
-    private static void ValidateNode(FlowNode node, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues)
+    private static void ValidateNode(FlowNode node, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues, bool inEventSubProcess = false)
     {
         var outgoing = flows.Where(f => string.Equals(f.SourceRef, node.Id, StringComparison.Ordinal)).ToList();
         switch (node)
@@ -108,7 +108,7 @@ public static class BpmnValidator
                 ValidateEventGateway(node, nodes, outgoing, issues);
                 break;
             case StartEvent { Definition: { } startDefinition } start:
-                ValidateDefinition(start.Id, startDefinition, allowCycle: true, requireCorrelation: false, issues);
+                ValidateDefinition(start.Id, startDefinition, allowCycle: true, requireCorrelation: false, issues, allowError: inEventSubProcess);
                 RejectConditions(node, outgoing, issues);
                 break;
             case ExclusiveGateway gateway:
@@ -119,10 +119,30 @@ public static class BpmnValidator
                 break;
             case ServiceTask task:
                 ValidateServiceTask(task, issues);
+                ValidateLoop(task.Id, task.Loop, issues);
                 RejectConditions(node, outgoing, issues);
                 break;
             case SubProcess sub:
                 ValidateMappings(sub.Id, sub.Inputs.Concat(sub.Outputs), issues);
+                ValidateLoop(sub.Id, sub.Loop, issues);
+                if (sub.IsEventSubProcess)
+                {
+                    ValidateEventSubProcess(sub, flows, issues);
+                }
+                else
+                {
+                    RejectConditions(node, outgoing, issues);
+                }
+
+                break;
+            case CallActivity call:
+                if (string.IsNullOrWhiteSpace(call.CalledElement))
+                {
+                    issues.Add(new BpmnIssue(call.Id, BpmnIssueCodes.InvalidCall, $"Call activity '{call.Id}' needs a calledElement (the bpmnProcessId to call)."));
+                }
+
+                ValidateMappings(call.Id, call.Inputs.Concat(call.Outputs), issues);
+                ValidateLoop(call.Id, call.Loop, issues);
                 RejectConditions(node, outgoing, issues);
                 break;
             case ScriptTask script:
@@ -131,6 +151,7 @@ public static class BpmnValidator
                 break;
             case UserTask userTask:
                 ValidateMappings(userTask.Id, userTask.Inputs.Concat(userTask.Outputs), issues);
+                ValidateLoop(userTask.Id, userTask.Loop, issues);
                 RejectConditions(node, outgoing, issues);
                 break;
             case IntermediateThrowEvent throwEvent:
@@ -149,7 +170,7 @@ public static class BpmnValidator
     private static void ValidateBoundary(BoundaryEvent boundary, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues)
     {
         var attached = nodes.FirstOrDefault(n => string.Equals(n.Id, boundary.AttachedToRef, StringComparison.Ordinal));
-        if (attached is not (ServiceTask or SubProcess or ReceiveTask or UserTask))
+        if (attached is not (ServiceTask or SubProcess or ReceiveTask or UserTask or CallActivity))
         {
             issues.Add(new BpmnIssue(boundary.Id, BpmnIssueCodes.InvalidBoundary, $"Boundary event '{boundary.Id}' must be attached to a task or sub-process in the same scope (attachedToRef='{boundary.AttachedToRef}')."));
         }
@@ -211,6 +232,40 @@ public static class BpmnValidator
                 }
 
                 break;
+        }
+    }
+
+    private static void ValidateLoop(string ownerId, LoopCharacteristics? loop, List<BpmnIssue> issues)
+    {
+        if (loop is not null && (string.IsNullOrWhiteSpace(loop.InputCollection) || string.IsNullOrWhiteSpace(loop.InputElement)))
+        {
+            issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidLoop, $"Multi-instance '{ownerId}' needs <flowd:loopCharacteristics inputCollection=\"= ...\" inputElement=\"...\"/>."));
+        }
+        else if (loop is { OutputCollection: { } output } && (output.StartsWith("_flowd", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(loop.OutputElement)))
+        {
+            issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidLoop, $"Multi-instance '{ownerId}' needs an outputElement expression and a non-reserved outputCollection name."));
+        }
+    }
+
+    private static void ValidateEventSubProcess(SubProcess sub, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues)
+    {
+        if (flows.Any(f => string.Equals(f.SourceRef, sub.Id, StringComparison.Ordinal) || string.Equals(f.TargetRef, sub.Id, StringComparison.Ordinal)))
+        {
+            issues.Add(new BpmnIssue(sub.Id, BpmnIssueCodes.InvalidEventSubProcess, $"Event sub-process '{sub.Id}' must not have incoming or outgoing flows."));
+        }
+
+        var start = sub.Nodes.OfType<StartEvent>().FirstOrDefault();
+        if (start?.Definition is null)
+        {
+            issues.Add(new BpmnIssue(sub.Id, BpmnIssueCodes.InvalidEventSubProcess, $"Event sub-process '{sub.Id}' needs a timer, message, signal or error start event."));
+        }
+        else if (start.Definition is ErrorEventDefinition && !start.IsInterrupting)
+        {
+            issues.Add(new BpmnIssue(sub.Id, BpmnIssueCodes.InvalidEventSubProcess, $"An error start event of '{sub.Id}' must be interrupting."));
+        }
+        else if (start.Definition is TimerEventDefinition { Kind: TimerKind.Cycle } && start.IsInterrupting)
+        {
+            issues.Add(new BpmnIssue(sub.Id, BpmnIssueCodes.InvalidTimer, $"A timer cycle on '{sub.Id}' is only allowed for non-interrupting event sub-processes."));
         }
     }
 

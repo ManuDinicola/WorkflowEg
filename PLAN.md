@@ -87,9 +87,9 @@ The rows below are the commit checklist inside each milestone branch (branch col
 
 | # | Slice | Requirement IDs | Tests | Size | Executor |
 |---|---|---|---|---|---|
-| [ ] 6.1 | Call activity, variable propagation, cascade cancel | FR-EXEC-011, FR-EXEC-015 | T-CALL-01, T-CALL-02 | M | impl-worker |
-| [ ] 6.2 | Multi-instance (parallel, sequential, empty collection, ordering) | FR-EXEC-012 | T-MI-01..03 | M | Plan (opus) then impl-worker |
-| [ ] 6.3 | Event sub-processes | §6.1 | T-ESP-01 | M | impl-worker |
+| [x] 6.1 | Call activity, variable propagation, cascade cancel | FR-EXEC-011, FR-EXEC-015 | T-CALL-01, T-CALL-02 | M | impl-worker |
+| [x] 6.2 | Multi-instance (parallel, sequential, empty collection, ordering) | FR-EXEC-012 | T-MI-01..03 | M | Plan (opus) then impl-worker |
+| [x] 6.3 | Event sub-processes | §6.1 | T-ESP-01 | M | impl-worker |
 
 ### M7 — Production readiness (refine at milestone start)
 
