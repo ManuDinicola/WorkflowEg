@@ -55,6 +55,6 @@ Format: date · question · choice · reason.
 - Benchmarks run in-process: BenchmarkDotNet 0.15.8 does not recognise the .NET 11 preview runtime. The bench project is not in `Flowd.slnx`, so it is not part of the gate.
 - UNI-005 (union boxing check) and end-to-end load scripts are not implemented; documented in `docs/benchmarks.md`.
 
-## Camunda parity roadmap (2026-10-24)
-- The user asked for everything Camunda covers and more. Recorded as milestones M8-M14 in PLAN.md. Order chosen by dependency: BPMN completeness and expressions first (engine core), then operations, human work, connectors/SDKs, UI, scale.
-- Zeebe-style clustering is replaced by PostgreSQL-based multi-node scaling (SKIP LOCKED); true partitioned execution is M14 and may stay out of scope.
+## Known limitation: idempotency key is not atomic with the command (2026-10-24)
+- `IdempotencyMiddleware` saves the response after the handler has committed. If the host dies between the two, a client retry with the same key starts a second instance. Found by T-CHAOS-01, which therefore asserts completion and no duplicate job completion, not an exact instance count.
+- Fix when needed: write the key inside the command transaction (or reserve it before running). Not done yet.
