@@ -62,6 +62,7 @@ It applies the migrations and registers an auto-start service named `Flowd`. Run
 - Decisions (DMN): `docs/dmn.md`.
 - Forms: `docs/forms.md`.
 - TypeScript worker SDK: `sdk/typescript/README.md`.
+- Python worker SDK: `sdk/python/README.md`.
 - Expressions: `docs/feel.md`.
 - Start here: `docs/overview.md` (what it is, what it is for, how to use it) - `docs/architecture.md` - `docs/bpmn-support.md` - `docs/operations.md` - `docs/benchmarks.md`.
 - Spec index: `docs/spec/00-index.md` - plan: `PLAN.md` - decisions: `DECISIONS.md` - contributing: `docs/contributing.md`.
