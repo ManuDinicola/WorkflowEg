@@ -25,6 +25,18 @@ public sealed class ServiceTask : FlowNode
 
     /// <summary>Raw <c>retries</c> attribute: a literal or an expression starting with <c>=</c>.</summary>
     public string? Retries { get; init; }
+
+    /// <summary>Input mappings: evaluated on activation into the task-local scope (section 8.4).</summary>
+    public IReadOnlyList<IoMapping> Inputs { get; init; } = [];
+
+    /// <summary>Output mappings: evaluated on completion and written to the parent scope (section 8.4).</summary>
+    public IReadOnlyList<IoMapping> Outputs { get; init; } = [];
+
+    /// <summary>When no output mapping exists, all result variables propagate unless <c>flowd:propagateAll="false"</c>.</summary>
+    public bool PropagateAllOutputs { get; init; } = true;
+
+    /// <summary>Static headers from <c>flowd:taskHeaders</c> returned to workers (FR-JOB-009).</summary>
+    public IReadOnlyDictionary<string, string> Headers { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
 }
 
 /// <summary>Pass-through manual task.</summary>

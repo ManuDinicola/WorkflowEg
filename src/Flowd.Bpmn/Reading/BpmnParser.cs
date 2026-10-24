@@ -79,15 +79,27 @@ public static class BpmnParser
 
     private static ServiceTask ParseServiceTask(XElement e, string id, string? name)
     {
-        var definition = e.Element(Bpmn + "extensionElements")?.Element(Flowd + "taskDefinition");
+        var extensions = e.Element(Bpmn + "extensionElements");
+        var definition = extensions?.Element(Flowd + "taskDefinition");
+        var mapping = extensions?.Element(Flowd + "ioMapping");
         return new ServiceTask
         {
             Id = id,
             Name = name,
             TaskType = (string?)definition?.Attribute("type"),
             Retries = (string?)definition?.Attribute("retries"),
+            Inputs = ParseMappings(mapping, "input"),
+            Outputs = ParseMappings(mapping, "output"),
+            PropagateAllOutputs = !string.Equals((string?)mapping?.Attribute("propagateAll"), "false", StringComparison.OrdinalIgnoreCase),
+            Headers = (extensions?.Element(Flowd + "taskHeaders")?.Elements(Flowd + "header") ?? [])
+                .Where(h => h.Attribute("key") is not null)
+                .GroupBy(h => (string)h.Attribute("key")!, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => (string?)g.Last().Attribute("value") ?? string.Empty, StringComparer.Ordinal),
         };
     }
+
+    private static IoMapping[] ParseMappings(XElement? mapping, string kind) =>
+        [.. (mapping?.Elements(Flowd + kind) ?? []).Select(m => new IoMapping((string?)m.Attribute("source") ?? string.Empty, (string?)m.Attribute("target") ?? string.Empty))];
 
     private static bool HasEventDefinition(XElement e) =>
         e.Elements().Any(c => c.Name.LocalName.EndsWith("EventDefinition", StringComparison.Ordinal));

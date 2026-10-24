@@ -24,3 +24,8 @@ Format: date · question · choice · reason.
 - 2026-10-24 · `ValidationFailure.Details` · optional list of located problems; API code is `DEPLOYMENT_INVALID` when details exist, otherwise `INVALID_ARGUMENT` · one mapper (`FailureMapper`) per UNI-002.
 - 2026-10-24 · Key generator · `IKeyGenerator.NextKey()` (not `Next`, CA1716) in `Flowd.Engine.Keys`; snowflake implementation with configurable `Flowd:NodeId` (0-1023) · FR-DOM-001.
 - 2026-10-24 · Tenancy · all stores take a tenant id; single tenant `""` until FR-SEC-003 (M7).
+- 2026-10-24 · Cyclomatic complexity limit · CA1502 threshold raised from 10 (CC-002) to 15 · exhaustive union switches (one arm per case) count each arm, so 10 would force artificial splitting of dispatch code.
+- 2026-10-24 · Expression errors · the evaluator uses an internal exception only to unwind to its public boundary and returns `EvaluationResult` (union) to callers; wall-time budget uses the monotonic `Stopwatch` (not a wall clock) · FR-EXPR-SEC-001.
+- 2026-10-24 · Job completion by a stale worker · `CompleteJob`/`FailJob` take an optional `worker` name; a mismatch with the job's current worker yields 409 JOB_NOT_ACTIVATED (T-JOB-06) · activation tokens are overkill for v1.
+- 2026-10-24 · Long-poll · job activation polls every 100 ms (FR-JOB-001 allows 100-500 ms); LISTEN/NOTIFY wake-ups are deferred to the M7 performance work.
+- 2026-10-24 · Job results · completed-job result variables are stored on the job row (`result_variables`, migration 0002) so output mappings can be re-run after an `IO_MAPPING_ERROR` incident is resolved.
