@@ -1,3 +1,4 @@
+DELETE /v1/process-definitions/{key}
 DELETE /v1/process-instances/{key}
 GET /healthz
 GET /metrics
@@ -5,6 +6,8 @@ GET /readyz
 GET /v1/audit
 GET /v1/decisions
 GET /v1/events/stream
+GET /v1/forms
+GET /v1/forms/{formId}
 GET /v1/incidents
 GET /v1/process-definitions
 GET /v1/process-definitions/{key}
@@ -15,6 +18,7 @@ GET /v1/process-instances/{key}/elements
 GET /v1/process-instances/{key}/history
 GET /v1/process-instances/{key}/variables
 GET /v1/user-tasks
+GET /v1/user-tasks/{key}/form
 PATCH /v1/jobs/{key}
 POST /v1/batch/cancel-instances
 POST /v1/batch/migrate-instances
@@ -22,6 +26,7 @@ POST /v1/batch/resolve-incidents
 POST /v1/decisions
 POST /v1/decisions/{decisionId}/evaluate
 POST /v1/deployments
+POST /v1/forms
 POST /v1/incidents/{key}/resolve
 POST /v1/jobs/activate
 POST /v1/jobs/{key}/complete

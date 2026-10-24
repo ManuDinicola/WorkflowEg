@@ -140,6 +140,15 @@ public sealed class PostgresUserTaskQueries(NpgsqlDataSource dataSource) : IUser
         return new UserTaskPage([.. items.Select(r => r.ToView())], hasMore ? items[^1].Key : null);
     }
 
+    public async Task<UserTaskView?> GetAsync(string tenantId, long taskKey, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        return (await connection.QuerySingleOrDefaultAsync<UserTaskRows.Row>(new CommandDefinition(
+            $"SELECT {UserTaskRows.SelectColumns} FROM user_task WHERE tenant_id = @tenantId AND key = @taskKey",
+            new { tenantId, taskKey },
+            cancellationToken: cancellationToken)).ConfigureAwait(false))?.ToView();
+    }
+
     public async Task<long?> InstanceOfUserTaskAsync(string tenantId, long taskKey, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);

@@ -49,7 +49,7 @@ public sealed class TestEngine
         _starter = new StartInstanceUseCase(Store, Store, new ProcessModelProvider(Store), engine, processor);
         _signals = new SignalService(Store, processor, _starter);
         _postCommit = new PostCommitEffects(_signals, _starter, processor, Store);
-        _userTasks = new UserTaskService(Store, processor);
+        _userTasks = new UserTaskService(Store, processor, new InMemoryFormStore());
         _timers = new TimerService(Store, processor, _starter, Time, telemetry);
         _messages = new MessageService(Store, processor, _starter, Keys, Time);
         _commands = new InstanceCommandService(processor, Store);

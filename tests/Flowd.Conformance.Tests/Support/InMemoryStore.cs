@@ -70,6 +70,22 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
     public Task<ProcessDefinitionInfo?> GetAsync(string tenantId, long key, CancellationToken cancellationToken) =>
         Task.FromResult(_definitions.TryGetValue(key, out var d) && d.Info.TenantId == tenantId ? d.Info : null);
 
+    public Task<DeleteDefinitionOutcome> DeleteAsync(string tenantId, long key, CancellationToken cancellationToken)
+    {
+        if (!_definitions.TryGetValue(key, out var d) || d.Info.TenantId != tenantId)
+        {
+            return Task.FromResult(DeleteDefinitionOutcome.NotFound);
+        }
+
+        if (_instances.Values.Any(i => i.DefinitionKey == key))
+        {
+            return Task.FromResult(DeleteDefinitionOutcome.InUse);
+        }
+
+        _definitions.Remove(key);
+        return Task.FromResult(DeleteDefinitionOutcome.Deleted);
+    }
+
     public Task<ProcessDefinitionInfo?> FindAsync(string tenantId, string bpmnProcessId, int? version, CancellationToken cancellationToken) =>
         Task.FromResult(_definitions.Values
             .Where(d => d.Info.TenantId == tenantId && d.Info.BpmnProcessId == bpmnProcessId && (version is null || d.Info.Version == version))
@@ -385,6 +401,10 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
             .Select(t => new UserTaskView(t.Key, t.InstanceKey, t.ElementInstanceKey, t.ElementId, t.Assignee, t.CandidateGroups, t.CandidateUsers, t.DueDate, t.FollowUpDate, t.Priority, t.FormKey, t.State.ToString().ToUpperInvariant(), t.CreatedAt));
         return Task.FromResult(new UserTaskPage([.. tasks.Take(pageSize)], null));
     }
+
+    Task<UserTaskView?> IUserTaskQueries.GetAsync(string tenantId, long taskKey, CancellationToken cancellationToken) =>
+        Task.FromResult(_instances.Values.Where(i => i.TenantId == tenantId).SelectMany(i => i.UserTasks.Values).Where(t => t.Key == taskKey)
+            .Select(t => (UserTaskView?)new UserTaskView(t.Key, t.InstanceKey, t.ElementInstanceKey, t.ElementId, t.Assignee, t.CandidateGroups, t.CandidateUsers, t.DueDate, t.FollowUpDate, t.Priority, t.FormKey, t.State.ToString().ToUpperInvariant(), t.CreatedAt)).FirstOrDefault());
 
     public Task<long?> InstanceOfUserTaskAsync(string tenantId, long taskKey, CancellationToken cancellationToken) =>
         Task.FromResult(_instances.Values.Where(i => i.TenantId == tenantId && i.UserTasks.ContainsKey(taskKey)).Select(i => (long?)i.InstanceKey).FirstOrDefault());

@@ -27,3 +27,11 @@ public sealed record DeployedDefinition(ProcessDefinitionInfo Definition, bool I
 
 /// <summary>A page of definitions; <see cref="NextCursor"/> is null on the last page (API-R2).</summary>
 public sealed record DefinitionPage(IReadOnlyList<ProcessDefinitionInfo> Items, long? NextCursor);
+
+/// <summary>Outcome of deleting a process definition on demand (FR-DEP-006).</summary>
+public enum DeleteDefinitionOutcome
+{
+    Deleted,
+    NotFound,
+    InUse,
+}

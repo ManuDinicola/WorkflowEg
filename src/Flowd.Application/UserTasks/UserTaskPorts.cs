@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Flowd.Application.Execution;
+using Flowd.Application.Forms;
 using Flowd.Engine.Commands;
 using Flowd.Engine.Results;
 
@@ -30,10 +31,12 @@ public interface IUserTaskQueries
     Task<UserTaskPage> ListAsync(string tenantId, UserTaskFilter filter, int pageSize, long? afterKey, CancellationToken cancellationToken);
 
     Task<long?> InstanceOfUserTaskAsync(string tenantId, long taskKey, CancellationToken cancellationToken);
+
+    Task<UserTaskView?> GetAsync(string tenantId, long taskKey, CancellationToken cancellationToken);
 }
 
 /// <summary>Claim, unclaim, assign and complete user tasks through the same locked command pipeline as everything else (API-011).</summary>
-public sealed class UserTaskService(IUserTaskQueries queries, CommandProcessor processor)
+public sealed class UserTaskService(IUserTaskQueries queries, CommandProcessor processor, IFormStore forms)
 {
     public Task<Result<ProcessedCommand>> ClaimAsync(string tenantId, long taskKey, string user, CancellationToken cancellationToken) =>
         RunAsync(tenantId, taskKey, new ClaimUserTask(taskKey, user), cancellationToken);
@@ -44,8 +47,21 @@ public sealed class UserTaskService(IUserTaskQueries queries, CommandProcessor p
     public Task<Result<ProcessedCommand>> AssignAsync(string tenantId, long taskKey, string user, CancellationToken cancellationToken) =>
         RunAsync(tenantId, taskKey, new AssignUserTask(taskKey, user), cancellationToken);
 
-    public Task<Result<ProcessedCommand>> CompleteAsync(string tenantId, long taskKey, JsonObject? variables, string? user, CancellationToken cancellationToken) =>
-        RunAsync(tenantId, taskKey, new CompleteUserTask(taskKey, variables, user), cancellationToken);
+    /// <summary>Completes the task; when it has a form (and the form is deployed) the variables must satisfy it first (FR-UT-005).</summary>
+    public async Task<Result<ProcessedCommand>> CompleteAsync(string tenantId, long taskKey, JsonObject? variables, string? user, CancellationToken cancellationToken)
+    {
+        var task = await queries.GetAsync(tenantId, taskKey, cancellationToken).ConfigureAwait(false);
+        if (task?.FormKey is { Length: > 0 } formKey && await forms.FindAsync(tenantId, formKey, cancellationToken).ConfigureAwait(false) is { } form)
+        {
+            var problems = FormValidator.Validate(form.Schema, variables);
+            if (problems.Count > 0)
+            {
+                return new Failure(new ValidationFailure("The submitted variables do not satisfy the form.", [.. problems]));
+            }
+        }
+
+        return await RunAsync(tenantId, taskKey, new CompleteUserTask(taskKey, variables, user), cancellationToken).ConfigureAwait(false);
+    }
 
     private async Task<Result<ProcessedCommand>> RunAsync(string tenantId, long taskKey, EngineCommand command, CancellationToken cancellationToken)
     {

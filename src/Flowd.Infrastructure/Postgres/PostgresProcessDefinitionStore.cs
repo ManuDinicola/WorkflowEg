@@ -55,6 +55,33 @@ public sealed class PostgresProcessDefinitionStore(NpgsqlDataSource dataSource) 
         return await connection.QuerySingleOrDefaultAsync<byte[]>(command).ConfigureAwait(false);
     }
 
+    public async Task<DeleteDefinitionOutcome> DeleteAsync(string tenantId, long key, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var exists = await connection.QuerySingleOrDefaultAsync<long?>(new CommandDefinition(
+            "SELECT key FROM process_definition WHERE key = @key AND tenant_id = @tenantId FOR UPDATE",
+            new { key, tenantId },
+            transaction,
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+        if (exists is null)
+        {
+            return DeleteDefinitionOutcome.NotFound;
+        }
+
+        var used = await connection.QuerySingleAsync<bool>(new CommandDefinition("SELECT EXISTS (SELECT 1 FROM process_instance WHERE definition_key = @key)", new { key }, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
+        if (used)
+        {
+            return DeleteDefinitionOutcome.InUse;
+        }
+
+        await connection.ExecuteAsync(new CommandDefinition("DELETE FROM timer WHERE definition_key = @key AND instance_key IS NULL", new { key }, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
+        await connection.ExecuteAsync(new CommandDefinition("DELETE FROM message_subscription WHERE definition_key = @key AND instance_key IS NULL", new { key }, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
+        await connection.ExecuteAsync(new CommandDefinition("DELETE FROM process_definition WHERE key = @key", new { key }, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return DeleteDefinitionOutcome.Deleted;
+    }
+
     public async Task<DefinitionPage> ListAsync(string tenantId, int pageSize, long? afterKey, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
