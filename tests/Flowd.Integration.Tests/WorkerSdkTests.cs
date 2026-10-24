@@ -85,6 +85,21 @@ public sealed class WorkerSdkTests(PostgresFixture postgres) : IClassFixture<Pos
         failures.ShouldBeGreaterThanOrEqualTo(4);
     }
 
+    [Fact]
+    public async Task Repeated_transport_failures_do_not_leak_concurrency_slots()
+    {
+        var calls = 0;
+        var handler = new ScriptedHandler(_ => Interlocked.Increment(ref calls) <= 10 ? throw new HttpRequestException("down") : new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent("""{"jobs":[]}""", System.Text.Encoding.UTF8, "application/json") });
+        var options = new JobWorkerOptions { MinBackoff = TimeSpan.FromMilliseconds(1), MaxBackoff = TimeSpan.FromMilliseconds(5), PollTimeout = TimeSpan.FromMilliseconds(5), MaxConcurrentJobs = 2 };
+        var worker = FlowdClient.Create(new Uri("http://flowd.test"), null, handler).CreateWorker("t", (_, _) => Task.FromResult(JobResults.Complete()), options);
+        using var stop = new CancellationTokenSource();
+        var run = worker.RunAsync(stop.Token);
+
+        await WaitUntilAsync(() => Task.FromResult(Volatile.Read(ref calls) >= 20)); // more failures than slots, and it still polls
+        await stop.CancelAsync();
+        await run;
+    }
+
     private sealed class ScriptedHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => Task.FromResult(respond(request));
