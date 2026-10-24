@@ -2,6 +2,7 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Dapper" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
   </ItemGroup>
@@ -9,6 +10,7 @@
     <ProjectReference Include="../../src/Flowd.Host/Flowd.Host.csproj" />
     <ProjectReference Include="../../src/Flowd.Infrastructure/Flowd.Infrastructure.csproj" />
     <ProjectReference Include="../../src/Flowd.Contracts/Flowd.Contracts.csproj" />
+    <ProjectReference Include="../../src/Flowd.Worker.Client/Flowd.Worker.Client.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="../../testdata/bpmn/*.bpmn" Link="testdata/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
