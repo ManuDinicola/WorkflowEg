@@ -23,12 +23,14 @@ public sealed class BpmnParser
     private readonly Dictionary<string, MessageEventDefinition> _messages;
     private readonly Dictionary<string, string> _signals;
     private readonly Dictionary<string, string> _errors;
+    private readonly Dictionary<string, string> _escalations;
 
-    private BpmnParser(Dictionary<string, MessageEventDefinition> messages, Dictionary<string, string> signals, Dictionary<string, string> errors)
+    private BpmnParser(Dictionary<string, MessageEventDefinition> messages, Dictionary<string, string> signals, Dictionary<string, string> errors, Dictionary<string, string> escalations)
     {
         _messages = messages;
         _signals = signals;
         _errors = errors;
+        _escalations = escalations;
     }
 
     /// <summary>Parses the stream. Returns null and fills <paramref name="issue"/> when the XML itself cannot be read.</summary>
@@ -41,7 +43,7 @@ public sealed class BpmnParser
             var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null };
             using var reader = XmlReader.Create(xml, settings);
             var document = XDocument.Load(reader, LoadOptions.SetLineInfo);
-            var parser = new BpmnParser(ReadMessages(document), ReadNames(document, "signal", "name"), ReadNames(document, "error", "errorCode"));
+            var parser = new BpmnParser(ReadMessages(document), ReadNames(document, "signal", "name"), ReadNames(document, "error", "errorCode"), ReadNames(document, "escalation", "escalationCode"));
             return new BpmnDefinitions([.. document.Descendants(Bpmn + "process").Select(parser.ParseProcess)]);
         }
         catch (XmlException ex)
@@ -122,9 +124,11 @@ public sealed class BpmnParser
             "endEvent" when !HasEventDefinition(e) => new EndEvent { Id = id, Name = name },
             "endEvent" when HasOnlyEventDefinition(e, "terminateEventDefinition") => new EndEvent { Id = id, Name = name, IsTerminate = true },
             "endEvent" when HasOnlyEventDefinition(e, "errorEventDefinition") => new EndEvent { Id = id, Name = name, Error = ReadError(e) },
+            "endEvent" when HasOnlyEventDefinition(e, "escalationEventDefinition") => new EndEvent { Id = id, Name = name, Escalation = ReadEscalation(e) },
             "endEvent" when HasOnlyEventDefinition(e, "messageEventDefinition") && TaskType(e) is { } endJob => new EndEvent { Id = id, Name = name, MessageJobType = endJob },
             "intermediateThrowEvent" when !HasEventDefinition(e) => new IntermediateThrowEvent { Id = id, Name = name },
             "intermediateThrowEvent" when HasOnlyEventDefinition(e, "messageEventDefinition") && TaskType(e) is { } throwJob => new IntermediateThrowEvent { Id = id, Name = name, JobType = throwJob },
+            "intermediateThrowEvent" when HasOnlyEventDefinition(e, "escalationEventDefinition") => new IntermediateThrowEvent { Id = id, Name = name, Definition = ReadEscalation(e) },
             "intermediateThrowEvent" when ReadDefinition(e) is SignalEventDefinition signal => new IntermediateThrowEvent { Id = id, Name = name, Definition = signal },
             "userTask" => ParseUserTask(e, id, name),
             "intermediateCatchEvent" when ReadDefinition(e) is { } definition => new IntermediateCatchEvent { Id = id, Name = name, Definition = definition },
@@ -174,6 +178,11 @@ public sealed class BpmnParser
             return _signals.TryGetValue((string?)signal.Attribute("signalRef") ?? string.Empty, out var name) ? new SignalEventDefinition { Name = name } : null;
         }
 
+        if (e.Element(Bpmn + "escalationEventDefinition") is not null)
+        {
+            return ReadEscalation(e);
+        }
+
         if (e.Element(Bpmn + "errorEventDefinition") is not null)
         {
             return ReadError(e);
@@ -187,6 +196,13 @@ public sealed class BpmnParser
     {
         var reference = (string?)e.Element(Bpmn + "errorEventDefinition")?.Attribute("errorRef");
         return new ErrorEventDefinition { Code = reference is not null && _errors.TryGetValue(reference, out var code) ? code : null };
+    }
+
+    /// <summary>An escalation definition; without an <c>escalationRef</c> it catches every escalation.</summary>
+    private EscalationEventDefinition ReadEscalation(XElement e)
+    {
+        var reference = (string?)e.Element(Bpmn + "escalationEventDefinition")?.Attribute("escalationRef");
+        return new EscalationEventDefinition { Code = reference is not null && _escalations.TryGetValue(reference, out var code) ? code : null };
     }
 
     private static string? TaskType(XElement e) =>

@@ -26,6 +26,9 @@ public sealed class EndEvent : FlowNode
     /// <summary>Set for an error end event: throws this BPMN error (FR-EXEC-008).</summary>
     public ErrorEventDefinition? Error { get; init; }
 
+    /// <summary>Set for an escalation end event: raises this escalation and the path ends normally (FR-ESC-001).</summary>
+    public EscalationEventDefinition? Escalation { get; init; }
+
     /// <summary>Job type of a message end event (<c>flowd:taskDefinition</c>); the event completes when the job does.</summary>
     public string? MessageJobType { get; init; }
 }
@@ -226,4 +229,10 @@ public sealed class CallActivity : FlowNode
     public IReadOnlyList<IoMapping> Outputs { get; init; } = [];
 
     public LoopCharacteristics? Loop { get; init; }
+}
+
+/// <summary>Escalation event; a null <see cref="Code"/> on a catching event catches every escalation. Unlike an error it is not fatal when uncaught (FR-ESC-001).</summary>
+public sealed class EscalationEventDefinition : EventDefinition
+{
+    public string? Code { get; init; }
 }

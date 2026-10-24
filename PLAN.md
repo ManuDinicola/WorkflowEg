@@ -117,3 +117,48 @@ Use subagents for exploration, test runs and independent slices as described in 
 
 
 ---
+
+## Beyond the original spec: Camunda parity and more (added 2026-10-24 at the user's request)
+Progress is tracked by the scorecard `docs/camunda-parity.md` (goal: 95 %).
+One branch and PR per milestone, stacked on the previous one. Each item needs conformance tests and a README/docs update.
+
+### M8 - BPMN completeness (feat/m8-bpmn-completeness)
+| # | Item | Notes |
+|---|---|---|
+| [x] 8.1 | Escalation events (throw, boundary, event sub-process) | like error, but non-fatal when uncaught |
+| [ ] 8.2 | Message throw / send task, intermediate message throw | publishes a message to the correlation store |
+| [ ] 8.3 | Link events, conditional events (boundary, catch, start) | |
+| [ ] 8.4 | Terminate end event, multiple/parallel-multiple events, none-end variants | |
+| [ ] 8.5 | Compensation (compensate events, handlers, transactions, cancel) | |
+| [ ] 8.6 | Complex gateway, ad-hoc sub-process | |
+| [ ] 8.7 | Event sub-process variants (all trigger types), timer cycles on start | |
+
+### M9 - Expressions and decisions
+| [ ] 9.1 | Full FEEL (ranges, filters, path, for/if/some/every, functions, temporal) | replaces the subset |
+| [ ] 9.2 | DMN 1.3: decision tables (all hit policies), literal expressions, DRG, business rule task | |
+
+### M10 - Operations on running instances
+| [ ] 10.1 | Process instance modification (move/add/cancel tokens) | |
+| [ ] 10.2 | Process instance migration between versions | |
+| [ ] 10.3 | Batch operations (cancel, resolve incidents, migrate, modify) | |
+| [ ] 10.4 | Variable and job update APIs, job streaming, search/filter queries with paging | |
+
+### M11 - Human work and forms
+| [ ] 11.1 | Forms (JSON schema form definitions linked to user tasks), candidate groups/users, due dates, follow-ups, priorities | |
+| [ ] 11.2 | Task search/assignment API, task listeners | |
+
+### M12 - Connectors and SDKs
+| [ ] 12.1 | Built-in connectors: REST, webhook inbound, e-mail, queue | |
+| [ ] 12.2 | TypeScript worker SDK; OpenAPI client generation | |
+| [ ] 12.3 | gRPC or SSE job streaming | |
+
+### M13 - Web UI and analytics
+| [ ] 13.1 | Operate-like UI (definitions, instances, incidents, variables, history, diagram with token overlay) | |
+| [ ] 13.2 | Tasklist-like UI | |
+| [ ] 13.3 | Browser BPMN modeler/deploy page | |
+| [ ] 13.4 | Analytics (durations, counts, heatmap) | |
+
+### M14 - Scale and hardening
+| [ ] 14.1 | Partitioned execution / multi-node scaling tests, load tests with published numbers | |
+| [ ] 14.2 | Union boxing check (UNI-005), full chaos suite, soak test | |
+| [ ] 14.3 | Multi-tenancy admin, audit log, secrets handling | |

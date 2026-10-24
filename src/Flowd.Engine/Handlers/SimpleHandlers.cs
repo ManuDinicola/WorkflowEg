@@ -44,6 +44,18 @@ public sealed class EndEventElementHandler : ElementHandler<EndEvent>
             return;
         }
 
+        if (element.Escalation is { } escalation)
+        {
+            ErrorPropagation.Escalate(context, instance, escalation.Code ?? string.Empty, null);
+            if (!context.State.Elements[instance.Key].IsLive)
+            {
+                return;
+            }
+
+            context.Complete(instance);
+            return;
+        }
+
         if (element.MessageJobType is { } jobType)
         {
             if (!JobFactory.HasOpenJob(context, instance))

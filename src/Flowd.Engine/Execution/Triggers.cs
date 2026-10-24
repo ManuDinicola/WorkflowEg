@@ -14,7 +14,7 @@ internal static class Triggers
     /// <summary>Opens the boundary triggers of an activity that are not open yet. Idempotent so a re-activation after an incident is safe.</summary>
     public static bool OpenBoundaries(StepContext context, FlowNode activity, ElementInstance instance)
     {
-        foreach (var boundary in context.State.Graph.BoundaryEventsOf(activity.Id).Where(b => b.Definition is not ErrorEventDefinition))
+        foreach (var boundary in context.State.Graph.BoundaryEventsOf(activity.Id).Where(b => b.Definition is not (ErrorEventDefinition or EscalationEventDefinition)))
         {
             if (!IsOpen(context, instance, boundary.Id) && !Open(context, instance, boundary.Id, boundary.Definition, TriggerKind.Boundary))
             {
@@ -31,7 +31,7 @@ internal static class Triggers
         foreach (var esp in context.State.Graph.EventSubProcessesIn(scopeNodeId))
         {
             var start = esp.Nodes.OfType<StartEvent>().First();
-            if (start.Definition is null or ErrorEventDefinition || IsOpen(context, scopeOwner, esp.Id))
+            if (start.Definition is null or ErrorEventDefinition or EscalationEventDefinition || IsOpen(context, scopeOwner, esp.Id))
             {
                 continue; // error start events are matched during error propagation, not by a trigger
             }

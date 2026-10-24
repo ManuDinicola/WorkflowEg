@@ -55,6 +55,18 @@ public sealed class IntermediateThrowEventElementHandler : ElementHandler<Interm
             return;
         }
 
+        if (element.Definition is EscalationEventDefinition escalation)
+        {
+            context.MarkActive(instance);
+            ErrorPropagation.Escalate(context, instance, escalation.Code ?? string.Empty, null);
+            if (context.State.Elements[instance.Key].IsLive)
+            {
+                Complete(context, element, instance);
+            }
+
+            return;
+        }
+
         if (element.Definition is SignalEventDefinition signal)
         {
             context.Emit(new SignalThrown(signal.Name, []));
