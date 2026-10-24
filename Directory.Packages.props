@@ -6,6 +6,7 @@
     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.316" />
     <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.35.0.4138" />
     <!-- Runtime -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.13" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="Dapper" Version="2.1.89" />
     <PackageVersion Include="dbup-postgresql" Version="7.0.1" />

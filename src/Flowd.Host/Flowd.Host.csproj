@@ -6,10 +6,15 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Flowd.Architecture.Tests" />
+    <InternalsVisibleTo Include="Flowd.Integration.Tests" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Flowd.Api\Flowd.Api.csproj" />
-    <ProjectReference Include="..\Flowd.Infrastructure\Flowd.Infrastructure.csproj" />
-    <ProjectReference Include="..\Flowd.Application\Flowd.Application.csproj" />
+    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Flowd.Api/Flowd.Api.csproj" />
+    <ProjectReference Include="../Flowd.Infrastructure/Flowd.Infrastructure.csproj" />
+    <ProjectReference Include="../Flowd.Application/Flowd.Application.csproj" />
   </ItemGroup>
 </Project>

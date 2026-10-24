@@ -22,7 +22,7 @@ public sealed class ArchitectureTests
         typeof(Flowd.Infrastructure.AssemblyMarker).Assembly,
         typeof(Flowd.Api.AssemblyMarker).Assembly,
         typeof(Flowd.Worker.Client.AssemblyMarker).Assembly,
-        typeof(Flowd.Host.AssemblyMarker).Assembly,
+        typeof(Flowd.Host.FlowdHostBuilder).Assembly,
     ];
 
     /// <summary>Allowed Flowd.* references per project (the arrows of section 2.4, transitive closure included).</summary>
