@@ -1,0 +1,67 @@
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+end_of_line = lf
+
+[*.{json,yml,yaml,props,targets,csproj,slnx,xml,md}]
+indent_size = 2
+
+[Makefile]
+indent_style = tab
+
+[*.cs]
+csharp_style_namespace_declarations = file_scoped:error
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+csharp_using_directive_placement = outside_namespace:error
+dotnet_sort_system_directives_first = true
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_prefer_braces = true:warning
+csharp_style_prefer_switch_expression = true:suggestion
+
+# Naming (CC-011)
+dotnet_naming_rule.interfaces_prefix.symbols = interfaces
+dotnet_naming_rule.interfaces_prefix.style = i_prefix
+dotnet_naming_rule.interfaces_prefix.severity = error
+dotnet_naming_symbols.interfaces.applicable_kinds = interface
+dotnet_naming_style.i_prefix.required_prefix = I
+dotnet_naming_style.i_prefix.capitalization = pascal_case
+
+dotnet_naming_rule.private_fields.symbols = private_fields
+dotnet_naming_rule.private_fields.style = underscore_camel
+dotnet_naming_rule.private_fields.severity = error
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private, internal, private_protected
+dotnet_naming_style.underscore_camel.required_prefix = _
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+
+# Code metrics (CC-002)
+dotnet_diagnostic.CA1502.severity = warning
+dotnet_code_quality.CA1502.threshold = 10
+
+# Library projects: ConfigureAwait(false) is enforced in review (CC-009); not by analyzer
+dotnet_diagnostic.CA2007.severity = none
+# Noisy for an application (not a localized library)
+dotnet_diagnostic.CA1303.severity = none
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1062.severity = none
+# Sealed/internal-by-default is handled by CC-010 and ARC-001 tests
+dotnet_diagnostic.CA1812.severity = none
+# Meziantou/Sonar rules that conflict with the spec
+dotnet_diagnostic.MA0004.severity = none
+dotnet_diagnostic.S1075.severity = none
+dotnet_diagnostic.S125.severity = suggestion
+
+[tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1515.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.MA0051.severity = none
+dotnet_diagnostic.S2699.severity = none
+dotnet_diagnostic.S3881.severity = none
