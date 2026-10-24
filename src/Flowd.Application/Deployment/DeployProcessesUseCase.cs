@@ -54,6 +54,14 @@ public sealed class DeployProcessesUseCase(IProcessDefinitionStore store, IKeyGe
                 details.AddRange(invalid.Issues.Select(i => new FailureDetail(i.ElementId is null ? resource.Name : $"{resource.Name}#{i.ElementId}", i.Code, i.Message)));
                 break;
             case BpmnDefinitions definitions:
+
+                var problems = definitions.Processes.SelectMany(p => ExpressionChecker.Check(resource.Name, p)).ToList();
+                if (problems.Count > 0)
+                {
+                    details.AddRange(problems);
+                    break;
+                }
+
                 var checksum = SHA256.HashData(resource.Content);
                 drafts.AddRange(definitions.Processes.Select(p =>
                     new DefinitionDraft(keys.NextKey(), tenantId, p.Id!, resource.Name, resource.Content, checksum, now)));

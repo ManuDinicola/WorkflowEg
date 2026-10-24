@@ -28,7 +28,7 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
             return rejection;
         }
 
-        RunQueue(context);
+        RunToQuiescence(context);
         CompleteInstanceIfDone(context);
         return new CommandAccepted(context.Effects, DescribeOutcome(context));
     }
@@ -44,6 +44,55 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
         SetVariables set => InstanceCommands.SetVariables(context, set),
         ResolveIncident resolve => IncidentCommands.Resolve(context, resolve),
     };
+
+    /// <summary>
+    /// Runs queued steps, then lets joins and scopes react to the new situation, until nothing changes.
+    /// Joins that wait for other branches (inclusive) and sub-process scopes complete here, never mid-queue (FR-INT-001).
+    /// </summary>
+    private void RunToQuiescence(StepContext context)
+    {
+        while (true)
+        {
+            RunQueue(context);
+            var before = context.Effects.Count;
+            foreach (var handler in handlers.Reevaluating())
+            {
+                handler.Reevaluate(context);
+            }
+
+            CompleteFinishedScopes(context);
+            if (!context.HasQueuedSteps && context.Effects.Count == before)
+            {
+                return;
+            }
+        }
+    }
+
+    /// <summary>A sub-process completes when nothing inside it is live; parallel-join tokens that can never fire are abandoned (FR-EXEC-009).</summary>
+    private void CompleteFinishedScopes(StepContext context)
+    {
+        var scopes = context.State.LiveElements()
+            .Where(e => e.State == ElementState.Active && string.Equals(e.ElementType, "subProcess", StringComparison.Ordinal))
+            .OrderByDescending(e => e.Key)
+            .ToList();
+        foreach (var scope in scopes)
+        {
+            var children = context.State.LiveElements().Where(e => e.ScopeKey == scope.Key).ToList();
+            if (children.Any(c => !IsWaitingJoinToken(context, c)))
+            {
+                continue;
+            }
+
+            foreach (var token in children)
+            {
+                context.Record(HistoryEventTypes.JoinTokensAbandoned, token);
+                context.Terminate(token);
+            }
+
+            var node = context.State.Graph.Node(scope.ElementId);
+            handlers.For(node).Complete(context, node, scope);
+        }
+    }
 
     private void RunQueue(StepContext context)
     {

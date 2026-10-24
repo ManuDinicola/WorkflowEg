@@ -63,6 +63,8 @@ public sealed class StepContext
 
     internal bool TryDequeue(out Step step) => _queue.TryDequeue(out step);
 
+    internal bool HasQueuedSteps => _queue.Count > 0;
+
     internal void ClearQueue() => _queue.Clear();
 
     public void Emit(EngineEffect effect) => _effects.Add(effect);

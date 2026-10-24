@@ -17,6 +17,7 @@ public static class BpmnParser
     private static readonly HashSet<string> Ignored = new(StringComparer.Ordinal)
     {
         "documentation", "extensionElements", "laneSet", "textAnnotation", "association", "group", "property",
+        "ioSpecification", "dataInputAssociation", "dataOutputAssociation", "multiInstanceLoopCharacteristics", "standardLoopCharacteristics",
     };
 
     /// <summary>Parses the stream. Returns null and fills <paramref name="issue"/> when the XML itself cannot be read.</summary>
@@ -46,8 +47,14 @@ public static class BpmnParser
         (string?)process.Attribute("id"),
         (string?)process.Attribute("name"),
         string.Equals((string?)process.Attribute("isExecutable"), "true", StringComparison.OrdinalIgnoreCase),
-        [.. process.Elements().Where(IsNode).Select(ParseNode)],
-        [.. process.Elements(Bpmn + "sequenceFlow").Select(ParseFlow)]);
+        ParseNodes(process),
+        ParseFlows(process));
+
+    private static FlowNode[] ParseNodes(XElement scope) =>
+        [.. scope.Elements().Where(IsNode).Select(ParseNode)];
+
+    private static SequenceFlow[] ParseFlows(XElement scope) =>
+        [.. scope.Elements(Bpmn + "sequenceFlow").Select(ParseFlow)];
 
     private static bool IsNode(XElement element) =>
         element.Name.Namespace == Bpmn
@@ -69,15 +76,47 @@ public static class BpmnParser
             "startEvent" when !HasEventDefinition(e) => new StartEvent { Id = id, Name = name },
             "endEvent" when !HasEventDefinition(e) => new EndEvent { Id = id, Name = name },
             "endEvent" when HasOnlyEventDefinition(e, "terminateEventDefinition") => new EndEvent { Id = id, Name = name, IsTerminate = true },
-            "serviceTask" => ParseServiceTask(e, id, name),
+            "serviceTask" or "sendTask" or "businessRuleTask" => ParseJobTask(e, id, name),
+            "scriptTask" => ParseScriptTask(e, id, name),
             "manualTask" => new ManualTask { Id = id, Name = name },
+            "subProcess" when !IsTrue(e, "triggeredByEvent") => ParseSubProcess(e, id, name),
             "exclusiveGateway" => new ExclusiveGateway { Id = id, Name = name, DefaultFlowId = (string?)e.Attribute("default") },
+            "inclusiveGateway" => new InclusiveGateway { Id = id, Name = name, DefaultFlowId = (string?)e.Attribute("default") },
             "parallelGateway" => new ParallelGateway { Id = id, Name = name },
             _ => new UnsupportedNode { Id = id, Name = name, ElementType = DescribeUnsupported(e) }, // non-union
         };
     }
 
-    private static ServiceTask ParseServiceTask(XElement e, string id, string? name)
+    private static bool IsTrue(XElement e, string attribute) =>
+        string.Equals((string?)e.Attribute(attribute), "true", StringComparison.OrdinalIgnoreCase);
+
+    private static SubProcess ParseSubProcess(XElement e, string id, string? name)
+    {
+        var mapping = e.Element(Bpmn + "extensionElements")?.Element(Flowd + "ioMapping");
+        return new SubProcess
+        {
+            Id = id,
+            Name = name,
+            Nodes = ParseNodes(e),
+            Flows = ParseFlows(e),
+            Inputs = ParseMappings(mapping, "input"),
+            Outputs = ParseMappings(mapping, "output"),
+        };
+    }
+
+    private static ScriptTask ParseScriptTask(XElement e, string id, string? name)
+    {
+        var script = e.Element(Bpmn + "extensionElements")?.Element(Flowd + "script");
+        return new ScriptTask
+        {
+            Id = id,
+            Name = name,
+            Expression = (string?)script?.Attribute("expression"),
+            ResultVariable = (string?)script?.Attribute("resultVariable"),
+        };
+    }
+
+    private static ServiceTask ParseJobTask(XElement e, string id, string? name)
     {
         var extensions = e.Element(Bpmn + "extensionElements");
         var definition = extensions?.Element(Flowd + "taskDefinition");
@@ -86,6 +125,7 @@ public static class BpmnParser
         {
             Id = id,
             Name = name,
+            BpmnType = e.Name.LocalName,
             TaskType = (string?)definition?.Attribute("type"),
             Retries = (string?)definition?.Attribute("retries"),
             Inputs = ParseMappings(mapping, "input"),

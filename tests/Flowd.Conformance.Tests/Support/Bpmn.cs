@@ -40,4 +40,16 @@ public static class Bpmn
     public static string Flow(string id, string from, string to, string? condition = null) => condition is null
         ? $"<bpmn:sequenceFlow id=\"{id}\" sourceRef=\"{from}\" targetRef=\"{to}\"/>"
         : $"<bpmn:sequenceFlow id=\"{id}\" sourceRef=\"{from}\" targetRef=\"{to}\"><bpmn:conditionExpression>{SecurityElement.Escape(condition)}</bpmn:conditionExpression></bpmn:sequenceFlow>";
+
+    public static string Inclusive(string id, string? defaultFlow = null) =>
+        $"<bpmn:inclusiveGateway id=\"{id}\"{(defaultFlow is null ? string.Empty : $" default=\"{defaultFlow}\"")}/>";
+
+    public static string Script(string id, string expression, string resultVariable) =>
+        $"<bpmn:scriptTask id=\"{id}\"><bpmn:extensionElements><flowd:script expression=\"{SecurityElement.Escape(expression)}\" resultVariable=\"{resultVariable}\"/></bpmn:extensionElements></bpmn:scriptTask>";
+
+    public static string SubProcess(string id, string mapping, params string[] inner) =>
+        $"<bpmn:subProcess id=\"{id}\"><bpmn:extensionElements>{mapping}</bpmn:extensionElements>{string.Join(string.Empty, inner)}</bpmn:subProcess>";
+
+    public static string SendTask(string id, string type) =>
+        $"<bpmn:sendTask id=\"{id}\"><bpmn:extensionElements><flowd:taskDefinition type=\"{type}\"/></bpmn:extensionElements></bpmn:sendTask>";
 }

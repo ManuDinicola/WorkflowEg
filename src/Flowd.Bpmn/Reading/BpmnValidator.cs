@@ -18,7 +18,12 @@ public static class BpmnValidator
         CheckUniqueElementIds(definitions, issues);
         foreach (var process in definitions.Processes)
         {
-            ValidateProcess(process, issues);
+            if (!process.IsExecutable)
+            {
+                issues.Add(new BpmnIssue(process.Id, BpmnIssueCodes.NotExecutable, "Only executable processes (isExecutable=\"true\") can be deployed."));
+            }
+
+            ValidateScope(process.Id, process.Nodes, process.Flows, issues);
         }
 
         return issues;
@@ -43,7 +48,7 @@ public static class BpmnValidator
     private static void CheckUniqueElementIds(BpmnDefinitions definitions, List<BpmnIssue> issues)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        var ids = definitions.Processes.SelectMany(p => p.Nodes.Select(n => n.Id).Concat(p.Flows.Select(f => f.Id)));
+        var ids = definitions.Processes.SelectMany(p => p.AllNodes().Select(n => n.Id).Concat(p.AllFlows().Select(f => f.Id)));
         foreach (var id in ids)
         {
             if (string.IsNullOrWhiteSpace(id))
@@ -57,76 +62,104 @@ public static class BpmnValidator
         }
     }
 
-    private static void ValidateProcess(BpmnProcess process, List<BpmnIssue> issues)
+    /// <summary>Validates one scope (the process itself or one embedded sub-process) and recurses into nested scopes.</summary>
+    private static void ValidateScope(string? scopeId, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues)
     {
-        if (!process.IsExecutable)
+        if (!nodes.Any(n => n is StartEvent))
         {
-            issues.Add(new BpmnIssue(process.Id, BpmnIssueCodes.NotExecutable, "Only executable processes (isExecutable=\"true\") can be deployed."));
+            issues.Add(new BpmnIssue(scopeId, BpmnIssueCodes.NoStartEvent, $"'{scopeId}' has no (supported) start event."));
         }
 
-        if (!process.Nodes.Any(n => n is StartEvent))
+        var knownIds = nodes.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var node in nodes)
         {
-            issues.Add(new BpmnIssue(process.Id, BpmnIssueCodes.NoStartEvent, "The process has no (supported) start event."));
+            ValidateNode(node, flows, issues);
+            if (node is SubProcess sub)
+            {
+                ValidateScope(sub.Id, sub.Nodes, sub.Flows, issues);
+            }
         }
 
-        var knownIds = process.Nodes.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
-        foreach (var node in process.Nodes)
-        {
-            ValidateNode(node, process, issues);
-        }
-
-        foreach (var flow in process.Flows)
+        foreach (var flow in flows)
         {
             ValidateFlow(flow, knownIds, issues);
         }
     }
 
-    private static void ValidateNode(FlowNode node, BpmnProcess process, List<BpmnIssue> issues)
+    private static void ValidateNode(FlowNode node, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues)
     {
-        var outgoing = process.Flows.Where(f => string.Equals(f.SourceRef, node.Id, StringComparison.Ordinal)).ToList();
-        if (node is ServiceTask task)
-        {
-            ValidateMappings(task, issues);
-        }
-
+        var outgoing = flows.Where(f => string.Equals(f.SourceRef, node.Id, StringComparison.Ordinal)).ToList();
         switch (node)
         {
             case UnsupportedNode unsupported:
                 issues.Add(new BpmnIssue(node.Id, BpmnIssueCodes.UnsupportedElement, $"Element '{node.Id}' of type '{unsupported.ElementType}' is not supported."));
                 break;
             case ExclusiveGateway gateway:
-                ValidateExclusiveGateway(gateway, outgoing, issues);
+                ValidateDiverging(gateway.Id, gateway.DefaultFlowId, outgoing, issues);
                 break;
-            case ServiceTask { TaskType: null or "" }:
-                issues.Add(new BpmnIssue(node.Id, BpmnIssueCodes.MissingTaskType, $"Service task '{node.Id}' needs <flowd:taskDefinition type=\"...\"/>."));
+            case InclusiveGateway gateway:
+                ValidateDiverging(gateway.Id, gateway.DefaultFlowId, outgoing, issues);
+                break;
+            case ServiceTask task:
+                ValidateServiceTask(task, issues);
                 RejectConditions(node, outgoing, issues);
                 break;
-            case ParallelGateway or StartEvent or EndEvent or ManualTask or ServiceTask:
+            case SubProcess sub:
+                ValidateMappings(sub.Id, sub.Inputs.Concat(sub.Outputs), issues);
+                RejectConditions(node, outgoing, issues);
+                break;
+            case ScriptTask script:
+                ValidateScript(script, issues);
+                RejectConditions(node, outgoing, issues);
+                break;
+            case ParallelGateway or StartEvent or EndEvent or ManualTask:
                 RejectConditions(node, outgoing, issues);
                 break;
         }
     }
 
-    private static void ValidateMappings(ServiceTask task, List<BpmnIssue> issues)
+    private static void ValidateServiceTask(ServiceTask task, List<BpmnIssue> issues)
     {
-        foreach (var mapping in task.Inputs.Concat(task.Outputs))
+        if (string.IsNullOrWhiteSpace(task.TaskType))
+        {
+            issues.Add(new BpmnIssue(task.Id, BpmnIssueCodes.MissingTaskType, $"Task '{task.Id}' needs <flowd:taskDefinition type=\"...\"/>."));
+        }
+
+        ValidateMappings(task.Id, task.Inputs.Concat(task.Outputs), issues);
+    }
+
+    private static void ValidateScript(ScriptTask script, List<BpmnIssue> issues)
+    {
+        if (string.IsNullOrWhiteSpace(script.Expression) || string.IsNullOrWhiteSpace(script.ResultVariable))
+        {
+            issues.Add(new BpmnIssue(script.Id, BpmnIssueCodes.InvalidMapping, $"Script task '{script.Id}' needs <flowd:script expression=\"...\" resultVariable=\"...\"/>."));
+        }
+        else if (script.ResultVariable.StartsWith("_flowd", StringComparison.Ordinal))
+        {
+            issues.Add(new BpmnIssue(script.Id, BpmnIssueCodes.InvalidMapping, $"Result variable '{script.ResultVariable}' uses the reserved prefix '_flowd' (FR-VAR-003)."));
+        }
+    }
+
+    private static void ValidateMappings(string ownerId, IEnumerable<IoMapping> mappings, List<BpmnIssue> issues)
+    {
+        foreach (var mapping in mappings)
         {
             if (string.IsNullOrWhiteSpace(mapping.Target) || string.IsNullOrWhiteSpace(mapping.Source))
             {
-                issues.Add(new BpmnIssue(task.Id, BpmnIssueCodes.InvalidMapping, $"A mapping on '{task.Id}' needs both source and target."));
+                issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidMapping, $"A mapping on '{ownerId}' needs both source and target."));
             }
             else if (mapping.Target.StartsWith("_flowd", StringComparison.Ordinal))
             {
-                issues.Add(new BpmnIssue(task.Id, BpmnIssueCodes.InvalidMapping, $"Mapping target '{mapping.Target}' uses the reserved prefix '_flowd' (FR-VAR-003)."));
+                issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidMapping, $"Mapping target '{mapping.Target}' uses the reserved prefix '_flowd' (FR-VAR-003)."));
             }
         }
     }
 
-    private static void ValidateExclusiveGateway(ExclusiveGateway gateway, List<SequenceFlow> outgoing, List<BpmnIssue> issues)
+    private static void ValidateDiverging(string gatewayId, string? defaultFlowId, List<SequenceFlow> outgoing, List<BpmnIssue> issues)
     {
-        if (gateway.DefaultFlowId is { } defaultId && !outgoing.Any(f => string.Equals(f.Id, defaultId, StringComparison.Ordinal)))
+        if (defaultFlowId is { } defaultId && !outgoing.Any(f => string.Equals(f.Id, defaultId, StringComparison.Ordinal)))
         {
-            issues.Add(new BpmnIssue(gateway.Id, BpmnIssueCodes.InvalidDefaultFlow, $"Default flow '{defaultId}' is not an outgoing flow of gateway '{gateway.Id}'."));
+            issues.Add(new BpmnIssue(gatewayId, BpmnIssueCodes.InvalidDefaultFlow, $"Default flow '{defaultId}' is not an outgoing flow of gateway '{gatewayId}'."));
         }
 
         if (outgoing.Count <= 1)
@@ -134,9 +167,9 @@ public static class BpmnValidator
             return;
         }
 
-        foreach (var flow in outgoing.Where(f => string.IsNullOrWhiteSpace(f.Condition) && !string.Equals(f.Id, gateway.DefaultFlowId, StringComparison.Ordinal)))
+        foreach (var flow in outgoing.Where(f => string.IsNullOrWhiteSpace(f.Condition) && !string.Equals(f.Id, defaultFlowId, StringComparison.Ordinal)))
         {
-            issues.Add(new BpmnIssue(flow.Id, BpmnIssueCodes.MissingCondition, $"Outgoing flow '{flow.Id}' of gateway '{gateway.Id}' needs a condition or must be the default flow."));
+            issues.Add(new BpmnIssue(flow.Id, BpmnIssueCodes.MissingCondition, $"Outgoing flow '{flow.Id}' of gateway '{gatewayId}' needs a condition or must be the default flow."));
         }
     }
 

@@ -23,7 +23,7 @@ public sealed class ServiceTaskHandler : ElementHandler<ServiceTask>
         }
 
         if (!TryResolveTaskSettings(context, element, instance, out var type, out var retries)
-            || !TryApplyInputs(context, element, instance))
+            || !MappingSupport.TryApplyInputs(context, element.Inputs, element.Id, instance))
         {
             return;
         }
@@ -43,7 +43,7 @@ public sealed class ServiceTaskHandler : ElementHandler<ServiceTask>
             .Select(j => j.ResultVariables)
             .FirstOrDefault() ?? [];
 
-        if (!TryApplyOutputs(context, element, instance, result))
+        if (!MappingSupport.TryApplyOutputs(context, element.Outputs, element.PropagateAllOutputs, result, element.Id, instance))
         {
             return;
         }
@@ -60,7 +60,7 @@ public sealed class ServiceTaskHandler : ElementHandler<ServiceTask>
         var typeResult = context.Evaluate(task.TaskType ?? string.Empty, instance.ScopeKey);
         if (typeResult is not EvaluationSuccess { Value: string text } || string.IsNullOrWhiteSpace(text))
         {
-            context.RaiseIncident(IncidentTypes.ExtractValueError, $"Job type of '{task.Id}' did not evaluate to a non-empty string.{Describe(typeResult)}", instance);
+            context.RaiseIncident(IncidentTypes.ExtractValueError, $"Job type of '{task.Id}' did not evaluate to a non-empty string.{MappingSupport.Describe(typeResult)}", instance);
             return false;
         }
 
@@ -73,7 +73,7 @@ public sealed class ServiceTaskHandler : ElementHandler<ServiceTask>
         var retriesResult = context.Evaluate(task.Retries, instance.ScopeKey);
         if (!TryReadInt(retriesResult, out retries) || retries < 0)
         {
-            context.RaiseIncident(IncidentTypes.ExtractValueError, $"Retries of '{task.Id}' did not evaluate to a non-negative integer.{Describe(retriesResult)}", instance);
+            context.RaiseIncident(IncidentTypes.ExtractValueError, $"Retries of '{task.Id}' did not evaluate to a non-negative integer.{MappingSupport.Describe(retriesResult)}", instance);
             return false;
         }
 
@@ -95,70 +95,6 @@ public sealed class ServiceTaskHandler : ElementHandler<ServiceTask>
         }
 
         return false;
-    }
-
-    private static string Describe(EvaluationResult result) =>
-        result is EvaluationError error ? $" {error.Message}" : string.Empty;
-
-    private static bool TryApplyInputs(StepContext context, ServiceTask task, ElementInstance instance)
-    {
-        var values = new List<(string Target, JsonNode? Value)>();
-        foreach (var mapping in task.Inputs)
-        {
-            var evaluated = context.Evaluate(mapping.Source, instance.ScopeKey);
-            if (evaluated is not EvaluationSuccess success)
-            {
-                context.RaiseIncident(IncidentTypes.IoMappingError, $"Input mapping '{mapping.Target}' of '{task.Id}' failed.{Describe(evaluated)}", instance);
-                return false;
-            }
-
-            values.Add((mapping.Target, ExpressionJson.ToJson(success.Value)));
-        }
-
-        foreach (var (target, value) in values)
-        {
-            if (context.WriteVariable(instance.Key, target, value, propagate: false) is { } error)
-            {
-                context.RaiseIncident(error.IncidentType, error.Message, instance);
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static bool TryApplyOutputs(StepContext context, ServiceTask task, ElementInstance instance, JsonObject result)
-    {
-        var writes = new List<(string Name, JsonNode? Value)>();
-        if (task.Outputs.Count > 0)
-        {
-            foreach (var mapping in task.Outputs)
-            {
-                var evaluated = context.Evaluate(mapping.Source, instance.Key, result);
-                if (evaluated is not EvaluationSuccess success)
-                {
-                    context.RaiseIncident(IncidentTypes.IoMappingError, $"Output mapping '{mapping.Target}' of '{task.Id}' failed.{Describe(evaluated)}", instance);
-                    return false;
-                }
-
-                writes.Add((mapping.Target, ExpressionJson.ToJson(success.Value)));
-            }
-        }
-        else if (task.PropagateAllOutputs)
-        {
-            writes.AddRange(result.Select(p => (p.Key, p.Value)));
-        }
-
-        foreach (var (name, value) in writes)
-        {
-            if (context.WriteVariable(instance.ScopeKey, name, value, propagate: true) is { } error)
-            {
-                context.RaiseIncident(error.IncidentType, error.Message, instance);
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private static void CreateJob(StepContext context, ServiceTask task, ElementInstance instance, string type, int retries)

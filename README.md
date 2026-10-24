@@ -3,7 +3,7 @@
 Flowd is a BPMN 2.0 workflow engine (Camunda-like) written in C# 15 on .NET 11, with clean architecture and union types.
 It deploys BPMN definitions, runs process instances durably on PostgreSQL, and coordinates external job workers, timers, messages and incidents through a REST API.
 
-**Status:** milestones M0 (skeleton), M1 (model and deployment) and M2 (core execution) are implemented; see `PLAN.md` and `PROGRESS.md`. Linear flows, exclusive/parallel gateways, service tasks with external workers, variables and mappings, incidents and cancellation work end to end on PostgreSQL.
+**Status:** milestones M0-M3 are implemented (skeleton, deployment, core execution, structure and control); see `PLAN.md` and `PROGRESS.md`. Next: timers and messages (M4).
 
 ## What works today
 - Solution skeleton with enforced dependency rules (architecture tests) and C# 15 `union` / `closed class` smoke tests.
@@ -66,7 +66,7 @@ It applies the migrations and registers an auto-start service named `Flowd`. Run
 curl -F "resources=@testdata/bpmn/order-simple.bpmn" http://localhost:8080/v1/deployments
 curl http://localhost:8080/v1/process-definitions
 ```
-Supported BPMN so far: none start event, none/terminate end event, service task (`flowd:taskDefinition`), manual task, exclusive and parallel gateways. Anything else is rejected with its element id (more elements arrive in M3-M6).
+Supported BPMN so far: none start event, none/terminate end event, service/send/business-rule tasks (all worker-based, `flowd:taskDefinition`), script task (expression only), manual task, embedded sub-process, exclusive, parallel and inclusive gateways. Anything else is rejected with its element id (more elements arrive in M4-M6).
 
 ## Running a process
 ```
