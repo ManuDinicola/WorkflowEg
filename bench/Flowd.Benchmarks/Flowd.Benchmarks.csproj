@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA1812;CA1515;CA1822;S2325;S1144;CA1707</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+    <ProjectReference Include="../../src/Flowd.Bpmn/Flowd.Bpmn.csproj" />
+    <ProjectReference Include="../../src/Flowd.Expressions/Flowd.Expressions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../testdata/bpmn/order-simple.bpmn" Link="order-simple.bpmn" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
