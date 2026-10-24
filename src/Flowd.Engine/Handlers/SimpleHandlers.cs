@@ -34,6 +34,26 @@ public sealed class EndEventElementHandler : ElementHandler<EndEvent>
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(element);
         context.MarkActive(instance);
+        if (element.Error is { } error)
+        {
+            if (!ErrorPropagation.Throw(context, instance, error.Code ?? string.Empty, null))
+            {
+                context.RaiseIncident(IncidentTypes.UnhandledErrorEvent, $"No error handler for code '{error.Code}'.", instance);
+            }
+
+            return;
+        }
+
+        if (element.MessageJobType is { } jobType)
+        {
+            if (!JobFactory.HasOpenJob(context, instance))
+            {
+                JobFactory.Create(context, instance, jobType, context.Options.DefaultRetries, new Dictionary<string, string>(StringComparer.Ordinal));
+            }
+
+            return;
+        }
+
         if (element.IsTerminate)
         {
             TerminateSiblings(context, instance);

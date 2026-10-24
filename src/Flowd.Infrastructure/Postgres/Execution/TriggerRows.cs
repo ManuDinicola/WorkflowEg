@@ -52,7 +52,7 @@ internal static class TriggerRows
 
         var subscriptions = await connection.QueryAsync<SubscriptionRow>(new CommandDefinition(
             "SELECT key AS Key, element_instance_key AS ElementInstanceKey, definition_key AS DefinitionKey, element_id AS ElementId, kind AS Kind, " +
-            "message_name AS MessageName, correlation_key AS CorrelationKey, tenant_id AS TenantId FROM message_subscription WHERE instance_key = @key",
+            "message_name AS MessageName, correlation_key AS CorrelationKey, tenant_id AS TenantId, signal AS Signal FROM message_subscription WHERE instance_key = @key",
             new { key = state.InstanceKey }, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
         foreach (var s in subscriptions)
         {
@@ -70,6 +70,7 @@ internal static class TriggerRows
         Kind = ParseKind(s.Kind),
         MessageName = s.MessageName,
         CorrelationKey = s.CorrelationKey,
+        IsSignal = s.Signal,
         TenantId = s.TenantId,
     };
 
@@ -98,8 +99,8 @@ internal static class TriggerRows
         "ON CONFLICT (key) DO UPDATE SET due_at = EXCLUDED.due_at, repetitions = EXCLUDED.repetitions, state = EXCLUDED.state, lease_until = NULL";
 
     private const string InsertSubscriptionSql =
-        "INSERT INTO message_subscription (key, instance_key, element_instance_key, definition_key, element_id, kind, message_name, correlation_key, tenant_id) " +
-        "VALUES (@k, @i, @e, @d, @eid, @kind, @name, @corr, @tenant) ON CONFLICT (key) DO NOTHING";
+        "INSERT INTO message_subscription (key, instance_key, element_instance_key, definition_key, element_id, kind, message_name, correlation_key, tenant_id, signal) " +
+        "VALUES (@k, @i, @e, @d, @eid, @kind, @name, @corr, @tenant, @sig) ON CONFLICT (key) DO NOTHING";
 
     private static NpgsqlParameter[] TimerParameters(TimerRecord t) =>
     [
@@ -111,7 +112,7 @@ internal static class TriggerRows
     private static NpgsqlParameter[] SubscriptionParameters(SubscriptionRecord s) =>
     [
         new("k", s.Key), new("i", (object?)s.InstanceKey ?? DBNull.Value), new("e", (object?)s.ElementInstanceKey ?? DBNull.Value), new("d", s.DefinitionKey),
-        new("eid", s.ElementId), new("kind", KindText(s.Kind)), new("name", s.MessageName), new("corr", s.CorrelationKey), new("tenant", s.TenantId),
+        new("eid", s.ElementId), new("kind", KindText(s.Kind)), new("name", s.MessageName), new("corr", s.CorrelationKey), new("tenant", s.TenantId), new("sig", s.IsSignal),
     ];
 
     private static void Add(NpgsqlBatch batch, string sql, params NpgsqlParameter[] parameters)
@@ -144,6 +145,8 @@ internal static class TriggerRows
         public string CorrelationKey { get; set; } = string.Empty;
 
         public string TenantId { get; set; } = string.Empty;
+
+        public bool Signal { get; set; }
     }
 
     private sealed class TimerRow

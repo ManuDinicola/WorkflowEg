@@ -14,7 +14,7 @@ internal static class Triggers
     /// <summary>Opens the boundary triggers of an activity that are not open yet. Idempotent so a re-activation after an incident is safe.</summary>
     public static bool OpenBoundaries(StepContext context, FlowNode activity, ElementInstance instance)
     {
-        foreach (var boundary in context.State.Graph.BoundaryEventsOf(activity.Id))
+        foreach (var boundary in context.State.Graph.BoundaryEventsOf(activity.Id).Where(b => b.Definition is not ErrorEventDefinition))
         {
             if (!IsOpen(context, instance, boundary.Id) && !Open(context, instance, boundary.Id, boundary.Definition, TriggerKind.Boundary))
             {
@@ -36,6 +36,9 @@ internal static class Triggers
         {
             case TimerEventDefinition timer:
                 return OpenTimer(context, owner, elementId, timer, kind);
+            case SignalEventDefinition signal:
+                context.OpenSubscription(owner, elementId, kind, signal.Name, string.Empty, isSignal: true);
+                return true;
             case MessageEventDefinition message:
                 return OpenMessage(context, owner, elementId, message, kind);
         }
@@ -116,6 +119,18 @@ internal static class TriggerCommands
         }
 
         return Fire(context, timer.ElementInstanceKey, timer.Kind, timer.ElementId, null);
+    }
+
+    public static CommandRejected? FireSignal(StepContext context, TriggerSignal command)
+    {
+        if (context.State.State != InstanceState.Active)
+        {
+            return Rejections.Conflict(InstanceCommands.InstanceNotActive, "The instance is not active.");
+        }
+
+        return context.State.Subscriptions.TryGetValue(command.SubscriptionKey, out var subscription) && subscription.IsSignal
+            ? Fire(context, subscription.ElementInstanceKey, subscription.Kind, subscription.ElementId, command.Variables)
+            : Rejections.Conflict("SUBSCRIPTION_NOT_OPEN", "The signal subscription is no longer open.");
     }
 
     public static CommandRejected? CorrelateMessage(StepContext context, CorrelateMessage command)

@@ -77,6 +77,8 @@ public sealed class EngineState
 
     public Dictionary<long, SubscriptionRecord> Subscriptions { get; } = [];
 
+    public Dictionary<long, UserTaskRecord> UserTasks { get; } = [];
+
     /// <summary>The root scope of an instance is the instance key itself; an element's local scope is its own key.</summary>
     public long? ParentScopeOf(long scope)
     {
@@ -122,6 +124,11 @@ public sealed class EngineState
         foreach (var (key, subscription) in Subscriptions)
         {
             copy.Subscriptions[key] = subscription.Copy();
+        }
+
+        foreach (var (key, task) in UserTasks)
+        {
+            copy.UserTasks[key] = task.Copy();
         }
 
         copy.Variables = Variables.CloneWith(copy.ParentScopeOf);

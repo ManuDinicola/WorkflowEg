@@ -30,7 +30,7 @@ public interface ITimerQueue
 /// <summary>A start event trigger of a deployed definition (FR-TMR-005, FR-MSG-004).</summary>
 public sealed record StartTimerDraft(long Key, string ElementId, DateTimeOffset DueAt, int? Repetitions, TimeSpan? Interval);
 
-public sealed record StartMessageDraft(long Key, string ElementId, string MessageName);
+public sealed record StartMessageDraft(long Key, string ElementId, string MessageName, bool IsSignal = false);
 
 /// <summary>Port: timers and message subscriptions that belong to a definition, not to an instance.</summary>
 public interface IStartTriggerStore

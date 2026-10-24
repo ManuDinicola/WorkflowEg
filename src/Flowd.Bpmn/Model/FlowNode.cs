@@ -19,6 +19,12 @@ public sealed class StartEvent : FlowNode
 public sealed class EndEvent : FlowNode
 {
     public bool IsTerminate { get; init; }
+
+    /// <summary>Set for an error end event: throws this BPMN error (FR-EXEC-008).</summary>
+    public ErrorEventDefinition? Error { get; init; }
+
+    /// <summary>Job type of a message end event (<c>flowd:taskDefinition</c>); the event completes when the job does.</summary>
+    public string? MessageJobType { get; init; }
 }
 
 /// <summary>Job-worker service task (FR-EXEC-006).</summary>
@@ -143,3 +149,44 @@ public sealed class ReceiveTask : FlowNode
 
 /// <summary>Event-based gateway: the first of its catch-event targets to trigger wins (FR-EXEC-014).</summary>
 public sealed class EventBasedGateway : FlowNode;
+
+/// <summary>Signal event: broadcast to every waiting subscriber, never buffered (FR-SIG-001).</summary>
+public sealed class SignalEventDefinition : EventDefinition
+{
+    public required string Name { get; init; }
+}
+
+/// <summary>Error event; a null <see cref="Code"/> on a boundary event catches every error (section 12.3).</summary>
+public sealed class ErrorEventDefinition : EventDefinition
+{
+    public string? Code { get; init; }
+}
+
+/// <summary>Intermediate throw event: none (pass-through), message (creates a job) or signal (broadcast).</summary>
+public sealed class IntermediateThrowEvent : FlowNode
+{
+    public EventDefinition? Definition { get; init; }
+
+    /// <summary>Job type for a message throw event (<c>flowd:taskDefinition</c>).</summary>
+    public string? JobType { get; init; }
+}
+
+/// <summary>Native user task handled through the user-task API instead of a worker (section 6.1).</summary>
+public sealed class UserTask : FlowNode
+{
+    public string? Assignee { get; init; }
+
+    public IReadOnlyList<string> CandidateGroups { get; init; } = [];
+
+    public IReadOnlyList<string> CandidateUsers { get; init; } = [];
+
+    public string? DueDate { get; init; }
+
+    public string? FormKey { get; init; }
+
+    public IReadOnlyList<IoMapping> Inputs { get; init; } = [];
+
+    public IReadOnlyList<IoMapping> Outputs { get; init; } = [];
+
+    public bool PropagateAllOutputs { get; init; } = true;
+}

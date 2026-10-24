@@ -26,6 +26,9 @@ internal static class StartTriggerPlanner
                 case TimerEventDefinition timer:
                     PlanTimer(resourceName, start, timer, now, keys, timers, problems);
                     break;
+                case SignalEventDefinition signal:
+                    messages.Add(new StartMessageDraft(keys.NextKey(), start.Id, signal.Name, IsSignal: true));
+                    break;
                 case MessageEventDefinition message:
                     messages.Add(new StartMessageDraft(keys.NextKey(), start.Id, message.Name));
                     break;

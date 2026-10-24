@@ -29,6 +29,10 @@ public static class HistoryEventTypes
     public const string JoinTokensAbandoned = "JOIN_TOKENS_ABANDONED";
     public const string MessageCorrelated = "MESSAGE_CORRELATED";
     public const string TriggerFired = "TRIGGER_FIRED";
+    public const string UserTaskCreated = "USER_TASK_CREATED";
+    public const string UserTaskClaimed = "USER_TASK_CLAIMED";
+    public const string UserTaskCompleted = "USER_TASK_COMPLETED";
+    public const string SignalThrownEvent = "SIGNAL_THROWN";
 }
 
 /// <summary>The instance row was created (first effect of <c>StartInstance</c>).</summary>
@@ -64,6 +68,12 @@ public sealed record SubscriptionClosed(long Key);
 /// <summary>A buffered message was delivered to a definition; each message reaches a definition at most once (FR-MSG-002).</summary>
 public sealed record MessageCorrelated(long MessageKey, long DefinitionKey);
 
+/// <summary>Insert or update of a user task (snapshot).</summary>
+public sealed record UserTaskChanged(UserTaskRecord Snapshot);
+
+/// <summary>A signal throw event fired; the application broadcasts it after the commit (FR-SIG-001).</summary>
+public sealed record SignalThrown(string Name, System.Text.Json.Nodes.JsonObject Variables);
+
 /// <summary>An audit-trail entry (FR-HIS-001).</summary>
 public sealed record HistoryAppended(string EventType, long? ElementInstanceKey, string? ElementId, JsonObject? Payload, DateTimeOffset OccurredAt);
 
@@ -80,6 +90,8 @@ public union EngineEffect(
     SubscriptionChanged,
     SubscriptionClosed,
     MessageCorrelated,
+    UserTaskChanged,
+    SignalThrown,
     HistoryAppended);
 
 /// <summary>Where the instance stands after a command (UNI-002).</summary>

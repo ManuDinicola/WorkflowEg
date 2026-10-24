@@ -45,6 +45,11 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
         ResolveIncident resolve => IncidentCommands.Resolve(context, resolve),
         TriggerTimer timer => TriggerCommands.FireTimer(context, timer),
         CorrelateMessage message => TriggerCommands.CorrelateMessage(context, message),
+        TriggerSignal signal => TriggerCommands.FireSignal(context, signal),
+        ClaimUserTask claim => UserTaskCommands.Claim(context, claim),
+        UnclaimUserTask unclaim => UserTaskCommands.Unclaim(context, unclaim),
+        AssignUserTask assign => UserTaskCommands.Assign(context, assign),
+        CompleteUserTask complete => UserTaskCommands.Complete(context, complete),
     };
 
     /// <summary>
@@ -116,6 +121,11 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
         switch (step)
         {
             case ActivateElement activate:
+                if (activate.ScopeKey != context.State.InstanceKey && !(context.State.Elements.TryGetValue(activate.ScopeKey, out var scope) && scope.IsLive))
+                {
+                    break; // the scope ended (error, interrupting boundary) while this step was queued
+                }
+
                 var node = context.State.Graph.Node(activate.ElementId);
                 var instance = context.CreateElement(node, activate.ScopeKey, activate.IncomingFlowId);
                 if (IsActivity(node) && !Triggers.OpenBoundaries(context, node, instance))
@@ -146,7 +156,7 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
         }
     }
 
-    private static bool IsActivity(Bpmn.Model.FlowNode node) => node is Bpmn.Model.ServiceTask or Bpmn.Model.SubProcess or Bpmn.Model.ReceiveTask;
+    private static bool IsActivity(Bpmn.Model.FlowNode node) => node is Bpmn.Model.ServiceTask or Bpmn.Model.SubProcess or Bpmn.Model.ReceiveTask or Bpmn.Model.UserTask;
 
     private void RunOnInstance(StepContext context, long key, Action<IElementHandler, Bpmn.Model.FlowNode, ElementInstance> action)
     {

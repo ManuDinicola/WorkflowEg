@@ -152,6 +152,7 @@ internal static class InstanceLoader
         await LoadJobsAsync(connection, transaction, state, cancellationToken).ConfigureAwait(false);
         await LoadIncidentsAsync(connection, transaction, state, cancellationToken).ConfigureAwait(false);
         await TriggerRows.LoadAsync(connection, transaction, state, cancellationToken).ConfigureAwait(false);
+        await UserTaskRows.LoadAsync(connection, transaction, state, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task LoadVariablesAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, EngineState state, CancellationToken cancellationToken)
@@ -329,6 +330,11 @@ internal static class EffectWriter
                 case HistoryAppended history:
                     InsertHistory(batch, instanceKey, history);
                     break;
+                case UserTaskChanged userTask:
+                    UserTaskRows.Write(batch, userTask.Snapshot);
+                    break;
+                case SignalThrown:
+                    break; // broadcast after the commit, nothing to store
                 case TimerChanged or SubscriptionChanged or SubscriptionClosed or MessageCorrelated:
                     TriggerRows.Write(batch, effects[i]);
                     break;

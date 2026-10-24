@@ -30,7 +30,7 @@ public sealed record StartInstanceRequest(
 public sealed record StartedInstance(long InstanceKey, long DefinitionKey, int Version, string BpmnProcessId);
 
 /// <summary>Runs one command on an existing instance in one transaction: lock, interpret, persist, commit (FR-ARCH-002).</summary>
-public sealed class CommandProcessor(IInstanceTransactionFactory transactions, EngineServices engine, IMessageStore messages)
+public sealed class CommandProcessor(IInstanceTransactionFactory transactions, EngineServices engine, IMessageStore messages, Func<ISignalBroadcaster> signals)
 {
     public async Task<Result<ProcessedCommand>> ExecuteAsync(string tenantId, long instanceKey, EngineCommand command, CancellationToken cancellationToken)
     {
@@ -72,7 +72,18 @@ public sealed class CommandProcessor(IInstanceTransactionFactory transactions, E
         }
 
         await DeliverBufferedAsync(tenantId, accepted.Effects, cancellationToken).ConfigureAwait(false);
+        await BroadcastThrownSignalsAsync(tenantId, accepted.Effects, cancellationToken).ConfigureAwait(false);
         return new ProcessedCommand(state.InstanceKey, accepted.Outcome);
+    }
+
+    /// <summary>Signal throw events broadcast after their transaction committed (FR-SIG-001, FR-CON-002).</summary>
+    public async Task BroadcastThrownSignalsAsync(string tenantId, IReadOnlyList<EngineEffect> effects, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(effects);
+        foreach (var thrown in effects.Select(e => e is SignalThrown s ? s : null).OfType<SignalThrown>())
+        {
+            await signals().BroadcastAsync(tenantId, thrown.Name, thrown.Variables, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -163,6 +174,7 @@ public sealed class StartInstanceUseCase(
         }
 
         await processor.DeliverBufferedAsync(request.TenantId, accepted.Effects, cancellationToken).ConfigureAwait(false);
+        await processor.BroadcastThrownSignalsAsync(request.TenantId, accepted.Effects, cancellationToken).ConfigureAwait(false);
         return new StartedInstance(state.InstanceKey, definition.Key, definition.Version, definition.BpmnProcessId);
     }
 }

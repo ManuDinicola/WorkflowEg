@@ -5,6 +5,7 @@ using Flowd.Application.Execution;
 using Flowd.Application.Jobs;
 using Flowd.Application.Messaging;
 using Flowd.Application.Timers;
+using Flowd.Application.UserTasks;
 using Flowd.Engine.Commands;
 using Flowd.Engine.Effects;
 using Flowd.Engine.Execution;
@@ -29,6 +30,8 @@ public sealed class TestEngine
     private readonly JobActivationService _activation;
     private readonly TimerService _timers;
     private readonly CommandProcessor _processor;
+    private readonly SignalService? _signals;
+    private readonly UserTaskService _userTasks;
     private readonly MessageService _messages;
 
     public TestEngine(EngineOptions? options = null, InMemoryStore? store = null, FakeTimeProvider? time = null)
@@ -37,10 +40,12 @@ public sealed class TestEngine
         Store = store ?? new InMemoryStore();
         Keys = new SequentialKeys();
         var engine = new EngineServices(new Interpreter(ElementHandlerRegistry.CreateDefault(), options), Keys, Time);
-        var processor = new CommandProcessor(Store, engine, Store);
+        var processor = new CommandProcessor(Store, engine, Store, () => _signals!);
         _processor = processor;
         _deployer = new DeployProcessesUseCase(Store, Store, Keys, Time);
         _starter = new StartInstanceUseCase(Store, Store, new ProcessModelProvider(Store), engine, processor);
+        _signals = new SignalService(Store, processor, _starter);
+        _userTasks = new UserTaskService(Store, processor);
         _timers = new TimerService(Store, processor, _starter, Time);
         _messages = new MessageService(Store, processor, _starter, Keys, Time);
         _commands = new InstanceCommandService(processor, Store);
@@ -113,6 +118,20 @@ public sealed class TestEngine
     /// <summary>Runs any engine command directly, for the rejection paths the API does not expose.</summary>
     public Task<Result<ProcessedCommand>> ExecuteAsync(long instanceKey, EngineCommand command) =>
         _processor.ExecuteAsync(Tenant, instanceKey, command, CancellationToken.None);
+
+    public Task<int> BroadcastAsync(string name, JsonObject? variables = null) =>
+        _signals!.BroadcastAsync(Tenant, name, variables, CancellationToken.None);
+
+    public Task<Result<ProcessedCommand>> ClaimTaskAsync(long taskKey, string user) => _userTasks.ClaimAsync(Tenant, taskKey, user, CancellationToken.None);
+
+    public Task<Result<ProcessedCommand>> UnclaimTaskAsync(long taskKey) => _userTasks.UnclaimAsync(Tenant, taskKey, CancellationToken.None);
+
+    public Task<Result<ProcessedCommand>> AssignTaskAsync(long taskKey, string user) => _userTasks.AssignAsync(Tenant, taskKey, user, CancellationToken.None);
+
+    public Task<Result<ProcessedCommand>> CompleteTaskAsync(long taskKey, JsonObject? variables = null, string? user = null) =>
+        _userTasks.CompleteAsync(Tenant, taskKey, variables, user, CancellationToken.None);
+
+    public IReadOnlyList<UserTaskRecord> UserTasks(long instanceKey) => [.. State(instanceKey).UserTasks.Values.OrderBy(t => t.Key)];
 
     public Task<int> RequeueTimedOutAsync() => Queue.RequeueTimedOutAsync(Time.GetUtcNow(), CancellationToken.None);
 

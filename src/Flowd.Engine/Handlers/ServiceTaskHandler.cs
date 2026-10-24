@@ -17,7 +17,7 @@ public sealed class ServiceTaskHandler : ElementHandler<ServiceTask>
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(element);
-        if (context.State.Jobs.Values.Any(j => j.ElementInstanceKey == instance.Key && j.State is JobState.Activatable or JobState.Activated))
+        if (JobFactory.HasOpenJob(context, instance))
         {
             return;
         }
@@ -29,7 +29,7 @@ public sealed class ServiceTaskHandler : ElementHandler<ServiceTask>
         }
 
         context.MarkActive(instance);
-        CreateJob(context, element, instance, type, retries);
+        JobFactory.Create(context, instance, type, retries, element.Headers);
     }
 
     public override void Complete(StepContext context, ServiceTask element, ElementInstance instance)
@@ -97,24 +97,4 @@ public sealed class ServiceTaskHandler : ElementHandler<ServiceTask>
         return false;
     }
 
-    private static void CreateJob(StepContext context, ServiceTask task, ElementInstance instance, string type, int retries)
-    {
-        var job = new JobRecord
-        {
-            Key = context.NextKey(),
-            InstanceKey = context.State.InstanceKey,
-            ElementInstanceKey = instance.Key,
-            ElementId = task.Id,
-            Type = type,
-            State = JobState.Activatable,
-            Retries = retries,
-            CustomHeaders = task.Headers,
-            Variables = context.State.Variables.Visible(instance.Key),
-            TenantId = context.State.TenantId,
-            CreatedAt = context.Now,
-        };
-        context.State.Jobs[job.Key] = job;
-        context.Emit(new JobChanged(job.Copy()));
-        context.Record(HistoryEventTypes.JobCreated, instance, new JsonObject { ["jobKey"] = job.Key.ToString(CultureInfo.InvariantCulture), ["type"] = type });
-    }
 }

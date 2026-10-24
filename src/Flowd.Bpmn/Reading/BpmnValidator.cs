@@ -129,6 +129,17 @@ public static class BpmnValidator
                 ValidateScript(script, issues);
                 RejectConditions(node, outgoing, issues);
                 break;
+            case UserTask userTask:
+                ValidateMappings(userTask.Id, userTask.Inputs.Concat(userTask.Outputs), issues);
+                RejectConditions(node, outgoing, issues);
+                break;
+            case IntermediateThrowEvent throwEvent:
+                ValidateThrowEvent(throwEvent, issues);
+                RejectConditions(node, outgoing, issues);
+                break;
+            case EndEvent { Error: not null } or EndEvent { MessageJobType: not null }:
+                RejectConditions(node, outgoing, issues);
+                break;
             case ParallelGateway or StartEvent or EndEvent or ManualTask:
                 RejectConditions(node, outgoing, issues);
                 break;
@@ -138,7 +149,7 @@ public static class BpmnValidator
     private static void ValidateBoundary(BoundaryEvent boundary, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues)
     {
         var attached = nodes.FirstOrDefault(n => string.Equals(n.Id, boundary.AttachedToRef, StringComparison.Ordinal));
-        if (attached is not (ServiceTask or SubProcess or ReceiveTask))
+        if (attached is not (ServiceTask or SubProcess or ReceiveTask or UserTask))
         {
             issues.Add(new BpmnIssue(boundary.Id, BpmnIssueCodes.InvalidBoundary, $"Boundary event '{boundary.Id}' must be attached to a task or sub-process in the same scope (attachedToRef='{boundary.AttachedToRef}')."));
         }
@@ -148,7 +159,7 @@ public static class BpmnValidator
             issues.Add(new BpmnIssue(boundary.Id, BpmnIssueCodes.InvalidBoundary, $"Boundary event '{boundary.Id}' must not have incoming flows."));
         }
 
-        ValidateDefinition(boundary.Id, boundary.Definition, allowCycle: !boundary.CancelActivity, requireCorrelation: true, issues);
+        ValidateDefinition(boundary.Id, boundary.Definition, allowCycle: !boundary.CancelActivity, requireCorrelation: true, issues, allowError: boundary.CancelActivity);
     }
 
     private static void ValidateEventGateway(FlowNode gateway, IReadOnlyList<FlowNode> nodes, List<SequenceFlow> outgoing, List<BpmnIssue> issues)
@@ -168,7 +179,7 @@ public static class BpmnValidator
         }
     }
 
-    private static void ValidateDefinition(string ownerId, EventDefinition definition, bool allowCycle, bool requireCorrelation, List<BpmnIssue> issues)
+    private static void ValidateDefinition(string ownerId, EventDefinition definition, bool allowCycle, bool requireCorrelation, List<BpmnIssue> issues, bool allowError = false)
     {
         switch (definition)
         {
@@ -183,6 +194,12 @@ public static class BpmnValidator
                 }
 
                 break;
+            case ErrorEventDefinition when !allowError:
+                issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"'{ownerId}' cannot use an error definition (only interrupting boundary events and error end events can)."));
+                break;
+            case SignalEventDefinition { Name: var signalName } when string.IsNullOrWhiteSpace(signalName):
+                issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"The signal of '{ownerId}' has no name."));
+                break;
             case MessageEventDefinition message:
                 if (string.IsNullOrWhiteSpace(message.Name))
                 {
@@ -194,6 +211,24 @@ public static class BpmnValidator
                 }
 
                 break;
+        }
+    }
+
+    private static void ValidateThrowEvent(IntermediateThrowEvent throwEvent, List<BpmnIssue> issues)
+    {
+        if (throwEvent.Definition is SignalEventDefinition { Name: { Length: > 0 } })
+        {
+            return;
+        }
+
+        if (throwEvent.Definition is null && throwEvent.JobType is null)
+        {
+            return; // a none throw event passes the token on
+        }
+
+        if (string.IsNullOrWhiteSpace(throwEvent.JobType) && throwEvent.Definition is null)
+        {
+            issues.Add(new BpmnIssue(throwEvent.Id, BpmnIssueCodes.MissingTaskType, $"Message throw event '{throwEvent.Id}' needs <flowd:taskDefinition type=\"...\"/>."));
         }
     }
 

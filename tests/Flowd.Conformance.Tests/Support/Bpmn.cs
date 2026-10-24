@@ -84,4 +84,34 @@ public static class Bpmn
 
     public static string StartMessage(string id, string messageRef) =>
         $"<bpmn:startEvent id=\"{id}\"><bpmn:messageEventDefinition messageRef=\"{messageRef}\"/></bpmn:startEvent>";
+
+    public static string ErrorDef(string id, string code) => $"<bpmn:error id=\"{id}\" name=\"{id}\" errorCode=\"{code}\"/>";
+
+    public static string SignalDef(string id, string name) => $"<bpmn:signal id=\"{id}\" name=\"{name}\"/>";
+
+    public static string BoundaryError(string id, string attachedTo, string? errorRef = null) =>
+        $"<bpmn:boundaryEvent id=\"{id}\" attachedToRef=\"{attachedTo}\"><bpmn:errorEventDefinition{(errorRef is null ? string.Empty : $" errorRef=\"{errorRef}\"")}/></bpmn:boundaryEvent>";
+
+    public static string ErrorEnd(string id, string? errorRef = null) =>
+        $"<bpmn:endEvent id=\"{id}\"><bpmn:errorEventDefinition{(errorRef is null ? string.Empty : $" errorRef=\"{errorRef}\"")}/></bpmn:endEvent>";
+
+    public static string CatchSignal(string id, string signalRef) =>
+        $"<bpmn:intermediateCatchEvent id=\"{id}\"><bpmn:signalEventDefinition signalRef=\"{signalRef}\"/></bpmn:intermediateCatchEvent>";
+
+    public static string BoundarySignal(string id, string attachedTo, string signalRef, bool cancel = true) =>
+        $"<bpmn:boundaryEvent id=\"{id}\" attachedToRef=\"{attachedTo}\" cancelActivity=\"{(cancel ? "true" : "false")}\"><bpmn:signalEventDefinition signalRef=\"{signalRef}\"/></bpmn:boundaryEvent>";
+
+    public static string StartSignal(string id, string signalRef) =>
+        $"<bpmn:startEvent id=\"{id}\"><bpmn:signalEventDefinition signalRef=\"{signalRef}\"/></bpmn:startEvent>";
+
+    public static string ThrowSignal(string id, string signalRef) =>
+        $"<bpmn:intermediateThrowEvent id=\"{id}\"><bpmn:signalEventDefinition signalRef=\"{signalRef}\"/></bpmn:intermediateThrowEvent>";
+
+    public static string ThrowNone(string id) => $"<bpmn:intermediateThrowEvent id=\"{id}\"/>";
+
+    public static string ThrowMessage(string id, string jobType) =>
+        $"<bpmn:intermediateThrowEvent id=\"{id}\"><bpmn:messageEventDefinition/><bpmn:extensionElements><flowd:taskDefinition type=\"{jobType}\"/></bpmn:extensionElements></bpmn:intermediateThrowEvent>";
+
+    public static string UserTask(string id, string assignment = "", string inner = "") =>
+        $"<bpmn:userTask id=\"{id}\"><bpmn:extensionElements>{(assignment.Length == 0 ? string.Empty : $"<flowd:assignmentDefinition {assignment}/>")}{inner}</bpmn:extensionElements></bpmn:userTask>";
 }

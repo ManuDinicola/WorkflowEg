@@ -32,6 +32,19 @@ public sealed record TriggerTimer(long TimerKey);
 /// <summary>A message reaches a waiting subscription (FR-MSG-002).</summary>
 public sealed record CorrelateMessage(long SubscriptionKey, long MessageKey, string MessageName, JsonObject? Variables);
 
+/// <summary>A broadcast signal reaches a waiting subscription (FR-SIG-001).</summary>
+public sealed record TriggerSignal(long SubscriptionKey, string SignalName, JsonObject? Variables);
+
+/// <summary>A user claims a task; fails when someone else holds it (API-011).</summary>
+public sealed record ClaimUserTask(long TaskKey, string User);
+
+public sealed record UnclaimUserTask(long TaskKey);
+
+public sealed record AssignUserTask(long TaskKey, string User);
+
+/// <summary>Completes a user task with result variables (API-011).</summary>
+public sealed record CompleteUserTask(long TaskKey, JsonObject? Variables, string? User);
+
 /// <summary>Every intent the engine can be asked to process (section 7, UNI-002).</summary>
 public union EngineCommand(
     StartInstance,
@@ -43,4 +56,9 @@ public union EngineCommand(
     SetVariables,
     ResolveIncident,
     TriggerTimer,
-    CorrelateMessage);
+    CorrelateMessage,
+    TriggerSignal,
+    ClaimUserTask,
+    UnclaimUserTask,
+    AssignUserTask,
+    CompleteUserTask);
