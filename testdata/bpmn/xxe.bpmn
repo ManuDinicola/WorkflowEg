@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE bpmn:definitions [
+  <!ENTITY xxe SYSTEM "file:///c:/windows/win.ini">
+]>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Defs_1" targetNamespace="http://example.com/bpmn">
+  <bpmn:process id="xxe" name="&xxe;" isExecutable="true">
+    <bpmn:startEvent id="Start"/>
+  </bpmn:process>
+</bpmn:definitions>

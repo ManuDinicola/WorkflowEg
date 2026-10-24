@@ -1,7 +1,10 @@
 using System.CommandLine;
+using Flowd.Bpmn.Model;
+using Flowd.Bpmn.Reading;
 using Flowd.Host;
 
 var autoMigrate = new Option<bool>("--auto-migrate") { Description = "Apply pending migrations before serving." };
+var fileArgument = new Argument<FileInfo>("file") { Description = "BPMN file to validate." };
 
 var serve = new Command("serve", "Run the API, engine and schedulers.") { autoMigrate };
 serve.SetAction(async (parseResult, cancellationToken) =>
@@ -32,7 +35,37 @@ migrate.SetAction(async _ =>
     return 0;
 });
 
-return await new RootCommand("flowd - BPMN workflow engine") { serve, migrate }
+var validate = new Command("validate", "Validate a BPMN file without deploying it.") { fileArgument };
+validate.SetAction(async (parseResult, cancellationToken) =>
+{
+    var file = parseResult.GetRequiredValue(fileArgument);
+    if (!file.Exists)
+    {
+        await Console.Error.WriteLineAsync($"File not found: {file.FullName}".AsMemory(), cancellationToken).ConfigureAwait(false);
+        return 2;
+    }
+
+    await using var stream = file.OpenRead();
+    IReadOnlyList<BpmnIssue> issues = BpmnReader.Read(stream) switch
+    {
+        BpmnInvalid invalid => invalid.Issues,
+        BpmnDefinitions => [],
+    };
+    foreach (var issue in issues)
+    {
+        await Console.Error.WriteLineAsync($"{issue.Code} {issue.ElementId}: {issue.Message}".AsMemory(), cancellationToken).ConfigureAwait(false);
+    }
+
+    if (issues.Count > 0)
+    {
+        return 1;
+    }
+
+    await Console.Out.WriteLineAsync($"{file.Name}: valid".AsMemory(), cancellationToken).ConfigureAwait(false);
+    return 0;
+});
+
+return await new RootCommand("flowd - BPMN workflow engine") { serve, migrate, validate }
     .Parse(args)
     .InvokeAsync()
     .ConfigureAwait(false);

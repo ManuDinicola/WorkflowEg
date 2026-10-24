@@ -5,7 +5,7 @@ Decisions (2026-10-24, see `DECISIONS.md`): granularity **coarse**, parallel sub
 | # | Milestone | Branch | Covers rows |
 |---|---|---|---|
 | [x] M0 | Skeleton & tooling | `feat/m0-skeleton` | 0.1–0.5 |
-| [ ] M1 | Model & deploy | `feat/m1-model-deploy` | 1.1–1.3 (+2.1 expressions in parallel) |
+| [x] M1 | Model & deploy | `feat/m1-model-deploy` | 1.1–1.3 (+2.1 expressions in parallel) |
 | [ ] M2 | Core execution | `feat/m2-core-execution` | 2.2–2.9 |
 | [ ] M3–M7 | as below | `feat/m<N>-<slug>` | refined at milestone start |
 
@@ -35,9 +35,9 @@ The rows below are the commit checklist inside each milestone branch (branch col
 
 | # | Slice | Requirement IDs | Tests | Branch | Size | Depends on | Executor |
 |---|---|---|---|---|---|---|---|
-| [ ] 1.1 | BPMN immutable model (closed hierarchy) + XXE-safe parser for MVP elements | §6.1, FR-SEC-006 | T-DEP-06, parser unit tests | `feat/m1-bpmn-model-parser` | M | 0.3 | impl-worker |
-| [ ] 1.2 | Validator that collects all errors; `flowd validate` | FR-DEP-004 | T-DEP-04, T-DEP-05 | `feat/m1-bpmn-validator` | M | 1.1 | impl-worker |
-| [ ] 1.3 | Definitions store, checksum versioning, deployments + definitions API | FR-DEP-001..003, FR-DEP-005, API-001, API-002 | T-DEP-01..03 | `feat/m1-deployments` | M | 1.1, 0.5 | impl-worker |
+| [x] 1.1 | BPMN immutable model (closed hierarchy) + XXE-safe parser for MVP elements | §6.1, FR-SEC-006 | T-DEP-06, parser unit tests | `feat/m1-bpmn-model-parser` | M | 0.3 | impl-worker |
+| [x] 1.2 | Validator that collects all errors; `flowd validate` | FR-DEP-004 | T-DEP-04, T-DEP-05 | `feat/m1-bpmn-validator` | M | 1.1 | impl-worker |
+| [x] 1.3 | Definitions store, checksum versioning, deployments + definitions API | FR-DEP-001..003, FR-DEP-005, API-001, API-002 | T-DEP-01..03 | `feat/m1-deployments` | M | 1.1, 0.5 | impl-worker |
 
 ### M2 — Core execution (linear flow, gateways, jobs)
 

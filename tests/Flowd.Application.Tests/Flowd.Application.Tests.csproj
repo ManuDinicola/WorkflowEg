@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/Flowd.Application/Flowd.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../testdata/bpmn/*.bpmn" Link="testdata/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

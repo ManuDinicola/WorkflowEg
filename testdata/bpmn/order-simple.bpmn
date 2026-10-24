@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:flowd="http://flowd.io/schema/1.0"
+                  id="Defs_1" targetNamespace="http://example.com/bpmn">
+  <bpmn:process id="order-process" isExecutable="true">
+    <bpmn:startEvent id="Start"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+
+    <bpmn:serviceTask id="Charge" name="Charge card">
+      <bpmn:extensionElements>
+        <flowd:taskDefinition type="charge-card" retries="3"/>
+        <flowd:ioMapping>
+          <flowd:input source="= order.total" target="amount"/>
+          <flowd:output source="= receiptId" target="receiptId"/>
+        </flowd:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>F1</bpmn:incoming><bpmn:outgoing>F2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Big" default="F4">
+      <bpmn:incoming>F2</bpmn:incoming><bpmn:outgoing>F3</bpmn:outgoing><bpmn:outgoing>F4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Review" name="Manual review">
+      <bpmn:extensionElements><flowd:taskDefinition type="review-order"/></bpmn:extensionElements>
+      <bpmn:incoming>F3</bpmn:incoming><bpmn:outgoing>F5</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="End"><bpmn:incoming>F4</bpmn:incoming><bpmn:incoming>F5</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Charge"/>
+    <bpmn:sequenceFlow id="F2" sourceRef="Charge" targetRef="Big"/>
+    <bpmn:sequenceFlow id="F3" sourceRef="Big" targetRef="Review">
+      <bpmn:conditionExpression>= order.total &gt; 1000</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="F4" sourceRef="Big" targetRef="End"/>
+    <bpmn:sequenceFlow id="F5" sourceRef="Review" targetRef="End"/>
+  </bpmn:process>
+</bpmn:definitions>
