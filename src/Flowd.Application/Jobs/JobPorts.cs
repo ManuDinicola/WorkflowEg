@@ -20,7 +20,8 @@ public sealed record ActivatedJob(
     int Retries,
     DateTimeOffset Deadline,
     JsonObject Variables,
-    IReadOnlyDictionary<string, string> CustomHeaders);
+    IReadOnlyDictionary<string, string> CustomHeaders,
+    DateTimeOffset CreatedAt);
 
 /// <summary>Port: the job queue. Never locks process instances (FR-CON-004).</summary>
 public interface IJobQueue

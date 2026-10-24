@@ -23,7 +23,7 @@ public sealed class MigrationAndHealthTests(PostgresFixture postgres) : IClassFi
         var runner = new PostgresMigrationRunner(cs);
 
         runner.IsCurrent().ShouldBeFalse();
-        runner.Migrate().Count.ShouldBe(4);
+        runner.Migrate().Count.ShouldBe(5);
         runner.IsCurrent().ShouldBeTrue();
         runner.Migrate().ShouldBeEmpty();
 
@@ -60,7 +60,7 @@ public sealed class MigrationAndHealthTests(PostgresFixture postgres) : IClassFi
 
     private static async Task<WebApplication> StartAsync(string connectionString)
     {
-        var app = FlowdHostBuilder.Build(["--urls", "http://127.0.0.1:0", $"--Flowd:ConnectionString={connectionString}"]);
+        var app = FlowdHostBuilder.Build(["--urls", "http://127.0.0.1:0", $"--Flowd:ConnectionString={connectionString}", "--Flowd:Auth:Insecure=true"]);
         await app.StartAsync();
         return app;
     }

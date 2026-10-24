@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Security.Claims;
 using Flowd.Api.Errors;
+using Flowd.Api.Security;
 using Flowd.Application.Deployment;
 using Flowd.Contracts.Deployments;
 using Flowd.Engine.Results;
@@ -13,7 +15,6 @@ namespace Flowd.Api.Endpoints;
 public static class DeploymentEndpoints
 {
     // Single-tenant mode until FR-SEC-003 lands in M7.
-    private const string DefaultTenant = "";
     private const int MaxPageSize = 1000;
 
     public static IEndpointRouteBuilder MapDeploymentEndpoints(this IEndpointRouteBuilder routes)
@@ -21,14 +22,15 @@ public static class DeploymentEndpoints
         ArgumentNullException.ThrowIfNull(routes);
 
         var group = routes.MapGroup("/v1");
-        group.MapPost("/deployments", DeployAsync).DisableAntiforgery();
-        group.MapGet("/process-definitions", ListAsync);
-        group.MapGet("/process-definitions/{key}", GetAsync);
-        group.MapGet("/process-definitions/{key}/xml", GetXmlAsync);
+        group.MapPost("/deployments", DeployAsync).DisableAntiforgery().RequireAuthorization(Policies.Deploy);
+        group.MapGet("/process-definitions", ListAsync).RequireAuthorization(Policies.Read);
+        group.MapGet("/process-definitions/{key}", GetAsync).RequireAuthorization(Policies.Read);
+        group.MapGet("/process-definitions/{key}/xml", GetXmlAsync).RequireAuthorization(Policies.Read);
         return routes;
     }
 
     private static async Task<IResult> DeployAsync(
+        ClaimsPrincipal user,
         HttpRequest request,
         DeployProcessesUseCase useCase,
         CancellationToken cancellationToken)
@@ -47,7 +49,7 @@ public static class DeploymentEndpoints
             resources.Add(new DeploymentResource(file.FileName, buffer.ToArray()));
         }
 
-        var result = await useCase.ExecuteAsync(resources, DefaultTenant, cancellationToken).ConfigureAwait(false);
+        var result = await useCase.ExecuteAsync(resources, user.TenantId(), cancellationToken).ConfigureAwait(false);
         return result switch
         {
             IReadOnlyList<DeployedDefinition> deployed => Results.Ok(ToResponse(deployed)),
@@ -56,6 +58,7 @@ public static class DeploymentEndpoints
     }
 
     private static async Task<IResult> ListAsync(
+        ClaimsPrincipal user,
         IProcessDefinitionStore store,
         int? pageSize,
         string? after,
@@ -73,33 +76,33 @@ public static class DeploymentEndpoints
             afterKey = parsed;
         }
 
-        var page = await store.ListAsync(DefaultTenant, size, afterKey, cancellationToken).ConfigureAwait(false);
+        var page = await store.ListAsync(user.TenantId(), size, afterKey, cancellationToken).ConfigureAwait(false);
         return Results.Ok(new PageDto<ProcessDefinitionDto>(
             [.. page.Items.Select(ToDto)],
             page.NextCursor?.ToString(CultureInfo.InvariantCulture)));
     }
 
-    private static async Task<IResult> GetAsync(string key, IProcessDefinitionStore store, CancellationToken cancellationToken)
+    private static async Task<IResult> GetAsync(ClaimsPrincipal user, string key, IProcessDefinitionStore store, CancellationToken cancellationToken)
     {
         if (!long.TryParse(key, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed))
         {
             return FailureMapper.ToProblem(new Failure(new NotFound($"Process definition '{key}' not found.")));
         }
 
-        var info = await store.GetAsync(DefaultTenant, parsed, cancellationToken).ConfigureAwait(false);
+        var info = await store.GetAsync(user.TenantId(), parsed, cancellationToken).ConfigureAwait(false);
         return info is null
             ? FailureMapper.ToProblem(new Failure(new NotFound($"Process definition '{key}' not found.")))
             : Results.Ok(ToDto(info));
     }
 
-    private static async Task<IResult> GetXmlAsync(string key, IProcessDefinitionStore store, CancellationToken cancellationToken)
+    private static async Task<IResult> GetXmlAsync(ClaimsPrincipal user, string key, IProcessDefinitionStore store, CancellationToken cancellationToken)
     {
         if (!long.TryParse(key, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed))
         {
             return FailureMapper.ToProblem(new Failure(new NotFound($"Process definition '{key}' not found.")));
         }
 
-        var xml = await store.GetResourceAsync(DefaultTenant, parsed, cancellationToken).ConfigureAwait(false);
+        var xml = await store.GetResourceAsync(user.TenantId(), parsed, cancellationToken).ConfigureAwait(false);
         return xml is null
             ? FailureMapper.ToProblem(new Failure(new NotFound($"Process definition '{key}' not found.")))
             : Results.Bytes(xml, "application/xml");

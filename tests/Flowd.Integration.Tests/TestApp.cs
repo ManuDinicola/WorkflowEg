@@ -27,11 +27,12 @@ public sealed class TestApp : IAsyncDisposable
 
     public string ConnectionString { get; }
 
-    public static async Task<TestApp> StartAsync(PostgresFixture postgres)
+    public static async Task<TestApp> StartAsync(PostgresFixture postgres, bool secure = false, params string[] extraArgs)
     {
         var cs = await postgres.CreateDatabaseAsync();
         new PostgresMigrationRunner(cs).Migrate();
-        var app = FlowdHostBuilder.Build(["--urls", "http://127.0.0.1:0", $"--Flowd:ConnectionString={cs}"]);
+        string[] args = ["--urls", "http://127.0.0.1:0", $"--Flowd:ConnectionString={cs}", .. secure ? Array.Empty<string>() : ["--Flowd:Auth:Insecure=true"], .. extraArgs];
+        var app = FlowdHostBuilder.Build(args);
         await app.StartAsync();
         return new TestApp(app, new HttpClient { BaseAddress = new Uri(app.Urls.First()), Timeout = TimeSpan.FromSeconds(60) }, cs);
     }

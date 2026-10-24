@@ -95,15 +95,15 @@ The rows below are the commit checklist inside each milestone branch (branch col
 
 | # | Slice | Requirement IDs | Tests | Size | Executor |
 |---|---|---|---|---|---|
-| [ ] 7.1 | AuthN/Z (JWT, API keys, roles) and tenancy | FR-SEC-001..003 | T-SEC-01, T-SEC-02 | M | impl-worker |
-| [ ] 7.2 | Outbox publisher + signed webhooks | FR-HIS-002, FR-ARCH-005 | integration | M | impl-worker |
-| [ ] 7.3 | Janitor / retention | FR-DB-002 | integration | S | impl-worker |
-| [ ] 7.4 | Metrics, tracing, logging polish | FR-OBS-001..003 | unit | M | impl-worker |
-| [ ] 7.5 | Rate limits, idempotency keys, input limits | API-R1, FR-SEC-004 | unit + integration | M | impl-worker |
-| [ ] 7.6 | `Flowd.Worker.Client` SDK (+ optional TS SDK) | §9.2 | SDK tests | M | impl-worker |
-| [ ] 7.7 | BenchmarkDotNet + load scripts; union boxing check | NFR-001, NFR-002, UNI-005 | bench report | M | impl-worker |
-| [ ] 7.8 | Chaos / crash recovery tests | NFR-003, NFR-005 | T-CHAOS-01 | M | impl-worker |
-| [ ] 7.9 | OpenAPI contract tests, docs, runbook | API-R3, NFR-008 | contract tests | M | impl-worker |
+| [x] 7.1 | AuthN/Z (JWT, API keys, roles) and tenancy | FR-SEC-001..003 | T-SEC-01, T-SEC-02 | M | impl-worker |
+| [x] 7.2 | Outbox publisher + signed webhooks | FR-HIS-002, FR-ARCH-005 | integration | M | impl-worker |
+| [x] 7.3 | Janitor / retention | FR-DB-002 | integration | S | impl-worker |
+| [x] 7.4 | Metrics, tracing, logging polish | FR-OBS-001..003 | unit | M | impl-worker |
+| [x] 7.5 | Rate limits, idempotency keys, input limits | API-R1, FR-SEC-004 | unit + integration | M | impl-worker |
+| [x] 7.6 | `Flowd.Worker.Client` SDK (+ optional TS SDK) | §9.2 | SDK tests | M | impl-worker |
+| [x] 7.7 | BenchmarkDotNet + load scripts; union boxing check | NFR-001, NFR-002, UNI-005 | bench report | M | impl-worker |
+| [x] 7.8 | Chaos / crash recovery tests | NFR-003, NFR-005 | T-CHAOS-01 | M | impl-worker |
+| [x] 7.9 | OpenAPI contract tests, docs, runbook | API-R3, NFR-008 | contract tests | M | impl-worker |
 
 ## 4. Kickoff prompt (paste into Claude Code in the empty repo folder)
 

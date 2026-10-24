@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Security.Claims;
 using Flowd.Api.Errors;
+using Flowd.Api.Security;
 using Flowd.Application.Messaging;
 using Flowd.Contracts.Execution;
 using Flowd.Engine.Results;
@@ -12,19 +14,18 @@ namespace Flowd.Api.Endpoints;
 /// <summary>Publish a message (API-009, FR-MSG-001).</summary>
 public static class MessageEndpoints
 {
-    private const string DefaultTenant = "";
 
     public static IEndpointRouteBuilder MapMessageEndpoints(this IEndpointRouteBuilder routes)
     {
         ArgumentNullException.ThrowIfNull(routes);
-        routes.MapPost("/v1/messages", PublishAsync);
+        routes.MapPost("/v1/messages", PublishAsync).RequireAuthorization(Policies.Publish);
         return routes;
     }
 
-    private static async Task<IResult> PublishAsync(PublishMessageRequestDto request, MessageService messages, CancellationToken cancellationToken)
+    private static async Task<IResult> PublishAsync(ClaimsPrincipal user, PublishMessageRequestDto request, MessageService messages, CancellationToken cancellationToken)
     {
         var result = await messages.PublishAsync(
-            new PublishMessageRequest(DefaultTenant, request.Name, request.CorrelationKey, request.Variables, TimeSpan.FromMilliseconds(request.TtlMs ?? 0), request.MessageId),
+            new PublishMessageRequest(user.TenantId(), request.Name, request.CorrelationKey, request.Variables, TimeSpan.FromMilliseconds(request.TtlMs ?? 0), request.MessageId),
             cancellationToken).ConfigureAwait(false);
         return result switch
         {

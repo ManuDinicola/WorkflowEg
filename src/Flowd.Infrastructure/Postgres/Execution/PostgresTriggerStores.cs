@@ -217,3 +217,29 @@ public sealed class PostgresChildInstanceStore(NpgsqlDataSource dataSource) : Fl
         return [.. keys];
     }
 }
+
+/// <summary>API keys stored as SHA-256 hashes (FR-SEC-001).</summary>
+public sealed class PostgresApiKeyStore(NpgsqlDataSource dataSource) : Flowd.Application.Security.IApiKeyStore
+{
+    public async Task<Flowd.Application.Security.ApiKeyInfo?> FindAsync(byte[] keyHash, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var row = await connection.QuerySingleOrDefaultAsync<(string Name, string Roles, string TenantId)?>(new CommandDefinition(
+            "SELECT name, roles, tenant_id FROM api_key WHERE key_hash = @keyHash AND revoked_at IS NULL",
+            new { keyHash },
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+        return row is { } r
+            ? new Flowd.Application.Security.ApiKeyInfo(r.Name, r.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), r.TenantId)
+            : null;
+    }
+
+    public async Task CreateAsync(byte[] keyHash, Flowd.Application.Security.ApiKeyInfo info, DateTimeOffset createdAt, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(info);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await connection.ExecuteAsync(new CommandDefinition(
+            "INSERT INTO api_key (key_hash, name, roles, tenant_id, created_at) VALUES (@keyHash, @name, @roles, @tenant, @created)",
+            new { keyHash, name = info.Name, roles = string.Join(',', info.Roles), tenant = info.TenantId, created = createdAt.UtcDateTime },
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+    }
+}

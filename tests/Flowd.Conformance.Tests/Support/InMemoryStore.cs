@@ -160,7 +160,7 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
             job.State = JobState.Activated;
             job.Worker = request.Worker;
             job.Deadline = now + request.Timeout;
-            activated.Add(new ActivatedJob(job.Key, job.Type, job.InstanceKey, job.ElementId, job.Retries, job.Deadline.Value, Filter(job.Variables, request.FetchVariables), job.CustomHeaders));
+            activated.Add(new ActivatedJob(job.Key, job.Type, job.InstanceKey, job.ElementId, job.Retries, job.Deadline.Value, Filter(job.Variables, request.FetchVariables), job.CustomHeaders, job.CreatedAt));
         }
 
         return Task.FromResult<IReadOnlyList<ActivatedJob>>(activated);

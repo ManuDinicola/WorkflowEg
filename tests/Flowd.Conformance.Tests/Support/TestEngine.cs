@@ -4,6 +4,7 @@ using Flowd.Application.Deployment;
 using Flowd.Application.Execution;
 using Flowd.Application.Jobs;
 using Flowd.Application.Messaging;
+using Flowd.Application.Observability;
 using Flowd.Application.Timers;
 using Flowd.Application.UserTasks;
 using Flowd.Engine.Commands;
@@ -41,17 +42,18 @@ public sealed class TestEngine
         Store = store ?? new InMemoryStore();
         Keys = new SequentialKeys();
         var engine = new EngineServices(new Interpreter(ElementHandlerRegistry.CreateDefault(), options), Keys, Time);
-        var processor = new CommandProcessor(Store, engine, Store, () => _postCommit!);
+        var telemetry = new EngineTelemetry(Microsoft.Extensions.Logging.Abstractions.NullLogger<EngineTelemetry>.Instance);
+        var processor = new CommandProcessor(Store, engine, Store, () => _postCommit!, telemetry);
         _processor = processor;
         _deployer = new DeployProcessesUseCase(Store, Store, Keys, Time);
         _starter = new StartInstanceUseCase(Store, Store, new ProcessModelProvider(Store), engine, processor);
         _signals = new SignalService(Store, processor, _starter);
         _postCommit = new PostCommitEffects(_signals, _starter, processor, Store);
         _userTasks = new UserTaskService(Store, processor);
-        _timers = new TimerService(Store, processor, _starter, Time);
+        _timers = new TimerService(Store, processor, _starter, Time, telemetry);
         _messages = new MessageService(Store, processor, _starter, Keys, Time);
         _commands = new InstanceCommandService(processor, Store);
-        _activation = new JobActivationService(Store, Time);
+        _activation = new JobActivationService(Store, Time, telemetry);
         Queue = Store;
     }
 

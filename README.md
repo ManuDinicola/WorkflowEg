@@ -3,7 +3,7 @@
 Flowd is a BPMN 2.0 workflow engine (Camunda-like) written in C# 15 on .NET 11, with clean architecture and union types.
 It deploys BPMN definitions, runs process instances durably on PostgreSQL, and coordinates external job workers, timers, messages and incidents through a REST API.
 
-**Status:** milestones M0-M6 are implemented (skeleton, deployment, core execution, structure, timers and messages, errors, signals and user tasks, call activities, multi-instance, event sub-processes); see `PLAN.md` and `PROGRESS.md`. Next: production readiness (M7).
+**Status:** milestones M0-M7 are implemented (engine, composition, security, observability, outbox, retention, worker SDK, OpenAPI, chaos test); see `PLAN.md` and `PROGRESS.md`. New here? Start with `docs/overview.md`.
 
 ## What works today
 - Solution skeleton with enforced dependency rules (architecture tests) and C# 15 `union` / `closed class` smoke tests.
@@ -46,7 +46,7 @@ C:\flowd\flowd.exe migrate
 sc.exe create Flowd binPath= "C:\flowd\flowd.exe serve" start= auto
 ```
 Set `Flowd__ConnectionString` as a machine environment variable (or in `appsettings.json`). Point your monitoring or load balancer at `/healthz` and `/readyz`.
-(The service wiring is in place; the install steps above will be verified and refined in M7.)
+(Not yet verified on a real Windows Server; see `docs/operations.md`.)
 
 ## Releases
 Pushing a tag such as `v0.3.0` runs `.github/workflows/release.yml`: it runs `make ci`, publishes self-contained single-file packages (`flowd-<version>-win-x64.zip`, `flowd-<version>-linux-x64.tar.gz`, `SHA256SUMS.txt`) and creates a GitHub release with generated notes. Versions starting with `0.` or with a suffix such as `-rc.1` are marked pre-release.
@@ -59,7 +59,9 @@ To install a release on a Windows Server: extract the zip, then in an elevated P
 It applies the migrations and registers an auto-start service named `Flowd`. Run each engine node with a different `-NodeId`.
 
 ## Docs
+- Start here: `docs/overview.md` (what it is, what it is for, how to use it) - `docs/architecture.md` - `docs/bpmn-support.md` - `docs/operations.md` - `docs/benchmarks.md`.
 - Spec index: `docs/spec/00-index.md` - plan: `PLAN.md` - decisions: `DECISIONS.md` - contributing: `docs/contributing.md`.
+- Worker SDK: `Flowd.Worker.Client` (`FlowdClient.Create(...).CreateWorker(type, handler)`), API contract: `docs/openapi-routes.txt`, live document at `/openapi/v1.json`.
 
 ## Deploying a process
 ```

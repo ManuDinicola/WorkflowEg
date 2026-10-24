@@ -41,7 +41,7 @@ public sealed class DeploymentApiTests(PostgresFixture postgres) : IClassFixture
     {
         var cs = await postgres.CreateDatabaseAsync();
         new PostgresMigrationRunner(cs).Migrate();
-        var app = FlowdHostBuilder.Build(["--urls", "http://127.0.0.1:0", $"--Flowd:ConnectionString={cs}"]);
+        var app = FlowdHostBuilder.Build(["--urls", "http://127.0.0.1:0", $"--Flowd:ConnectionString={cs}", "--Flowd:Auth:Insecure=true"]);
         await app.StartAsync();
         return (app, new HttpClient { BaseAddress = new Uri(app.Urls.First()) });
     }

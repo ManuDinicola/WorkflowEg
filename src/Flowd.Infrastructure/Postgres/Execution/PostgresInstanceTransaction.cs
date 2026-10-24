@@ -10,7 +10,7 @@ using NpgsqlTypes;
 namespace Flowd.Infrastructure.Postgres.Execution;
 
 /// <summary>Opens one Postgres transaction per command (FR-ARCH-002).</summary>
-public sealed class PostgresInstanceTransactionFactory(NpgsqlDataSource dataSource, IProcessModelProvider models) : IInstanceTransactionFactory
+public sealed class PostgresInstanceTransactionFactory(NpgsqlDataSource dataSource, IProcessModelProvider models, Microsoft.Extensions.Options.IOptions<FlowdOptions> options) : IInstanceTransactionFactory
 {
     public async Task<IInstanceTransaction> BeginAsync(CancellationToken cancellationToken)
     {
@@ -19,7 +19,7 @@ public sealed class PostgresInstanceTransactionFactory(NpgsqlDataSource dataSour
         {
             var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await connection.ExecuteAsync(new CommandDefinition("SET LOCAL lock_timeout = '5s'", transaction: transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
-            return new PostgresInstanceTransaction(connection, transaction, models);
+            return new PostgresInstanceTransaction(connection, transaction, models, options.Value.OutboxActive);
         }
         catch
         {
@@ -30,7 +30,7 @@ public sealed class PostgresInstanceTransactionFactory(NpgsqlDataSource dataSour
 }
 
 /// <summary>Locks and loads an instance, then applies interpreter effects in order (FR-ARCH-002, FR-CON-001, FR-CON-005).</summary>
-public sealed class PostgresInstanceTransaction(NpgsqlConnection connection, NpgsqlTransaction transaction, IProcessModelProvider models) : IInstanceTransaction
+public sealed class PostgresInstanceTransaction(NpgsqlConnection connection, NpgsqlTransaction transaction, IProcessModelProvider models, bool outboxEnabled) : IInstanceTransaction
 {
     private const string LockTimeoutSqlState = "55P03";
 
@@ -76,7 +76,7 @@ public sealed class PostgresInstanceTransaction(NpgsqlConnection connection, Npg
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(effects);
         await using var batch = new NpgsqlBatch(connection, transaction);
-        EffectWriter.AddAll(batch, state.InstanceKey, effects);
+        EffectWriter.AddAll(batch, state.InstanceKey, state.TenantId, effects, outboxEnabled);
         if (batch.BatchCommands.Count == 0)
         {
             return;
@@ -306,7 +306,7 @@ internal static class InstanceLoader
 /// <summary>Turns engine effects into one batch of SQL statements, in effect order.</summary>
 internal static class EffectWriter
 {
-    public static void AddAll(NpgsqlBatch batch, long instanceKey, IReadOnlyList<EngineEffect> effects)
+    public static void AddAll(NpgsqlBatch batch, long instanceKey, string tenantId, IReadOnlyList<EngineEffect> effects, bool outboxEnabled)
     {
         // Element, job and incident snapshots are upserts: only the last snapshot per key matters.
         var lastElement = LastIndexByKey(effects, e => e is ElementChanged c ? c.Snapshot.Key : null);
@@ -339,6 +339,11 @@ internal static class EffectWriter
                     break;
                 case HistoryAppended history:
                     InsertHistory(batch, instanceKey, history);
+                    if (outboxEnabled && OutboxEvents.Contains(history.EventType))
+                    {
+                        InsertOutbox(batch, instanceKey, tenantId, history);
+                    }
+
                     break;
                 case UserTaskChanged userTask:
                     UserTaskRows.Write(batch, userTask.Snapshot);
@@ -366,6 +371,34 @@ internal static class EffectWriter
         }
 
         return result;
+    }
+
+    /// <summary>History events that are also published to webhooks (FR-HIS-002, FR-ARCH-005).</summary>
+    private static readonly HashSet<string> OutboxEvents = new(StringComparer.Ordinal)
+    {
+        HistoryEventTypes.InstanceStarted,
+        HistoryEventTypes.InstanceCompleted,
+        HistoryEventTypes.InstanceTerminated,
+        HistoryEventTypes.IncidentCreated,
+        HistoryEventTypes.IncidentResolved,
+        HistoryEventTypes.JobCreated,
+        HistoryEventTypes.JobCompleted,
+    };
+
+    private static void InsertOutbox(NpgsqlBatch batch, long instanceKey, string tenantId, HistoryAppended h)
+    {
+        var payload = new JsonObject
+        {
+            ["type"] = h.EventType,
+            ["processInstanceKey"] = instanceKey.ToString(CultureInfo.InvariantCulture),
+            ["elementId"] = h.ElementId,
+            ["elementInstanceKey"] = h.ElementInstanceKey?.ToString(CultureInfo.InvariantCulture),
+            ["data"] = h.Payload?.DeepClone(),
+            ["occurredAt"] = h.OccurredAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
+            ["tenantId"] = tenantId,
+        };
+        var command = Add(batch, "INSERT INTO outbox (topic, payload, created_at, tenant_id) VALUES (@topic, @payload, @created, @tenant)", ("topic", h.EventType), ("created", h.OccurredAt.UtcDateTime), ("tenant", tenantId));
+        command.Parameters.Add(new NpgsqlParameter("payload", NpgsqlDbType.Jsonb) { Value = payload.ToJsonString() });
     }
 
     private static void InsertInstance(NpgsqlBatch batch, InstanceStarted s) =>

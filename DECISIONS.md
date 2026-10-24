@@ -47,3 +47,10 @@ Format: date · question · choice · reason.
 - 2026-10-24 · Multi-instance · a body element instance owns the children; progress lives in the internal variable `_flowdMi`. A child keeps its local variables until the body read its output element. `completionCondition` is not implemented (optional in FR-EXEC-012).
 - 2026-10-24 · Event sub-processes · triggers are owned by the scope (the instance key for the root scope); error start events are matched during error propagation. Interrupting ones terminate the scope's other work and close its triggers.
 - 2026-10-24 · Operator-cancelled child · a child cancelled directly raises `CALLED_ELEMENT_ERROR` on the parent's call activity; a cascade cancel from the parent is a no-op for the parent.
+
+## M7 (2026-10-24)
+- Worker SDK: results are a `JobResult` union; helpers live in static `JobResults` (analyzers forbid instance methods that use no state). A 409 on report is treated as success (at-least-once).
+- OpenAPI contract: a committed route snapshot (`docs/openapi-routes.txt`, regenerate with `FLOWD_UPDATE_SNAPSHOT=1`) instead of the full document, so the test is not brittle against generator upgrades.
+- Chaos test is scaled down (30 instances, 3 kills) and starts the host as a child process configured through environment variables.
+- Benchmarks run in-process: BenchmarkDotNet 0.15.8 does not recognise the .NET 11 preview runtime. The bench project is not in `Flowd.slnx`, so it is not part of the gate.
+- UNI-005 (union boxing check) and end-to-end load scripts are not implemented; documented in `docs/benchmarks.md`.
