@@ -59,10 +59,10 @@ The rows below are the commit checklist inside each milestone branch (branch col
 
 | # | Slice | Requirement IDs | Tests | Size | Executor |
 |---|---|---|---|---|---|
-| [ ] 3.1 | Embedded sub-process and scope handling | FR-EXEC-010 | T-SUB-01 | M | impl-worker |
-| [ ] 3.2 | Inclusive gateway + reachability doc `docs/inclusive-join.md` | FR-EXEC-005 | T-INCL-01, T-INCL-02 | M | Plan (opus) then impl-worker |
-| [ ] 3.3 | Script, manual, send tasks | FR-EXEC-007 | unit + conformance | S | impl-worker |
-| [ ] 3.4 | Incidents: raise, list, resolve; incident API | FR-INC-001..003, API-010 | T-INC-01 | M | impl-worker |
+| [x] 3.1 | Embedded sub-process and scope handling | FR-EXEC-010 | T-SUB-01 | M | impl-worker |
+| [x] 3.2 | Inclusive gateway + reachability doc `docs/inclusive-join.md` | FR-EXEC-005 | T-INCL-01, T-INCL-02 | M | Plan (opus) then impl-worker |
+| [x] 3.3 | Script, manual, send tasks | FR-EXEC-007 | unit + conformance | S | impl-worker |
+| [x] 3.4 | Incidents: raise, list, resolve; incident API | FR-INC-001..003, API-010 | T-INC-01 | M | impl-worker |
 
 ### M4 — Time and messages (refine at milestone start)
 

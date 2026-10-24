@@ -21,7 +21,10 @@ public static class ElementTypes
     {
         StartEvent => "startEvent",
         EndEvent => "endEvent",
-        ServiceTask => "serviceTask",
+        ServiceTask task => task.BpmnType,
+        ScriptTask => "scriptTask",
+        SubProcess => "subProcess",
+        InclusiveGateway => "inclusiveGateway",
         ManualTask => "manualTask",
         ExclusiveGateway => "exclusiveGateway",
         ParallelGateway => "parallelGateway",

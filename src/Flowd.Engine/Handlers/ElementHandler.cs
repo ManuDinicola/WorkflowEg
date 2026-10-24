@@ -66,7 +66,12 @@ public sealed class ElementHandlerRegistry
         new ServiceTaskHandler(),
         new ExclusiveGatewayHandler(),
         new ParallelGatewayHandler(),
+        new InclusiveGatewayHandler(),
+        new SubProcessHandler(),
+        new ScriptTaskHandler(),
     ]);
+
+    public IEnumerable<IReevaluatingHandler> Reevaluating() => _handlers.Values.OfType<IReevaluatingHandler>();
 
     public IElementHandler For(FlowNode element)
     {

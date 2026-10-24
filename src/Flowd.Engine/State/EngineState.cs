@@ -13,9 +13,9 @@ public sealed class ProcessGraph
     {
         ArgumentNullException.ThrowIfNull(process);
         Process = process;
-        _nodes = process.Nodes.ToDictionary(n => n.Id, StringComparer.Ordinal);
-        _outgoing = process.Flows.ToLookup(f => f.SourceRef, StringComparer.Ordinal);
-        _incoming = process.Flows.ToLookup(f => f.TargetRef, StringComparer.Ordinal);
+        _nodes = process.AllNodes().ToDictionary(n => n.Id, StringComparer.Ordinal);
+        _outgoing = process.AllFlows().ToLookup(f => f.SourceRef, StringComparer.Ordinal);
+        _incoming = process.AllFlows().ToLookup(f => f.TargetRef, StringComparer.Ordinal);
     }
 
     public BpmnProcess Process { get; }
@@ -28,7 +28,7 @@ public sealed class ProcessGraph
     public IReadOnlyList<SequenceFlow> Incoming(string nodeId) => [.. _incoming[nodeId]];
 
     public SequenceFlow Flow(string id) =>
-        Process.Flows.FirstOrDefault(f => string.Equals(f.Id, id, StringComparison.Ordinal))
+        Process.AllFlows().FirstOrDefault(f => string.Equals(f.Id, id, StringComparison.Ordinal))
         ?? throw new InvalidOperationException($"Unknown flow '{id}'.");
 }
 

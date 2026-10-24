@@ -20,6 +20,9 @@ public sealed class EndEvent : FlowNode
 /// <summary>Job-worker service task (FR-EXEC-006).</summary>
 public sealed class ServiceTask : FlowNode
 {
+    /// <summary>The BPMN element this was read from: serviceTask, sendTask or businessRuleTask (all worker-based).</summary>
+    public string BpmnType { get; init; } = "serviceTask";
+
     /// <summary>Job type from <c>flowd:taskDefinition type</c>; null when missing (rejected by the validator).</summary>
     public string? TaskType { get; init; }
 
@@ -55,4 +58,32 @@ public sealed class ParallelGateway : FlowNode;
 public sealed class UnsupportedNode : FlowNode
 {
     public required string ElementType { get; init; }
+}
+
+/// <summary>Embedded sub-process: a scope with its own start event, flows and variables (FR-EXEC-010).</summary>
+public sealed class SubProcess : FlowNode
+{
+    public IReadOnlyList<FlowNode> Nodes { get; init; } = [];
+
+    public IReadOnlyList<SequenceFlow> Flows { get; init; } = [];
+
+    /// <summary>Evaluated on activation into the sub-process scope.</summary>
+    public IReadOnlyList<IoMapping> Inputs { get; init; } = [];
+
+    /// <summary>Evaluated on completion against the sub-process scope and written to the parent scope.</summary>
+    public IReadOnlyList<IoMapping> Outputs { get; init; } = [];
+}
+
+/// <summary>Inclusive gateway (FR-EXEC-005).</summary>
+public sealed class InclusiveGateway : FlowNode
+{
+    public string? DefaultFlowId { get; init; }
+}
+
+/// <summary>Script task: evaluates an expression and stores the result (FR-EXEC-007). No script engine is involved.</summary>
+public sealed class ScriptTask : FlowNode
+{
+    public string? Expression { get; init; }
+
+    public string? ResultVariable { get; init; }
 }
