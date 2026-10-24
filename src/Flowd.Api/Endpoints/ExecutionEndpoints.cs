@@ -31,6 +31,8 @@ public static class InstanceEndpoints
         group.MapPost("/process-instances/{key}/cancel", CancelAsync).RequireAuthorization(Policies.Operate);
         group.MapDelete("/process-instances/{key}", DeleteAsync).RequireAuthorization(Policies.Operate);
         group.MapPut("/process-instances/{key}/variables", SetVariablesAsync).RequireAuthorization(Policies.Operate);
+        group.MapGet("/process-instances/{key}/elements", ElementsAsync).RequireAuthorization(Policies.Read);
+        group.MapPost("/process-instances/{key}/modify", ModifyAsync).RequireAuthorization(Policies.Operate);
         group.MapGet("/process-instances/{key}/history", HistoryAsync).RequireAuthorization(Policies.Read);
         group.MapGet("/incidents", ListIncidentsAsync).RequireAuthorization(Policies.Read);
         group.MapPost("/incidents/{key}/resolve", ResolveIncidentAsync).RequireAuthorization(Policies.Operate);
@@ -100,6 +102,25 @@ public static class InstanceEndpoints
             DeleteInstanceOutcome.StillRunning => FailureMapper.ToProblem(new Failure(new Conflict("INSTANCE_RUNNING", "Only finished instances can be deleted; cancel it first."))),
             _ => FailureMapper.ToProblem(new Failure(new NotFound("Process instance not found."))), // non-union: enum
         };
+    }
+
+    private static async Task<IResult> ElementsAsync(ClaimsPrincipal user, string key, IInstanceQueries queries, CancellationToken cancellationToken)
+    {
+        var elements = TryKey(key) is { } instanceKey ? await queries.ListLiveElementsAsync(user.TenantId(), instanceKey, cancellationToken).ConfigureAwait(false) : null;
+        return elements is null
+            ? FailureMapper.ToProblem(new Failure(new NotFound("Process instance not found.")))
+            : Results.Ok(new { items = elements.Select(e => new ElementInstanceDto(Id(e.Key), e.ElementId, e.ElementType, e.State, Id(e.ScopeKey))) });
+    }
+
+    private static Task<IResult> ModifyAsync(ClaimsPrincipal user, string key, ModifyInstanceRequestDto request, InstanceCommandService commands, CancellationToken cancellationToken)
+    {
+        var terminate = (request.TerminateElementInstanceKeys ?? []).Select(TryKey).ToList();
+        if (terminate.Any(k => k is null))
+        {
+            return Task.FromResult(FailureMapper.ToProblem(new Failure(new ValidationFailure("terminateElementInstanceKeys must be element instance keys."))));
+        }
+
+        return RunAsync(key, k => commands.ModifyAsync(user.TenantId(), k, new ModifyInstance([.. terminate.Select(t => t!.Value)], request.ActivateElementIds ?? [], request.Variables), cancellationToken));
     }
 
     private static Task<IResult> CancelAsync(ClaimsPrincipal user, string key, InstanceCommandService commands, CancellationToken cancellationToken) =>

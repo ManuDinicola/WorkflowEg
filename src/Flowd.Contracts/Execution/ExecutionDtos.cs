@@ -52,3 +52,9 @@ public sealed record FailJobRequestDto(int Retries, string? ErrorMessage, long? 
 public sealed record ThrowJobErrorRequestDto(string ErrorCode, string? ErrorMessage, JsonObject? Variables, string? Worker);
 
 public sealed record UpdateJobRequestDto(int? Retries, long? TimeoutMs);
+
+/// <summary>Moves tokens of a running instance: ends the given element instances and starts the given elements (FR-OPS-001).</summary>
+public sealed record ModifyInstanceRequestDto(IReadOnlyList<string>? TerminateElementInstanceKeys, IReadOnlyList<string>? ActivateElementIds, JsonObject? Variables);
+
+/// <summary>A running element instance of a process instance.</summary>
+public sealed record ElementInstanceDto(string Key, string ElementId, string ElementType, string State, string ScopeKey);

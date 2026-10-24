@@ -42,6 +42,19 @@ public sealed class ProcessGraph
     public IntermediateCatchEvent? LinkCatch(string throwId, string linkName) =>
         ScopeOf(Process.Nodes, throwId)?.OfType<IntermediateCatchEvent>().FirstOrDefault(c => c.Definition is LinkEventDefinition l && string.Equals(l.Name, linkName, StringComparison.Ordinal));
 
+    /// <summary>The id of the embedded sub-process that directly contains <paramref name="nodeId"/>, or null for the process root.</summary>
+    public string? ParentOf(string nodeId) => ParentOf(Process.Nodes, null, nodeId);
+
+    private static string? ParentOf(IReadOnlyList<FlowNode> nodes, string? parent, string nodeId)
+    {
+        if (nodes.Any(n => string.Equals(n.Id, nodeId, StringComparison.Ordinal)))
+        {
+            return parent;
+        }
+
+        return nodes.OfType<SubProcess>().Select(s => ParentOf(s.Nodes, s.Id, nodeId)).FirstOrDefault(p => p is not null);
+    }
+
     private static IReadOnlyList<FlowNode>? ScopeOf(IReadOnlyList<FlowNode> nodes, string id)
     {
         if (nodes.Any(n => string.Equals(n.Id, id, StringComparison.Ordinal)))

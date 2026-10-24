@@ -42,6 +42,7 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
         UpdateJobRetries update => JobCommands.UpdateRetries(context, update),
         CancelInstance => InstanceCommands.Cancel(context),
         SetVariables set => InstanceCommands.SetVariables(context, set),
+        ModifyInstance modify => InstanceCommands.Modify(context, modify),
         ResolveIncident resolve => IncidentCommands.Resolve(context, resolve),
         TriggerTimer timer => TriggerCommands.FireTimer(context, timer),
         CorrelateMessage message => TriggerCommands.CorrelateMessage(context, message),

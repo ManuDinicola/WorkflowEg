@@ -75,6 +75,25 @@ public sealed class PostgresInstanceQueries(NpgsqlDataSource dataSource) : IInst
         return result;
     }
 
+    public async Task<IReadOnlyList<ElementView>?> ListLiveElementsAsync(string tenantId, long instanceKey, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var exists = await connection.QuerySingleOrDefaultAsync<long?>(new CommandDefinition(
+            "SELECT key FROM process_instance WHERE key = @instanceKey AND tenant_id = @tenantId",
+            new { instanceKey, tenantId },
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+        if (exists is null)
+        {
+            return null;
+        }
+
+        var rows = await connection.QueryAsync<(long Key, string ElementId, string ElementType, string State, long ScopeKey)>(new CommandDefinition(
+            "SELECT key, element_id, element_type, state, scope_key FROM element_instance WHERE instance_key = @instanceKey AND state NOT IN ('COMPLETED', 'TERMINATED') ORDER BY key",
+            new { instanceKey },
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+        return [.. rows.Select(r => new ElementView(r.Key, r.ElementId, r.ElementType, r.State, r.ScopeKey))];
+    }
+
     public async Task<HistoryPage> GetHistoryAsync(string tenantId, long instanceKey, int pageSize, long? afterSeq, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);

@@ -196,6 +196,9 @@ public sealed class InstanceCommandService(CommandProcessor processor, IInstance
     public Task<Result<ProcessedCommand>> SetVariablesAsync(string tenantId, long instanceKey, SetVariables command, CancellationToken cancellationToken) =>
         processor.ExecuteAsync(tenantId, instanceKey, command, cancellationToken);
 
+    public Task<Result<ProcessedCommand>> ModifyAsync(string tenantId, long instanceKey, ModifyInstance command, CancellationToken cancellationToken) =>
+        processor.ExecuteAsync(tenantId, instanceKey, command, cancellationToken);
+
     public Task<Result<ProcessedCommand>> CompleteJobAsync(string tenantId, CompleteJob command, CancellationToken cancellationToken) =>
         ForJobAsync(tenantId, command.JobKey, command, cancellationToken);
 
