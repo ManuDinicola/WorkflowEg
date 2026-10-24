@@ -31,7 +31,7 @@ public sealed class PostgresInstanceQueries(NpgsqlDataSource dataSource) : IInst
             $"{InstanceSelect} WHERE p.tenant_id = @tenantId AND ((@desc AND p.key < @afterDesc) OR (NOT @desc AND p.key > @after)) " +
             "AND (@varName::text IS NULL OR EXISTS (SELECT 1 FROM variable v WHERE v.scope_key = p.key AND v.name = @varName AND v.value = @varValue::jsonb)) " +
             "AND (@state::text IS NULL OR p.state = @state) AND (@process::text IS NULL OR d.bpmn_process_id = @process) " +
-            "AND (@business::text IS NULL OR p.business_key = @business) " +
+            "AND (@business::text IS NULL OR p.business_key = @business) AND (@allowed::text[] IS NULL OR d.bpmn_process_id = ANY (@allowed)) " +
             "AND (@from::timestamptz IS NULL OR p.started_at >= @from) AND (@to::timestamptz IS NULL OR p.started_at < @to) " +
             "ORDER BY CASE WHEN @desc THEN -p.key ELSE p.key END LIMIT @take",
             new
@@ -45,6 +45,7 @@ public sealed class PostgresInstanceQueries(NpgsqlDataSource dataSource) : IInst
                 state = filter.State?.ToUpperInvariant(),
                 process = filter.BpmnProcessId,
                 business = filter.BusinessKey,
+                allowed = filter.AllowedProcessIds?.ToArray(),
                 from = filter.StartedAfter?.UtcDateTime,
                 to = filter.StartedBefore?.UtcDateTime,
                 take = pageSize + 1,

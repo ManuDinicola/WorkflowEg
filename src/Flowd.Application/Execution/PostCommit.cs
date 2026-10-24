@@ -20,7 +20,13 @@ public interface IChildInstanceStore
 /// Performs the cross-instance consequences of a command: broadcasts thrown signals, starts child instances for call activities,
 /// reports finished children to their parents and cancels children of ended call activities.
 /// </summary>
-public sealed class PostCommitEffects(ISignalBroadcaster signals, StartInstanceUseCase starter, CommandProcessor processor, IChildInstanceStore children) : IPostCommitEffects
+/// <summary>Port: publishes a message thrown by a process (implemented by the message service, FR-MSG-006).</summary>
+public interface IMessagePublisher
+{
+    Task PublishThrownAsync(string tenantId, string name, string correlationKey, System.Text.Json.Nodes.JsonObject variables, CancellationToken cancellationToken);
+}
+
+public sealed class PostCommitEffects(ISignalBroadcaster signals, StartInstanceUseCase starter, CommandProcessor processor, IChildInstanceStore children, IMessagePublisher messages) : IPostCommitEffects
 {
     public async Task HandleAsync(string tenantId, IReadOnlyList<EngineEffect> effects, CancellationToken cancellationToken)
     {
@@ -31,6 +37,9 @@ public sealed class PostCommitEffects(ISignalBroadcaster signals, StartInstanceU
             {
                 case SignalThrown thrown:
                     await signals.BroadcastAsync(tenantId, thrown.Name, thrown.Variables, cancellationToken).ConfigureAwait(false);
+                    break;
+                case MessageThrown thrown:
+                    await messages.PublishThrownAsync(tenantId, thrown.Name, thrown.CorrelationKey, thrown.Variables, cancellationToken).ConfigureAwait(false);
                     break;
                 case ChildInstanceRequested requested:
                     await StartChildAsync(tenantId, requested, cancellationToken).ConfigureAwait(false);

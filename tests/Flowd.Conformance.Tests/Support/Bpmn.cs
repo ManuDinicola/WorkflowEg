@@ -124,6 +124,12 @@ public static class Bpmn
     public static string CatchLink(string id, string name) =>
         $"<bpmn:intermediateCatchEvent id=\"{id}\"><bpmn:linkEventDefinition name=\"{name}\"/></bpmn:intermediateCatchEvent>";
 
+    public static string ThrowMessagePublish(string id, string messageRef) =>
+        $"<bpmn:intermediateThrowEvent id=\"{id}\"><bpmn:messageEventDefinition messageRef=\"{messageRef}\"/></bpmn:intermediateThrowEvent>";
+
+    public static string MessageEndPublish(string id, string messageRef) =>
+        $"<bpmn:endEvent id=\"{id}\"><bpmn:messageEventDefinition messageRef=\"{messageRef}\"/></bpmn:endEvent>";
+
     public static string ThrowNone(string id) => $"<bpmn:intermediateThrowEvent id=\"{id}\"/>";
 
     public static string ThrowMessage(string id, string jobType) =>

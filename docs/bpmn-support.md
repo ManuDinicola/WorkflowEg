@@ -9,3 +9,6 @@
 | Expressions | flowd-FEEL subset: arithmetic, comparison, boolean logic, strings, lists, contexts, date/time and duration |
 
 Anything else is parsed as an unsupported node. The validator reports it with a stable code at deploy time and rejects the deployment, so nothing fails silently at run time. Check a file offline with `flowd validate file.bpmn`.
+
+## Message throw events
+An intermediate throw event or an end event with a `messageEventDefinition` (and no `flowd:taskDefinition`) publishes the message when the token arrives, then continues without waiting. The correlation key is the `flowd:subscription correlationKey` expression of the referenced `bpmn:message`, evaluated in the throwing scope; it must give a string. The message is buffered for one minute, so a receiver that starts waiting a moment later still gets it, and it is delivered like any published message (at most one instance per definition, message start events included). No variables travel with it yet. A throw event that has a `flowd:taskDefinition` still creates a worker job instead (the older behaviour); a send task is still a worker job.

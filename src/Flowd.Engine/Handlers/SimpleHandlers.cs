@@ -56,6 +56,16 @@ public sealed class EndEventElementHandler : ElementHandler<EndEvent>
             return;
         }
 
+        if (element.Message is { } publication)
+        {
+            if (MessageThrowing.Publish(context, publication, instance))
+            {
+                context.Complete(instance);
+            }
+
+            return;
+        }
+
         if (element.MessageJobType is { } jobType)
         {
             if (!JobFactory.HasOpenJob(context, instance))

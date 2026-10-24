@@ -159,7 +159,7 @@ public static class BpmnValidator
                 ValidateThrowEvent(throwEvent, issues);
                 RejectConditions(node, outgoing, issues);
                 break;
-            case EndEvent { Error: not null } or EndEvent { Escalation: not null } or EndEvent { MessageJobType: not null }:
+            case EndEvent { Error: not null } or EndEvent { Escalation: not null } or EndEvent { MessageJobType: not null } or EndEvent { Message: not null }:
                 RejectConditions(node, outgoing, issues);
                 break;
             case ParallelGateway or StartEvent or EndEvent or ManualTask:

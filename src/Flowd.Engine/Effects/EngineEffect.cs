@@ -33,6 +33,7 @@ public static class HistoryEventTypes
     public const string UserTaskClaimed = "USER_TASK_CLAIMED";
     public const string UserTaskCompleted = "USER_TASK_COMPLETED";
     public const string SignalThrownEvent = "SIGNAL_THROWN";
+    public const string MessageThrownEvent = "MESSAGE_THROWN";
     public const string ChildStarted = "CHILD_INSTANCE_REQUESTED";
 }
 
@@ -87,6 +88,9 @@ public sealed record UserTaskChanged(UserTaskRecord Snapshot);
 /// <summary>A signal throw event fired; the application broadcasts it after the commit (FR-SIG-001).</summary>
 public sealed record SignalThrown(string Name, System.Text.Json.Nodes.JsonObject Variables);
 
+/// <summary>A message throw event fired; the application publishes it after the commit, buffered for a short time (FR-MSG-006).</summary>
+public sealed record MessageThrown(string Name, string CorrelationKey, System.Text.Json.Nodes.JsonObject Variables);
+
 /// <summary>An audit-trail entry (FR-HIS-001).</summary>
 public sealed record HistoryAppended(string EventType, long? ElementInstanceKey, string? ElementId, JsonObject? Payload, DateTimeOffset OccurredAt);
 
@@ -105,6 +109,7 @@ public union EngineEffect(
     MessageCorrelated,
     UserTaskChanged,
     SignalThrown,
+    MessageThrown,
     ChildInstanceRequested,
     ChildInstanceEnded,
     ChildErrorThrown,

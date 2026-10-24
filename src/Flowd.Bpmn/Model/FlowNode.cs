@@ -31,6 +31,9 @@ public sealed class EndEvent : FlowNode
 
     /// <summary>Job type of a message end event (<c>flowd:taskDefinition</c>); the event completes when the job does.</summary>
     public string? MessageJobType { get; init; }
+
+    /// <summary>Set for a message end event without a worker job: the message is published when the path ends (FR-MSG-006).</summary>
+    public MessageEventDefinition? Message { get; init; }
 }
 
 /// <summary>Job-worker service task (FR-EXEC-006).</summary>

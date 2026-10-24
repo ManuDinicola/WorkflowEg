@@ -79,6 +79,18 @@ public sealed class IntermediateThrowEventElementHandler : ElementHandler<Interm
             return;
         }
 
+        if (element.Definition is MessageEventDefinition message)
+        {
+            context.MarkActive(instance);
+            if (!MessageThrowing.Publish(context, message, instance))
+            {
+                return;
+            }
+
+            Complete(context, element, instance);
+            return;
+        }
+
         if (element.Definition is SignalEventDefinition signal)
         {
             context.Emit(new SignalThrown(signal.Name, []));
@@ -87,6 +99,29 @@ public sealed class IntermediateThrowEventElementHandler : ElementHandler<Interm
 
         context.MarkActive(instance);
         Complete(context, element, instance);
+    }
+}
+
+/// <summary>Helper of the throw event handler: evaluates the correlation key and emits the publication (FR-MSG-006).</summary>
+internal static class MessageThrowing
+{
+    public static bool Publish(StepContext context, MessageEventDefinition message, ElementInstance instance)
+    {
+        var key = string.Empty;
+        if (message.CorrelationKey is { Length: > 0 } expression)
+        {
+            if (context.Evaluate(expression, instance.ScopeKey) is not EvaluationSuccess { Value: string text })
+            {
+                context.RaiseIncident(IncidentTypes.ExtractValueError, $"Correlation key of message '{message.Name}' on '{instance.ElementId}' did not evaluate to a string.", instance);
+                return false;
+            }
+
+            key = text;
+        }
+
+        context.Emit(new MessageThrown(message.Name, key, []));
+        context.Record(HistoryEventTypes.MessageThrownEvent, instance, new JsonObject { ["message"] = message.Name });
+        return true;
     }
 }
 

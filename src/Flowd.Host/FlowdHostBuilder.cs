@@ -83,6 +83,7 @@ internal static class FlowdHostBuilder
         app.UseAuthentication();
         app.UseAuthorization();
         app.UseRateLimiter();
+        app.UseMiddleware<ProcessScopeMiddleware>();
         app.UseMiddleware<AuditMiddleware>();
         app.UseMiddleware<IdempotencyMiddleware>();
         app.MapOpenApi().AllowAnonymous();
@@ -258,6 +259,7 @@ internal static class FlowdHostBuilder
         services.AddSingleton<JobActivationService>();
         services.AddSingleton<TimerService>();
         services.AddSingleton<MessageService>();
+        services.AddSingleton<IMessagePublisher>(sp => sp.GetRequiredService<MessageService>());
         services.AddSingleton<SignalService>();
         services.AddSingleton<ISignalBroadcaster>(sp => sp.GetRequiredService<SignalService>());
         services.AddSingleton<EngineTelemetry>();

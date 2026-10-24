@@ -13,7 +13,7 @@ public sealed record InstanceView(
     string? BusinessKey);
 
 /// <summary>Instance search: <c>VariableName</c> with <c>VariableValueJson</c> matches a root-scope variable; <c>Descending</c> lists the newest first.</summary>
-public sealed record InstanceFilter(string? State, string? BpmnProcessId, string? BusinessKey, DateTimeOffset? StartedAfter, DateTimeOffset? StartedBefore, string? VariableName = null, string? VariableValueJson = null, bool Descending = false);
+public sealed record InstanceFilter(string? State, string? BpmnProcessId, string? BusinessKey, DateTimeOffset? StartedAfter, DateTimeOffset? StartedBefore, string? VariableName = null, string? VariableValueJson = null, bool Descending = false, IReadOnlyList<string>? AllowedProcessIds = null);
 
 public sealed record InstancePage(IReadOnlyList<InstanceView> Items, long? NextCursor);
 

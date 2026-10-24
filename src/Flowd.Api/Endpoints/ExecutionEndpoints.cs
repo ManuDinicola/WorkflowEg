@@ -119,7 +119,7 @@ public static class InstanceEndpoints
     {
         var page = await queries.ListInstancesAsync(
             user.TenantId(),
-            ParseFilter(state, bpmnProcessId, businessKey, startedAfter, startedBefore, variable, order),
+            ParseFilter(state, bpmnProcessId, businessKey, startedAfter, startedBefore, variable, order) with { AllowedProcessIds = user.AllowedProcesses()?.ToArray() },
             Math.Clamp(pageSize ?? 100, 1, MaxPageSize),
             TryKey(after),
             cancellationToken).ConfigureAwait(false);

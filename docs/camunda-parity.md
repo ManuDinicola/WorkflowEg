@@ -21,7 +21,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Boundary error
 - [x] Event sub-process: timer, message, signal, error start
 - [x] Escalation throw / end / boundary / event sub-process
-- [ ] Message throw and send task as real message publication
+- [x] Message throw events (intermediate and end) publish real messages; send task stays a worker job
 - [x] Link events
 - [ ] Conditional events (boundary, catch, start)
 - [ ] Multiple and parallel multiple events
@@ -121,7 +121,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Multi-tenancy
 - [ ] OIDC login flows for UIs
 - [x] Fine-grained permissions: API keys limited to process ids (deploy, start, batch)
-- [ ] Fine-grained permissions on every instance-level read and command
+- [x] Fine-grained permissions on instance routes and instance lists (jobs, incidents and tasks by key stay tenant-scoped)
 - [x] Audit log
 
 ## Observability and operations
@@ -145,4 +145,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 96 of 116 = 82 %. Target: 95 % (111 of 116).
+Score (2026-10-24): 98 of 116 = 84 %. Target: 95 % (111 of 116).

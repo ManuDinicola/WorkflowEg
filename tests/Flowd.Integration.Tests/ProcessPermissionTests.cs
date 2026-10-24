@@ -65,4 +65,24 @@ public sealed class ProcessPermissionTests(PostgresFixture postgres) : IClassFix
         (await limited.PostAsJsonAsync(new Uri("/v1/batch/cancel-instances", UriKind.Relative), new { bpmnProcessId = "allowed" })).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await admin.PostAsJsonAsync(new Uri("/v1/process-instances", UriKind.Relative), new StartInstanceRequestDto("other", null, null, null, null))).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
+
+    [Fact]
+    public async Task FR_SEC_006_a_limited_key_cannot_see_or_change_instances_of_other_processes()
+    {
+        await using var app = await TestApp.StartAsync(postgres, secure: true);
+        using var admin = As(app, await CreateKeyAsync(app.ConnectionString, "admin"));
+        using var limited = As(app, await CreateKeyAsync(app.ConnectionString, "admin", "allowed"));
+        await DeployAsync(admin, "other");
+        await DeployAsync(admin, "allowed");
+        var otherKey = (await (await admin.PostAsJsonAsync(new Uri("/v1/process-instances", UriKind.Relative), new StartInstanceRequestDto("other", null, null, null, null))).Content.ReadFromJsonAsync<StartInstanceResponseDto>())!.ProcessInstanceKey;
+        var ownKey = (await (await admin.PostAsJsonAsync(new Uri("/v1/process-instances", UriKind.Relative), new StartInstanceRequestDto("allowed", null, null, null, null))).Content.ReadFromJsonAsync<StartInstanceResponseDto>())!.ProcessInstanceKey;
+
+        (await limited.GetAsync(new Uri($"/v1/process-instances/{otherKey}", UriKind.Relative))).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await limited.GetAsync(new Uri($"/v1/process-instances/{otherKey}/variables", UriKind.Relative))).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await limited.PostAsync(new Uri($"/v1/process-instances/{otherKey}/cancel", UriKind.Relative), null)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await limited.GetAsync(new Uri($"/v1/process-instances/{ownKey}", UriKind.Relative))).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var list = await limited.GetFromJsonAsync<Flowd.Contracts.Deployments.PageDto<InstanceDto>>(new Uri("/v1/process-instances", UriKind.Relative));
+        list!.Items.Select(i => i.Key).ShouldBe([ownKey]);
+        (await admin.GetAsync(new Uri($"/v1/process-instances/{otherKey}", UriKind.Relative))).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
 }
