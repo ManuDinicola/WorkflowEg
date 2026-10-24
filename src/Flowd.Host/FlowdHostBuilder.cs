@@ -70,6 +70,7 @@ internal static class FlowdHostBuilder
         AddApplication(builder.Services);
         AddSecurity(builder.Services, builder.Configuration);
         AddLimits(builder);
+        builder.Services.AddOpenApi();
 
         var app = builder.Build();
         _ = app.Services.GetRequiredService<PrometheusMetrics>(); // start listening before the first measurement
@@ -78,6 +79,7 @@ internal static class FlowdHostBuilder
         app.UseAuthorization();
         app.UseRateLimiter();
         app.UseMiddleware<IdempotencyMiddleware>();
+        app.MapOpenApi().AllowAnonymous();
         app.MapOperationalEndpoints();
         app.MapDeploymentEndpoints();
         app.MapInstanceEndpoints();
