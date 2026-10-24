@@ -113,7 +113,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Search / list with paging (basic)
 - [ ] Search with rich filters and sorting on all entities
 - [ ] gRPC API
-- [ ] Event stream / export (beyond webhooks)
+- [x] Event stream / export (beyond webhooks)
 - [x] Webhooks with signature (outbox)
 
 ## Security and tenancy
@@ -121,7 +121,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Multi-tenancy
 - [ ] OIDC login flows for UIs
 - [ ] Fine-grained resource permissions
-- [ ] Audit log
+- [x] Audit log
 
 ## Observability and operations
 - [x] Prometheus metrics, OTLP traces, JSON logs
@@ -142,4 +142,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 76 of 113 = 67 %. Target: 95 % (108 of 113).
+Score (2026-10-24): 78 of 113 = 69 %. Target: 95 % (108 of 113).

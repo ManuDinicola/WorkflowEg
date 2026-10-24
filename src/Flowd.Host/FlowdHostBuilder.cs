@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using Flowd.Api.Endpoints;
 using Flowd.Api.Security;
+using Flowd.Application.Audit;
 using Flowd.Application.Decisions;
 using Flowd.Application.Deployment;
 using Flowd.Application.Execution;
@@ -79,11 +80,13 @@ internal static class FlowdHostBuilder
         app.UseAuthentication();
         app.UseAuthorization();
         app.UseRateLimiter();
+        app.UseMiddleware<AuditMiddleware>();
         app.UseMiddleware<IdempotencyMiddleware>();
         app.MapOpenApi().AllowAnonymous();
         app.MapOperationalEndpoints();
         app.MapDeploymentEndpoints();
         app.MapDecisionEndpoints();
+        app.MapAuditAndEventEndpoints();
         app.MapInstanceEndpoints();
         app.MapJobEndpoints();
         app.MapMessageEndpoints();
@@ -192,6 +195,8 @@ internal static class FlowdHostBuilder
             new SnowflakeKeyGenerator(sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IOptions<FlowdOptions>>().Value.NodeId));
         services.AddSingleton<IProcessDefinitionStore, PostgresProcessDefinitionStore>();
         services.AddSingleton<IDecisionStore, PostgresDecisionStore>();
+        services.AddSingleton<IAuditLog, PostgresAuditLog>();
+        services.AddSingleton<IEventFeed, PostgresEventFeed>();
         services.AddSingleton<IProcessModelProvider, ProcessModelProvider>();
         services.AddSingleton<IInstanceTransactionFactory, PostgresInstanceTransactionFactory>();
         services.AddSingleton<IInstanceLookup, PostgresInstanceLookup>();

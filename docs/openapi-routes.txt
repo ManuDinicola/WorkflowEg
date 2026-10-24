@@ -2,7 +2,9 @@ DELETE /v1/process-instances/{key}
 GET /healthz
 GET /metrics
 GET /readyz
+GET /v1/audit
 GET /v1/decisions
+GET /v1/events/stream
 GET /v1/incidents
 GET /v1/process-definitions
 GET /v1/process-definitions/{key}
