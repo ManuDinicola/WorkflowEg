@@ -67,3 +67,17 @@ Move tokens: `POST /v1/process-instances/{key}/modify` with
 The listed element instances are ended (with everything inside them), the listed elements are started in their scope (the process root, or the running sub-process that contains them), and the variables are set on the instance. Boundary events and event sub-processes cannot be activated directly. A finished instance answers 409.
 
 Start somewhere else: `POST /v1/process-instances` with `"startElementId": "Review"` starts a new instance at any element of the process root instead of the start event.
+
+## Migrating running instances to a new version
+Deploy the new version, then move instances over:
+```
+POST /v1/process-instances/{key}/migrate
+{ "targetDefinitionKey": "372...", "mapping": { "ReviewOld": "ReviewNew" } }
+```
+Rules: the target must be another deployed version of the same process; the instance must be active. Every element the instance is waiting on, and every timer or message trigger it holds, must exist in the target version, under the same id or through `mapping`; running elements must keep their kind (a service task cannot become a user task). If anything is missing the answer is 400 with the list of problems and nothing is changed. Job types are not rewritten: jobs already created keep their type; new steps use the new version.
+
+## Batch operations
+Each runs the single-item operation for up to 1000 matches, one by one; one failure does not stop the rest, and `truncated: true` means more matches remain (call again).
+- `POST /v1/batch/cancel-instances` `{ "bpmnProcessId": "order", "maxItems": 500 }`
+- `POST /v1/batch/resolve-incidents` `{ "processInstanceKey": "...", "maxItems": 500 }` (an incident whose job has no retries left needs `PATCH /v1/jobs/{key}` with retries first)
+- `POST /v1/batch/migrate-instances` `{ "bpmnProcessId": "order", "targetDefinitionKey": "...", "mapping": { } }`
