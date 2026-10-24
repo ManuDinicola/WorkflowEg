@@ -322,18 +322,25 @@ public sealed class BpmnParser
         };
     }
 
+    /// <summary>A business rule task with <c>flowd:calledDecision</c> becomes an internal decision job carrying the decision id and result variable.</summary>
+    private static IEnumerable<KeyValuePair<string, string>> DecisionHeaders(XElement? decision) =>
+        decision is null
+            ? []
+            : [new("decisionId", (string?)decision.Attribute("decisionId") ?? string.Empty), new("resultVariable", (string?)decision.Attribute("resultVariable") ?? "decisionResult")];
+
     private static ServiceTask ParseJobTask(XElement e, string id, string? name)
     {
         var extensions = e.Element(Bpmn + "extensionElements");
         var definition = extensions?.Element(Flowd + "taskDefinition");
         var mapping = extensions?.Element(Flowd + "ioMapping");
+        var decision = extensions?.Element(Flowd + "calledDecision");
         return new ServiceTask
         {
             Id = id,
             Name = name,
             BpmnType = e.Name.LocalName,
             Loop = ReadLoop(e),
-            TaskType = (string?)definition?.Attribute("type"),
+            TaskType = decision is null ? (string?)definition?.Attribute("type") : ServiceTask.DecisionTaskType,
             Retries = (string?)definition?.Attribute("retries"),
             Inputs = ParseMappings(mapping, "input"),
             Outputs = ParseMappings(mapping, "output"),
@@ -341,7 +348,9 @@ public sealed class BpmnParser
             Headers = (extensions?.Element(Flowd + "taskHeaders")?.Elements(Flowd + "header") ?? [])
                 .Where(h => h.Attribute("key") is not null)
                 .GroupBy(h => (string)h.Attribute("key")!, StringComparer.Ordinal)
-                .ToDictionary(g => g.Key, g => (string?)g.Last().Attribute("value") ?? string.Empty, StringComparer.Ordinal),
+                .ToDictionary(g => g.Key, g => (string?)g.Last().Attribute("value") ?? string.Empty, StringComparer.Ordinal)
+                .Concat(DecisionHeaders(decision))
+                .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal),
         };
     }
 

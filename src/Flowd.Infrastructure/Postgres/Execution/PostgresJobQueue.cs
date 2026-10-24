@@ -58,6 +58,15 @@ public sealed class PostgresJobQueue(NpgsqlDataSource dataSource) : IJobQueue
         return [.. rows.OrderBy(r => r.Key).Select(r => r.ToJob(request.FetchVariables))];
     }
 
+    public async Task<IReadOnlyList<string>> TenantsWithActivatableAsync(string type, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        return [.. await connection.QueryAsync<string>(new CommandDefinition(
+            "SELECT DISTINCT tenant_id FROM job WHERE type = @type AND state = 'ACTIVATABLE' AND (retry_backoff_until IS NULL OR retry_backoff_until <= @now)",
+            new { type, now = now.UtcDateTime },
+            cancellationToken: cancellationToken)).ConfigureAwait(false)];
+    }
+
     public async Task<int> RequeueTimedOutAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);

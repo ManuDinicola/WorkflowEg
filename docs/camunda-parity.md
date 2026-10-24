@@ -44,7 +44,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Event-based gateway
 - [ ] Complex gateway
 - [ ] Ad-hoc sub-process
-- [ ] Business rule task with DMN
+- [x] Business rule task with DMN
 - [x] Multi-instance completion condition
 
 ## Variables, mappings, expressions
@@ -65,7 +65,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Literal expression decisions
 - [ ] Decision requirements graph
 - [x] Deploy and evaluate decisions through the API
-- [ ] Business rule task calling a decision
+- [x] Business rule task calling a decision
 
 ## Jobs and workers
 - [x] Activate (long poll), complete, fail with retries and back-off
@@ -78,7 +78,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Worker SDK for TypeScript
 - [ ] Worker SDK for Java
 - [ ] Worker SDK for Python
-- [ ] Fetch-variable filtering and tenant-aware activation
+- [x] Fetch-variable filtering and tenant-aware activation
 
 ## Messages, signals, timers
 - [x] Message publish with TTL and correlation
@@ -140,4 +140,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 66 of 111 = 59 %. Target: 95 % (106 of 111).
+Score (2026-10-24): 69 of 111 = 62 %. Target: 95 % (106 of 111).
