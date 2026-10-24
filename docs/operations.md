@@ -48,3 +48,12 @@ Pass `-PgBin "C:\Program Files\PostgreSQL\16\bin"` when the PostgreSQL tools are
 
 ## Deleting data on demand
 `DELETE /v1/process-instances/{key}` removes a finished (completed or terminated) instance with its variables, jobs, incidents, user tasks and timers; a running instance answers 409 (cancel it first). The janitor does the same automatically after the retention period.
+
+## Audit log
+Every mutating API call (POST, PUT, PATCH, DELETE) is recorded with time, caller (API key name or JWT subject), tenant, method, path and status. Bodies and variable values are never stored. Admins read it with `GET /v1/audit?after=<seq>&pageSize=100`. A failing audit write is logged and does not fail the request. The audit table is not purged by the janitor yet; archive or truncate it with your backup routine.
+
+## Event stream
+`GET /v1/events/stream` is a server-sent-events stream of the lifecycle events (`PROCESS_INSTANCE_STARTED`, `ELEMENT_ACTIVATED`, ... see the history) of all instances of the caller's tenant, in order. Each event has `id: <seq>`; reconnect with `?after=<seq>` or the `Last-Event-ID` header to resume without gaps. Use it for dashboards or to feed your own systems; the signed webhooks remain the reliable push channel.
+```
+curl -N -H "X-Api-Key: ..." http://localhost:8080/v1/events/stream
+```
