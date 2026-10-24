@@ -93,8 +93,8 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Set variables
 - [x] Resolve incident
 - [x] Process instance modification
-- [ ] Process instance migration
-- [ ] Batch operations
+- [x] Process instance migration
+- [x] Batch operations
 - [x] Delete finished instances on demand
 - [ ] Delete process definitions on demand
 - [x] Start instance with start instructions at an element
@@ -142,4 +142,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [ ] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 80 of 113 = 70 %. Target: 95 % (108 of 113).
+Score (2026-10-24): 82 of 113 = 72 %. Target: 95 % (108 of 113).

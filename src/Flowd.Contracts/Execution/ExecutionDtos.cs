@@ -58,3 +58,6 @@ public sealed record ModifyInstanceRequestDto(IReadOnlyList<string>? TerminateEl
 
 /// <summary>A running element instance of a process instance.</summary>
 public sealed record ElementInstanceDto(string Key, string ElementId, string ElementType, string State, string ScopeKey);
+
+/// <summary>Moves a running instance to another version of its process; <c>mapping</c> renames elements that changed id (FR-OPS-004).</summary>
+public sealed record MigrateInstanceRequestDto(string TargetDefinitionKey, IReadOnlyDictionary<string, string>? Mapping);

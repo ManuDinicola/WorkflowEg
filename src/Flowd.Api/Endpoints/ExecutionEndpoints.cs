@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Flowd.Api.Errors;
 using Flowd.Api.Security;
 using Flowd.Application.Execution;
+using Flowd.Application.Migration;
 using Flowd.Application.Queries;
 using Flowd.Application.Retention;
 using Flowd.Contracts.Deployments;
@@ -33,6 +34,7 @@ public static class InstanceEndpoints
         group.MapPut("/process-instances/{key}/variables", SetVariablesAsync).RequireAuthorization(Policies.Operate);
         group.MapGet("/process-instances/{key}/elements", ElementsAsync).RequireAuthorization(Policies.Read);
         group.MapPost("/process-instances/{key}/modify", ModifyAsync).RequireAuthorization(Policies.Operate);
+        group.MapPost("/process-instances/{key}/migrate", MigrateAsync).RequireAuthorization(Policies.Operate);
         group.MapGet("/process-instances/{key}/history", HistoryAsync).RequireAuthorization(Policies.Read);
         group.MapGet("/incidents", ListIncidentsAsync).RequireAuthorization(Policies.Read);
         group.MapPost("/incidents/{key}/resolve", ResolveIncidentAsync).RequireAuthorization(Policies.Operate);
@@ -110,6 +112,20 @@ public static class InstanceEndpoints
         return elements is null
             ? FailureMapper.ToProblem(new Failure(new NotFound("Process instance not found.")))
             : Results.Ok(new { items = elements.Select(e => new ElementInstanceDto(Id(e.Key), e.ElementId, e.ElementType, e.State, Id(e.ScopeKey))) });
+    }
+
+    private static async Task<IResult> MigrateAsync(ClaimsPrincipal user, string key, MigrateInstanceRequestDto request, MigrateInstanceUseCase useCase, CancellationToken cancellationToken)
+    {
+        if (TryKey(key) is not { } instanceKey || TryKey(request.TargetDefinitionKey) is not { } targetKey)
+        {
+            return FailureMapper.ToProblem(new Failure(new ValidationFailure("The instance key and targetDefinitionKey must be keys.")));
+        }
+
+        return await useCase.ExecuteAsync(user.TenantId(), instanceKey, targetKey, request.Mapping, cancellationToken).ConfigureAwait(false) switch
+        {
+            MigrationResult => Results.NoContent(),
+            Failure failure => FailureMapper.ToProblem(failure),
+        };
     }
 
     private static Task<IResult> ModifyAsync(ClaimsPrincipal user, string key, ModifyInstanceRequestDto request, InstanceCommandService commands, CancellationToken cancellationToken)
