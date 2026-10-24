@@ -48,6 +48,16 @@ sc.exe create Flowd binPath= "C:\flowd\flowd.exe serve" start= auto
 Set `Flowd__ConnectionString` as a machine environment variable (or in `appsettings.json`). Point your monitoring or load balancer at `/healthz` and `/readyz`.
 (The service wiring is in place; the install steps above will be verified and refined in M7.)
 
+## Releases
+Pushing a tag such as `v0.3.0` runs `.github/workflows/release.yml`: it runs `make ci`, publishes self-contained single-file packages (`flowd-<version>-win-x64.zip`, `flowd-<version>-linux-x64.tar.gz`, `SHA256SUMS.txt`) and creates a GitHub release with generated notes. Versions starting with `0.` or with a suffix such as `-rc.1` are marked pre-release.
+```
+git checkout main && git pull
+git tag v0.3.0 && git push origin v0.3.0
+```
+To install a release on a Windows Server: extract the zip, then in an elevated PowerShell run
+`.\install-service.ps1 -ConnectionString "Host=localhost;Database=flowd;Username=flowd;Password=..." -Urls "http://0.0.0.0:8080"`.
+It applies the migrations and registers an auto-start service named `Flowd`. Run each engine node with a different `-NodeId`.
+
 ## Docs
 - Spec index: `docs/spec/00-index.md` - plan: `PLAN.md` - decisions: `DECISIONS.md` - contributing: `docs/contributing.md`.
 
