@@ -26,6 +26,7 @@ public static class DeploymentEndpoints
         group.MapGet("/process-definitions", ListAsync).RequireAuthorization(Policies.Read);
         group.MapGet("/process-definitions/{key}", GetAsync).RequireAuthorization(Policies.Read);
         group.MapGet("/process-definitions/{key}/xml", GetXmlAsync).RequireAuthorization(Policies.Read);
+        group.MapDelete("/process-definitions/{key}", DeleteAsync).RequireAuthorization(Policies.Deploy);
         return routes;
     }
 
@@ -54,6 +55,21 @@ public static class DeploymentEndpoints
         {
             IReadOnlyList<DeployedDefinition> deployed => Results.Ok(ToResponse(deployed)),
             Failure failure => FailureMapper.ToProblem(failure),
+        };
+    }
+
+    private static async Task<IResult> DeleteAsync(ClaimsPrincipal user, string key, IProcessDefinitionStore store, CancellationToken cancellationToken)
+    {
+        if (!long.TryParse(key, NumberStyles.None, CultureInfo.InvariantCulture, out var definitionKey))
+        {
+            return FailureMapper.ToProblem(new Failure(new NotFound("Process definition not found.")));
+        }
+
+        return await store.DeleteAsync(user.TenantId(), definitionKey, cancellationToken).ConfigureAwait(false) switch
+        {
+            DeleteDefinitionOutcome.Deleted => Results.NoContent(),
+            DeleteDefinitionOutcome.InUse => FailureMapper.ToProblem(new Failure(new Conflict("DEFINITION_IN_USE", "Instances of this version exist; delete or finish them first."))),
+            _ => FailureMapper.ToProblem(new Failure(new NotFound("Process definition not found."))), // non-union: enum
         };
     }
 

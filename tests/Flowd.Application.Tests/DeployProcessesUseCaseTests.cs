@@ -117,6 +117,8 @@ public sealed class DeployProcessesUseCaseTests
         public Task<byte[]?> GetResourceAsync(string tenantId, long key, CancellationToken cancellationToken) =>
             Task.FromResult<byte[]?>(null);
 
+        public Task<DeleteDefinitionOutcome> DeleteAsync(string tenantId, long key, CancellationToken cancellationToken) => Task.FromResult(DeleteDefinitionOutcome.NotFound);
+
         public Task<DefinitionPage> ListAsync(string tenantId, int pageSize, long? afterKey, CancellationToken cancellationToken) =>
             Task.FromResult(new DefinitionPage([], null));
     }

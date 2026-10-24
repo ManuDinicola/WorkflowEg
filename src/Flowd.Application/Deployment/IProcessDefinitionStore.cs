@@ -18,4 +18,7 @@ public interface IProcessDefinitionStore
     Task<byte[]?> GetResourceAsync(string tenantId, long key, CancellationToken cancellationToken);
 
     Task<DefinitionPage> ListAsync(string tenantId, int pageSize, long? afterKey, CancellationToken cancellationToken);
+
+    /// <summary>Deletes one version when no instance (running or finished) refers to it; its start triggers go with it (FR-DEP-006).</summary>
+    Task<DeleteDefinitionOutcome> DeleteAsync(string tenantId, long key, CancellationToken cancellationToken);
 }
