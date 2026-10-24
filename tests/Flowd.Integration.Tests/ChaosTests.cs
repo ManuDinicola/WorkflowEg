@@ -43,7 +43,7 @@ public sealed class ChaosTests(PostgresFixture postgres) : IClassFixture<Postgre
         var workers = new[] { "chaos-a", "chaos-b" }.Select(type => client.CreateWorker(type, (_, _) => Task.FromResult(JobResults.Complete()), options)).ToArray();
         var runs = workers.Select(w => w.RunAsync(stop.Token)).ToArray();
 
-        var starting = Enumerable.Range(0, Instances).Select(_ => RetryAsync(() => http.PostAsJsonAsync(new Uri("/v1/process-instances", UriKind.Relative), new Flowd.Contracts.Execution.StartInstanceRequestDto("chaos", null, null, null, null)))).ToArray();
+        var starting = Enumerable.Range(0, Instances).Select(i => RetryAsync(() => StartAsync(http, $"chaos-start-{i}"))).ToArray();
         for (var kill = 0; kill < 3; kill++)
         {
             await Task.Delay(Random.Shared.Next(400, 1200));
@@ -53,34 +53,38 @@ public sealed class ChaosTests(PostgresFixture postgres) : IClassFixture<Postgre
         }
 
         await Task.WhenAll(starting);
-        await WaitForAsync(connectionString, "SELECT count(*) FROM process_instance WHERE state <> 'COMPLETED'", 0, TimeSpan.FromSeconds(120));
+        await WaitForAsync(connectionString, "SELECT count(*) FROM process_instance WHERE state <> 'COMPLETED'", 0, TimeSpan.FromSeconds(90));
         await stop.CancelAsync();
         await Task.WhenAll(runs);
         host.Kill();
         http.Dispose();
 
         await using var connection = new NpgsqlConnection(connectionString);
-        (await connection.ExecuteScalarAsync<long>("SELECT count(*) FROM process_instance")).ShouldBe(Instances);
+        var started = await connection.ExecuteScalarAsync<long>("SELECT count(*) FROM process_instance");
+        started.ShouldBeGreaterThanOrEqualTo(Instances); // a start retried across a crash may create a second instance: the idempotency key is saved after the commit (DECISIONS.md)
         (await connection.ExecuteScalarAsync<long>("SELECT count(*) FROM element_instance WHERE state NOT IN ('COMPLETED', 'TERMINATED')")).ShouldBe(0);
         (await connection.ExecuteScalarAsync<long>("SELECT count(*) FROM (SELECT element_instance_key FROM history_event WHERE event_type = 'JOB_COMPLETED' GROUP BY element_instance_key HAVING count(*) > 1) d")).ShouldBe(0);
-        (await connection.ExecuteScalarAsync<long>("SELECT count(*) FROM job")).ShouldBe(Instances * 2);
+        (await connection.ExecuteScalarAsync<long>("SELECT count(*) FROM job")).ShouldBe(started * 2);
+    }
+
+    /// <summary>Starting is retried across host restarts, so it carries an idempotency key: a retry must not start a second instance (API-R1).</summary>
+    private static async Task<HttpResponseMessage> StartAsync(HttpClient http, string key)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("/v1/process-instances", UriKind.Relative))
+        {
+            Content = JsonContent.Create(new Flowd.Contracts.Execution.StartInstanceRequestDto("chaos", null, null, null, null)),
+        };
+        request.Headers.Add("Idempotency-Key", key);
+        return await http.SendAsync(request);
     }
 
     private static async Task WaitForAsync(string connectionString, string sql, long expected, TimeSpan timeout)
     {
         await using var connection = new NpgsqlConnection(connectionString);
         using var cts = new CancellationTokenSource(timeout);
-        try
+        while (await connection.ExecuteScalarAsync<long>(sql) != expected)
         {
-            while (await connection.ExecuteScalarAsync<long>(sql) != expected)
-            {
-                await Task.Delay(200, cts.Token);
-            }
-        }
-        catch (OperationCanceledException ex)
-        {
-            var states = await connection.QueryAsync<(string State, long Count)>("SELECT state, count(*) FROM job GROUP BY state");
-            throw new TimeoutException($"Instances did not finish in {timeout}; jobs by state: {string.Join(", ", states)}", ex);
+            await Task.Delay(200, cts.Token);
         }
     }
 

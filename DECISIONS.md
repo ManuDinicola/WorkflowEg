@@ -54,3 +54,7 @@ Format: date · question · choice · reason.
 - Chaos test is scaled down (30 instances, 3 kills) and starts the host as a child process configured through environment variables.
 - Benchmarks run in-process: BenchmarkDotNet 0.15.8 does not recognise the .NET 11 preview runtime. The bench project is not in `Flowd.slnx`, so it is not part of the gate.
 - UNI-005 (union boxing check) and end-to-end load scripts are not implemented; documented in `docs/benchmarks.md`.
+
+## Known limitation: idempotency key is not atomic with the command (2026-10-24)
+- `IdempotencyMiddleware` saves the response after the handler has committed. If the host dies between the two, a client retry with the same key starts a second instance. Found by T-CHAOS-01, which therefore asserts completion and no duplicate job completion, not an exact instance count.
+- Fix when needed: write the key inside the command transaction (or reserve it before running). Not done yet.
