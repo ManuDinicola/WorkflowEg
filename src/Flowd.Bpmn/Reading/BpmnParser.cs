@@ -21,8 +21,15 @@ public sealed class BpmnParser
     };
 
     private readonly Dictionary<string, MessageEventDefinition> _messages;
+    private readonly Dictionary<string, string> _signals;
+    private readonly Dictionary<string, string> _errors;
 
-    private BpmnParser(Dictionary<string, MessageEventDefinition> messages) => _messages = messages;
+    private BpmnParser(Dictionary<string, MessageEventDefinition> messages, Dictionary<string, string> signals, Dictionary<string, string> errors)
+    {
+        _messages = messages;
+        _signals = signals;
+        _errors = errors;
+    }
 
     /// <summary>Parses the stream. Returns null and fills <paramref name="issue"/> when the XML itself cannot be read.</summary>
     public static BpmnDefinitions? TryParse(Stream xml, out BpmnIssue? issue)
@@ -34,7 +41,7 @@ public sealed class BpmnParser
             var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null };
             using var reader = XmlReader.Create(xml, settings);
             var document = XDocument.Load(reader, LoadOptions.SetLineInfo);
-            var parser = new BpmnParser(ReadMessages(document));
+            var parser = new BpmnParser(ReadMessages(document), ReadNames(document, "signal", "name"), ReadNames(document, "error", "errorCode"));
             return new BpmnDefinitions([.. document.Descendants(Bpmn + "process").Select(parser.ParseProcess)]);
         }
         catch (XmlException ex)
@@ -46,6 +53,20 @@ public sealed class BpmnParser
                 isDtd ? "DTD / external entities are not allowed." : $"Malformed XML: {ex.Message}");
             return null;
         }
+    }
+
+    private static Dictionary<string, string> ReadNames(XDocument document, string element, string attribute)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var e in document.Descendants(Bpmn + element))
+        {
+            if ((string?)e.Attribute("id") is { } id && (string?)e.Attribute(attribute) is { } value)
+            {
+                result[id] = value;
+            }
+        }
+
+        return result;
     }
 
     private static Dictionary<string, MessageEventDefinition> ReadMessages(XDocument document)
@@ -100,6 +121,12 @@ public sealed class BpmnParser
             "startEvent" => ParseStartEvent(e, id, name),
             "endEvent" when !HasEventDefinition(e) => new EndEvent { Id = id, Name = name },
             "endEvent" when HasOnlyEventDefinition(e, "terminateEventDefinition") => new EndEvent { Id = id, Name = name, IsTerminate = true },
+            "endEvent" when HasOnlyEventDefinition(e, "errorEventDefinition") => new EndEvent { Id = id, Name = name, Error = ReadError(e) },
+            "endEvent" when HasOnlyEventDefinition(e, "messageEventDefinition") && TaskType(e) is { } endJob => new EndEvent { Id = id, Name = name, MessageJobType = endJob },
+            "intermediateThrowEvent" when !HasEventDefinition(e) => new IntermediateThrowEvent { Id = id, Name = name },
+            "intermediateThrowEvent" when HasOnlyEventDefinition(e, "messageEventDefinition") && TaskType(e) is { } throwJob => new IntermediateThrowEvent { Id = id, Name = name, JobType = throwJob },
+            "intermediateThrowEvent" when ReadDefinition(e) is SignalEventDefinition signal => new IntermediateThrowEvent { Id = id, Name = name, Definition = signal },
+            "userTask" => ParseUserTask(e, id, name),
             "intermediateCatchEvent" when ReadDefinition(e) is { } definition => new IntermediateCatchEvent { Id = id, Name = name, Definition = definition },
             "boundaryEvent" when ReadDefinition(e) is { } definition && (string?)e.Attribute("attachedToRef") is { } attached =>
                 new BoundaryEvent { Id = id, Name = name, AttachedToRef = attached, CancelActivity = !string.Equals((string?)e.Attribute("cancelActivity"), "false", StringComparison.OrdinalIgnoreCase), Definition = definition },
@@ -141,8 +168,51 @@ public sealed class BpmnParser
             return _messages.GetValueOrDefault((string?)message.Attribute("messageRef") ?? string.Empty);
         }
 
+        if (e.Element(Bpmn + "signalEventDefinition") is { } signal)
+        {
+            return _signals.TryGetValue((string?)signal.Attribute("signalRef") ?? string.Empty, out var name) ? new SignalEventDefinition { Name = name } : null;
+        }
+
+        if (e.Element(Bpmn + "errorEventDefinition") is not null)
+        {
+            return ReadError(e);
+        }
+
         return fromMessageRef ? _messages.GetValueOrDefault((string?)e.Attribute("messageRef") ?? string.Empty) : null;
     }
+
+    /// <summary>An error definition; without an <c>errorRef</c> it catches every error.</summary>
+    private ErrorEventDefinition ReadError(XElement e)
+    {
+        var reference = (string?)e.Element(Bpmn + "errorEventDefinition")?.Attribute("errorRef");
+        return new ErrorEventDefinition { Code = reference is not null && _errors.TryGetValue(reference, out var code) ? code : null };
+    }
+
+    private static string? TaskType(XElement e) =>
+        (string?)e.Element(Bpmn + "extensionElements")?.Element(Flowd + "taskDefinition")?.Attribute("type");
+
+    private static UserTask ParseUserTask(XElement e, string id, string? name)
+    {
+        var extensions = e.Element(Bpmn + "extensionElements");
+        var assignment = extensions?.Element(Flowd + "assignmentDefinition");
+        var mapping = extensions?.Element(Flowd + "ioMapping");
+        return new UserTask
+        {
+            Id = id,
+            Name = name,
+            Assignee = (string?)assignment?.Attribute("assignee"),
+            CandidateGroups = Split((string?)assignment?.Attribute("candidateGroups")),
+            CandidateUsers = Split((string?)assignment?.Attribute("candidateUsers")),
+            DueDate = (string?)extensions?.Element(Flowd + "taskSchedule")?.Attribute("dueDate"),
+            FormKey = (string?)extensions?.Element(Flowd + "formDefinition")?.Attribute("formKey"),
+            Inputs = ParseMappings(mapping, "input"),
+            Outputs = ParseMappings(mapping, "output"),
+            PropagateAllOutputs = !string.Equals((string?)mapping?.Attribute("propagateAll"), "false", StringComparison.OrdinalIgnoreCase),
+        };
+    }
+
+    private static string[] Split(string? list) =>
+        list is null ? [] : [.. list.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
 
     private static TimerEventDefinition? ReadTimer(XElement timer)
     {

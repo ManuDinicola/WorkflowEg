@@ -94,11 +94,15 @@ internal static class JobCommands
         job.Deadline = null;
         context.Emit(new JobChanged(job.Copy()));
         context.Record(HistoryEventTypes.JobErrorThrown, element);
-        context.RaiseIncident(
-            IncidentTypes.UnhandledErrorEvent,
-            $"No error handler for code '{command.ErrorCode}'. {command.ErrorMessage}".Trim(),
-            element,
-            job.Key);
+        if (!ErrorPropagation.Throw(context, element, command.ErrorCode, command.Variables))
+        {
+            context.RaiseIncident(
+                IncidentTypes.UnhandledErrorEvent,
+                $"No error handler for code '{command.ErrorCode}'. {command.ErrorMessage}".Trim(),
+                element,
+                job.Key);
+        }
+
         return null;
     }
 

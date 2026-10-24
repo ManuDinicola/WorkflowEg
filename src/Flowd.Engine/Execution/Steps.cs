@@ -24,6 +24,8 @@ public static class ElementTypes
         IntermediateCatchEvent => "intermediateCatchEvent",
         BoundaryEvent => "boundaryEvent",
         ReceiveTask => "receiveTask",
+        UserTask => "userTask",
+        IntermediateThrowEvent => "intermediateThrowEvent",
         EventBasedGateway => "eventBasedGateway",
         ServiceTask task => task.BpmnType,
         ScriptTask => "scriptTask",

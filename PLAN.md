@@ -78,10 +78,10 @@ The rows below are the commit checklist inside each milestone branch (branch col
 
 | # | Slice | Requirement IDs | Tests | Size | Executor |
 |---|---|---|---|---|---|
-| [ ] 5.1 | BPMN error throw and propagation (`ErrorHandlerMatch` union) | §12.3 | T-ERR-01..03 | M | Plan (opus) then impl-worker |
-| [ ] 5.2 | Signals (broadcast, catch, boundary) | FR-SIG-001 | T-SIG-01 | S | impl-worker |
-| [ ] 5.3 | Intermediate throw events | §6.1 | conformance | S | impl-worker |
-| [ ] 5.4 | Native user tasks + API | API-011 | T-UT-01 | M | impl-worker |
+| [x] 5.1 | BPMN error throw and propagation (`ErrorHandlerMatch` union) | §12.3 | T-ERR-01..03 | M | Plan (opus) then impl-worker |
+| [x] 5.2 | Signals (broadcast, catch, boundary) | FR-SIG-001 | T-SIG-01 | S | impl-worker |
+| [x] 5.3 | Intermediate throw events | §6.1 | conformance | S | impl-worker |
+| [x] 5.4 | Native user tasks + API | API-011 | T-UT-01 | M | impl-worker |
 
 ### M6 — Composition (refine at milestone start)
 

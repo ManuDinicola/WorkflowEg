@@ -140,6 +140,7 @@ public sealed class StepContext
         CloseTriggersOf(instance);
         ClearLocalScope(instance);
         CancelJobsOf(instance);
+        CancelUserTasksOf(instance);
     }
 
     /// <summary>True while an element is being activated because its own trigger already fired (event-based gateway winner).</summary>
@@ -166,7 +167,7 @@ public sealed class StepContext
         return timer;
     }
 
-    public SubscriptionRecord OpenSubscription(ElementInstance owner, string elementId, TriggerKind kind, string messageName, string correlationKey)
+    public SubscriptionRecord OpenSubscription(ElementInstance owner, string elementId, TriggerKind kind, string messageName, string correlationKey, bool isSignal = false)
     {
         ArgumentNullException.ThrowIfNull(owner);
         var subscription = new SubscriptionRecord
@@ -179,6 +180,7 @@ public sealed class StepContext
             Kind = kind,
             MessageName = messageName,
             CorrelationKey = correlationKey,
+            IsSignal = isSignal,
             TenantId = State.TenantId,
         };
         State.Subscriptions[subscription.Key] = subscription;
@@ -245,6 +247,16 @@ public sealed class StepContext
             job.Deadline = null;
             Emit(new JobChanged(job.Copy()));
             Record(HistoryEventTypes.JobCanceled, instance, new JsonObject { ["jobKey"] = job.Key.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+        }
+    }
+
+    public void CancelUserTasksOf(ElementInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        foreach (var task in State.UserTasks.Values.Where(t => t.ElementInstanceKey == instance.Key && t.State == UserTaskState.Created))
+        {
+            task.State = UserTaskState.Canceled;
+            Emit(new UserTaskChanged(task.Copy()));
         }
     }
 

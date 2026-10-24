@@ -196,7 +196,49 @@ public sealed class SubscriptionRecord
 
     public required string CorrelationKey { get; init; }
 
+    /// <summary>True for a signal subscription: signals reach every subscriber and are never buffered (FR-SIG-001).</summary>
+    public bool IsSignal { get; init; }
+
     public string TenantId { get; init; } = string.Empty;
 
     public SubscriptionRecord Copy() => (SubscriptionRecord)MemberwiseClone();
+}
+
+public enum UserTaskState
+{
+    Created,
+    Completed,
+    Canceled,
+}
+
+/// <summary>A native user task (section 5.1).</summary>
+public sealed class UserTaskRecord
+{
+    public required long Key { get; init; }
+
+    public required long InstanceKey { get; init; }
+
+    public required long ElementInstanceKey { get; init; }
+
+    public required string ElementId { get; init; }
+
+    public string? Assignee { get; set; }
+
+    public IReadOnlyList<string> CandidateGroups { get; init; } = [];
+
+    public IReadOnlyList<string> CandidateUsers { get; init; } = [];
+
+    public string? DueDate { get; init; }
+
+    public string? FormKey { get; init; }
+
+    public UserTaskState State { get; set; }
+
+    public System.Text.Json.Nodes.JsonObject? ResultVariables { get; set; }
+
+    public string TenantId { get; init; } = string.Empty;
+
+    public required DateTimeOffset CreatedAt { get; init; }
+
+    public UserTaskRecord Copy() => (UserTaskRecord)MemberwiseClone();
 }

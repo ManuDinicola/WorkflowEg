@@ -73,6 +73,8 @@ public sealed class ElementHandlerRegistry
         new BoundaryEventElementHandler(),
         new ReceiveTaskHandler(),
         new EventBasedGatewayHandler(),
+        new IntermediateThrowEventElementHandler(),
+        new UserTaskElementHandler(),
     ]);
 
     public IEnumerable<IReevaluatingHandler> Reevaluating() => _handlers.Values.OfType<IReevaluatingHandler>();

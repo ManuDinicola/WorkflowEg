@@ -96,8 +96,8 @@ public sealed class PostgresStartTriggerStore(NpgsqlDataSource dataSource) : ISt
         foreach (var message in messages)
         {
             await connection.ExecuteAsync(new CommandDefinition(
-                "INSERT INTO message_subscription (key, definition_key, element_id, kind, message_name, correlation_key, tenant_id) VALUES (@Key, @definitionKey, @ElementId, 'START', @MessageName, '', @tenantId)",
-                new { message.Key, definitionKey, message.ElementId, message.MessageName, tenantId },
+                "INSERT INTO message_subscription (key, definition_key, element_id, kind, message_name, correlation_key, tenant_id, signal) VALUES (@Key, @definitionKey, @ElementId, 'START', @MessageName, '', @tenantId, @IsSignal)",
+                new { message.Key, definitionKey, message.ElementId, message.MessageName, message.IsSignal, tenantId },
                 transaction,
                 cancellationToken: cancellationToken)).ConfigureAwait(false);
         }
@@ -111,7 +111,7 @@ public sealed class PostgresMessageStore(NpgsqlDataSource dataSource) : IMessage
 {
     private const string SubscriptionColumns =
         "key AS Key, instance_key AS InstanceKey, element_instance_key AS ElementInstanceKey, definition_key AS DefinitionKey, element_id AS ElementId, " +
-        "kind AS Kind, message_name AS MessageName, correlation_key AS CorrelationKey, tenant_id AS TenantId";
+        "kind AS Kind, message_name AS MessageName, correlation_key AS CorrelationKey, tenant_id AS TenantId, signal AS Signal";
 
     public async Task<bool> TryBufferAsync(BufferedMessage message, CancellationToken cancellationToken)
     {
@@ -135,7 +135,7 @@ public sealed class PostgresMessageStore(NpgsqlDataSource dataSource) : IMessage
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         var rows = await connection.QueryAsync<TriggerRows.SubscriptionRow>(new CommandDefinition(
-            $"SELECT {SubscriptionColumns} FROM message_subscription WHERE tenant_id = @tenantId AND message_name = @name AND correlation_key = @correlationKey AND kind <> 'START' ORDER BY key",
+            $"SELECT {SubscriptionColumns} FROM message_subscription WHERE tenant_id = @tenantId AND message_name = @name AND correlation_key = @correlationKey AND kind <> 'START' AND NOT signal ORDER BY key",
             new { tenantId, name, correlationKey },
             cancellationToken: cancellationToken)).ConfigureAwait(false);
         return [.. rows.Select(r => TriggerRows.ToRecord(r, null))];
@@ -145,7 +145,7 @@ public sealed class PostgresMessageStore(NpgsqlDataSource dataSource) : IMessage
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         var rows = await connection.QueryAsync<TriggerRows.SubscriptionRow>(new CommandDefinition(
-            $"SELECT {SubscriptionColumns} FROM message_subscription WHERE tenant_id = @tenantId AND message_name = @name AND kind = 'START' ORDER BY key",
+            $"SELECT {SubscriptionColumns} FROM message_subscription WHERE tenant_id = @tenantId AND message_name = @name AND kind = 'START' AND NOT signal ORDER BY key",
             new { tenantId, name },
             cancellationToken: cancellationToken)).ConfigureAwait(false);
         return [.. rows.Select(r => TriggerRows.ToRecord(r, null))];

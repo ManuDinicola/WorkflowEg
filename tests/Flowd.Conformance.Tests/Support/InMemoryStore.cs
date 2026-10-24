@@ -6,6 +6,7 @@ using Flowd.Application.Jobs;
 using Flowd.Application.Messaging;
 using Flowd.Application.Queries;
 using Flowd.Application.Timers;
+using Flowd.Application.UserTasks;
 using Flowd.Engine.Effects;
 using Flowd.Engine.Keys;
 using Flowd.Engine.State;
@@ -24,7 +25,7 @@ public sealed class SequentialKeys : IKeyGenerator
 /// In-memory implementation of every storage port, so the real Application pipeline and Interpreter run without a database
 /// (section 22: "in-memory store + FakeTimeProvider").
 /// </summary>
-public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactionFactory, IInstanceLookup, IJobQueue, IInstanceQueries, ITimerQueue, IStartTriggerStore, IMessageStore
+public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactionFactory, IInstanceLookup, IJobQueue, IInstanceQueries, ITimerQueue, IStartTriggerStore, IMessageStore, ISignalStore, IUserTaskQueries
 {
     private readonly Dictionary<long, (ProcessDefinitionInfo Info, byte[] Xml, byte[] Checksum)> _definitions = [];
     private readonly Dictionary<long, EngineState> _instances = [];
@@ -284,6 +285,7 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
             MessageName = m.MessageName,
             CorrelationKey = bpmnProcessId,
             TenantId = tenantId,
+            IsSignal = m.IsSignal,
         }));
         return Task.CompletedTask;
     }
@@ -332,11 +334,11 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
         Task.FromResult<IReadOnlyList<SubscriptionRecord>>([.. _instances.Values
             .Where(i => i.TenantId == tenantId && i.State == InstanceState.Active)
             .SelectMany(i => i.Subscriptions.Values)
-            .Where(s => s.MessageName == name && s.CorrelationKey == correlationKey)
+            .Where(s => !s.IsSignal && s.MessageName == name && s.CorrelationKey == correlationKey)
             .OrderBy(s => s.Key)]);
 
     public Task<IReadOnlyList<SubscriptionRecord>> FindStartSubscriptionsAsync(string tenantId, string name, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<SubscriptionRecord>>([.. _startMessages.Where(m => m.TenantId == tenantId && m.MessageName == name)]);
+        Task.FromResult<IReadOnlyList<SubscriptionRecord>>([.. _startMessages.Where(m => m.TenantId == tenantId && !m.IsSignal && m.MessageName == name)]);
 
     public Task<IReadOnlyList<BufferedMessage>> FindBufferedAsync(string tenantId, string name, string correlationKey, DateTimeOffset now, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<BufferedMessage>>([.. _buffered.Where(m => m.TenantId == tenantId && m.Name == name && m.CorrelationKey == correlationKey && m.ExpiresAt > now).OrderBy(m => m.CreatedAt).ThenBy(m => m.Key)]);
@@ -348,4 +350,33 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
         Task.FromResult(_buffered.RemoveAll(m => m.ExpiresAt <= now));
 
     public int BufferedCount => _buffered.Count;
+
+    // ---- signals and user tasks -----------------------------------------------------------------------------------
+
+    public Task<IReadOnlyList<SubscriptionRecord>> FindSignalSubscriptionsAsync(string tenantId, string name, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<SubscriptionRecord>>([.. _instances.Values
+            .Where(i => i.TenantId == tenantId && i.State == InstanceState.Active)
+            .SelectMany(i => i.Subscriptions.Values)
+            .Where(s => s.IsSignal && s.MessageName == name)
+            .OrderBy(s => s.Key)]);
+
+    public Task<IReadOnlyList<SubscriptionRecord>> FindStartSignalSubscriptionsAsync(string tenantId, string name, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<SubscriptionRecord>>([.. _startMessages.Where(m => m.TenantId == tenantId && m.IsSignal && m.MessageName == name)]);
+
+    Task<UserTaskPage> IUserTaskQueries.ListAsync(string tenantId, UserTaskFilter filter, int pageSize, long? afterKey, CancellationToken cancellationToken)
+    {
+        var tasks = _instances.Values
+            .Where(i => i.TenantId == tenantId)
+            .SelectMany(i => i.UserTasks.Values)
+            .Where(t => (filter.Assignee is null || t.Assignee == filter.Assignee)
+                && (filter.State is null || string.Equals(t.State.ToString(), filter.State, StringComparison.OrdinalIgnoreCase))
+                && (filter.CandidateGroup is null || t.CandidateGroups.Contains(filter.CandidateGroup))
+                && (filter.InstanceKey is null || t.InstanceKey == filter.InstanceKey))
+            .OrderBy(t => t.Key)
+            .Select(t => new UserTaskView(t.Key, t.InstanceKey, t.ElementInstanceKey, t.ElementId, t.Assignee, t.CandidateGroups, t.CandidateUsers, t.DueDate, t.FormKey, t.State.ToString().ToUpperInvariant(), t.CreatedAt));
+        return Task.FromResult(new UserTaskPage([.. tasks.Take(pageSize)], null));
+    }
+
+    public Task<long?> InstanceOfUserTaskAsync(string tenantId, long taskKey, CancellationToken cancellationToken) =>
+        Task.FromResult(_instances.Values.Where(i => i.TenantId == tenantId && i.UserTasks.ContainsKey(taskKey)).Select(i => (long?)i.InstanceKey).FirstOrDefault());
 }

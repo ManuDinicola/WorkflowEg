@@ -6,6 +6,7 @@ using Flowd.Application.Messaging;
 using Flowd.Application.Queries;
 using Flowd.Application.Readiness;
 using Flowd.Application.Timers;
+using Flowd.Application.UserTasks;
 using Flowd.Engine.Execution;
 using Flowd.Engine.Handlers;
 using Flowd.Engine.Keys;
@@ -54,6 +55,7 @@ internal static class FlowdHostBuilder
         app.MapInstanceEndpoints();
         app.MapJobEndpoints();
         app.MapMessageEndpoints();
+        app.MapSignalAndUserTaskEndpoints();
         return app;
     }
 
@@ -72,6 +74,8 @@ internal static class FlowdHostBuilder
         services.AddSingleton<ITimerQueue, PostgresTimerQueue>();
         services.AddSingleton<IStartTriggerStore, PostgresStartTriggerStore>();
         services.AddSingleton<IMessageStore, PostgresMessageStore>();
+        services.AddSingleton<ISignalStore, PostgresSignalStore>();
+        services.AddSingleton<IUserTaskQueries, PostgresUserTaskQueries>();
         services.AddSingleton<IMigrationRunner>(sp =>
             new PostgresMigrationRunner(sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString));
         services.AddSingleton<IReadinessProbe>(sp =>
@@ -94,5 +98,9 @@ internal static class FlowdHostBuilder
         services.AddSingleton<JobActivationService>();
         services.AddSingleton<TimerService>();
         services.AddSingleton<MessageService>();
+        services.AddSingleton<SignalService>();
+        services.AddSingleton<ISignalBroadcaster>(sp => sp.GetRequiredService<SignalService>());
+        services.AddSingleton<Func<ISignalBroadcaster>>(sp => () => sp.GetRequiredService<ISignalBroadcaster>());
+        services.AddSingleton<UserTaskService>();
     }
 }
