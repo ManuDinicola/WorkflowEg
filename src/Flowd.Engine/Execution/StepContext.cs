@@ -72,14 +72,15 @@ public sealed class StepContext
     public void Record(string eventType, ElementInstance? element = null, JsonObject? payload = null) =>
         Emit(new HistoryAppended(eventType, element?.Key, element?.ElementId, payload, Now));
 
-    public ElementInstance CreateElement(FlowNode node, long scopeKey, string? incomingFlowId)
+    public ElementInstance CreateElement(FlowNode node, long scopeKey, string? incomingFlowId, int? loopCounter = null, bool multiInstanceBody = false)
     {
         ArgumentNullException.ThrowIfNull(node);
         var instance = new ElementInstance
         {
             Key = NextKey(),
             ElementId = node.Id,
-            ElementType = ElementTypes.NameOf(node),
+            ElementType = multiInstanceBody ? MultiInstance.BodyType : ElementTypes.NameOf(node),
+            LoopCounter = loopCounter,
             ScopeKey = scopeKey,
             State = ElementState.Activating,
             IncomingFlowId = incomingFlowId,
@@ -138,9 +139,13 @@ public sealed class StepContext
         Emit(new ElementChanged(instance.Copy()));
         Record(HistoryEventTypes.ElementTerminated, instance);
         CloseTriggersOf(instance);
-        ClearLocalScope(instance);
+        ClearLocalScopeNow(instance);
         CancelJobsOf(instance);
         CancelUserTasksOf(instance);
+        if (string.Equals(instance.ElementType, "callActivity", StringComparison.Ordinal))
+        {
+            Emit(new ChildCancelRequested(instance.Key));
+        }
     }
 
     /// <summary>True while an element is being activated because its own trigger already fired (event-based gateway winner).</summary>
@@ -227,10 +232,63 @@ public sealed class StepContext
         }
     }
 
-    public void TakeAllOutgoing(ElementInstance from) =>
-        TakeFlows(from, State.Graph.Outgoing(from.ElementId));
+    public void TakeAllOutgoing(ElementInstance from)
+    {
+        ArgumentNullException.ThrowIfNull(from);
+        if (from.LoopCounter is not null)
+        {
+            MultiInstance.ChildCompleted(this, from); // a multi-instance child reports to its body instead of taking flows (FR-EXEC-012)
+            return;
+        }
 
+        TakeFlows(from, State.Graph.Outgoing(from.ElementId));
+    }
+
+    /// <summary>The instance itself acts as owner of triggers that belong to the root scope (event sub-processes).</summary>
+    public ElementInstance RootOwner => new()
+    {
+        Key = State.InstanceKey,
+        ElementId = State.Graph.Process.Id ?? string.Empty,
+        ElementType = "process",
+        ScopeKey = State.InstanceKey,
+        State = ElementState.Active,
+        StartedAt = State.StartedAt,
+    };
+
+    /// <summary>Writes an engine-internal variable (reserved prefix) without the user-facing checks.</summary>
+    public void WriteInternal(long scope, string name, JsonNode? value)
+    {
+        State.Variables.SetIn(scope, name, value);
+        Emit(new VariableWritten(scope, name, value?.DeepClone()));
+    }
+
+    /// <summary>Closes the timers and subscriptions owned by a key that is not an element instance (the root scope).</summary>
+    public void CloseTriggersOwnedBy(long ownerKey)
+    {
+        foreach (var timer in State.Timers.Values.Where(t => t.ElementInstanceKey == ownerKey && t.IsActive))
+        {
+            DeactivateTimer(timer);
+        }
+
+        foreach (var subscription in State.Subscriptions.Values.Where(s => s.ElementInstanceKey == ownerKey).ToList())
+        {
+            CloseSubscription(subscription);
+        }
+    }
+
+    /// <summary>
+    /// Removes an activity's local variables when it completes. A multi-instance child keeps them until its body has read the
+    /// output element (FR-EXEC-012).
+    /// </summary>
     public void ClearLocalScope(ElementInstance instance)
+    {
+        if (instance.LoopCounter is null)
+        {
+            ClearLocalScopeNow(instance);
+        }
+    }
+
+    public void ClearLocalScopeNow(ElementInstance instance)
     {
         if (State.Variables.RemoveScope(instance.Key).Count > 0)
         {

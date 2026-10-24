@@ -135,7 +135,8 @@ public sealed class BpmnParser
             "serviceTask" or "sendTask" or "businessRuleTask" => ParseJobTask(e, id, name),
             "scriptTask" => ParseScriptTask(e, id, name),
             "manualTask" => new ManualTask { Id = id, Name = name },
-            "subProcess" when !IsTrue(e, "triggeredByEvent") => ParseSubProcess(e, id, name),
+            "subProcess" => ParseSubProcess(e, id, name),
+            "callActivity" => ParseCallActivity(e, id, name),
             "exclusiveGateway" => new ExclusiveGateway { Id = id, Name = name, DefaultFlowId = (string?)e.Attribute("default") },
             "inclusiveGateway" => new InclusiveGateway { Id = id, Name = name, DefaultFlowId = (string?)e.Attribute("default") },
             "parallelGateway" => new ParallelGateway { Id = id, Name = name },
@@ -151,7 +152,7 @@ public sealed class BpmnParser
         }
 
         return ReadDefinition(e) is { } definition
-            ? new StartEvent { Id = id, Name = name, Definition = definition }
+            ? new StartEvent { Id = id, Name = name, Definition = definition, IsInterrupting = !string.Equals((string?)e.Attribute("isInterrupting"), "false", StringComparison.OrdinalIgnoreCase) }
             : new UnsupportedNode { Id = id, Name = name, ElementType = DescribeUnsupported(e) };
     }
 
@@ -201,6 +202,7 @@ public sealed class BpmnParser
             Id = id,
             Name = name,
             Assignee = (string?)assignment?.Attribute("assignee"),
+            Loop = ReadLoop(e),
             CandidateGroups = Split((string?)assignment?.Attribute("candidateGroups")),
             CandidateUsers = Split((string?)assignment?.Attribute("candidateUsers")),
             DueDate = (string?)extensions?.Element(Flowd + "taskSchedule")?.Attribute("dueDate"),
@@ -230,6 +232,42 @@ public sealed class BpmnParser
     private static bool IsTrue(XElement e, string attribute) =>
         string.Equals((string?)e.Attribute(attribute), "true", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Reads <c>multiInstanceLoopCharacteristics</c> with its <c>flowd:loopCharacteristics</c> settings (FR-EXEC-012).</summary>
+    private static LoopCharacteristics? ReadLoop(XElement e)
+    {
+        var loop = e.Element(Bpmn + "multiInstanceLoopCharacteristics");
+        if (loop is null)
+        {
+            return null;
+        }
+
+        var settings = loop.Element(Bpmn + "extensionElements")?.Element(Flowd + "loopCharacteristics");
+        return new LoopCharacteristics(
+            string.Equals((string?)loop.Attribute("isSequential"), "true", StringComparison.OrdinalIgnoreCase),
+            (string?)settings?.Attribute("inputCollection") ?? string.Empty,
+            (string?)settings?.Attribute("inputElement") ?? string.Empty,
+            (string?)settings?.Attribute("outputCollection"),
+            (string?)settings?.Attribute("outputElement"));
+    }
+
+    private static CallActivity ParseCallActivity(XElement e, string id, string? name)
+    {
+        var extensions = e.Element(Bpmn + "extensionElements");
+        var call = extensions?.Element(Flowd + "calledElement");
+        var mapping = extensions?.Element(Flowd + "ioMapping");
+        return new CallActivity
+        {
+            Id = id,
+            Name = name,
+            CalledElement = (string?)call?.Attribute("processId") ?? (string?)e.Attribute("calledElement"),
+            PropagateAllChildVariables = !string.Equals((string?)call?.Attribute("propagateAllChildVariables"), "false", StringComparison.OrdinalIgnoreCase),
+            PropagateAllParentVariables = !string.Equals((string?)call?.Attribute("propagateAllParentVariables"), "false", StringComparison.OrdinalIgnoreCase),
+            Inputs = ParseMappings(mapping, "input"),
+            Outputs = ParseMappings(mapping, "output"),
+            Loop = ReadLoop(e),
+        };
+    }
+
     private SubProcess ParseSubProcess(XElement e, string id, string? name)
     {
         var mapping = e.Element(Bpmn + "extensionElements")?.Element(Flowd + "ioMapping");
@@ -239,6 +277,8 @@ public sealed class BpmnParser
             Name = name,
             Nodes = ParseNodes(e),
             Flows = ParseFlows(e),
+            IsEventSubProcess = IsTrue(e, "triggeredByEvent"),
+            Loop = ReadLoop(e),
             Inputs = ParseMappings(mapping, "input"),
             Outputs = ParseMappings(mapping, "output"),
         };
@@ -266,6 +306,7 @@ public sealed class BpmnParser
             Id = id,
             Name = name,
             BpmnType = e.Name.LocalName,
+            Loop = ReadLoop(e),
             TaskType = (string?)definition?.Attribute("type"),
             Retries = (string?)definition?.Attribute("retries"),
             Inputs = ParseMappings(mapping, "input"),

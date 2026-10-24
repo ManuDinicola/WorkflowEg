@@ -75,6 +75,7 @@ public sealed class ElementHandlerRegistry
         new EventBasedGatewayHandler(),
         new IntermediateThrowEventElementHandler(),
         new UserTaskElementHandler(),
+        new CallActivityHandler(),
     ]);
 
     public IEnumerable<IReevaluatingHandler> Reevaluating() => _handlers.Values.OfType<IReevaluatingHandler>();

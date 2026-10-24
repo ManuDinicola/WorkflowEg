@@ -31,6 +31,13 @@ public sealed class ProcessGraph
     public IReadOnlyList<BoundaryEvent> BoundaryEventsOf(string activityId) =>
         [.. Process.AllNodes().OfType<BoundaryEvent>().Where(b => string.Equals(b.AttachedToRef, activityId, StringComparison.Ordinal))];
 
+    /// <summary>Event sub-processes declared directly in a scope: the process root (<c>null</c>) or one sub-process.</summary>
+    public IReadOnlyList<SubProcess> EventSubProcessesIn(string? scopeNodeId)
+    {
+        var nodes = scopeNodeId is null ? Process.Nodes : (Node(scopeNodeId) as SubProcess)?.Nodes ?? [];
+        return [.. nodes.OfType<SubProcess>().Where(s => s.IsEventSubProcess)];
+    }
+
     public SequenceFlow Flow(string id) =>
         Process.AllFlows().FirstOrDefault(f => string.Equals(f.Id, id, StringComparison.Ordinal))
         ?? throw new InvalidOperationException($"Unknown flow '{id}'.");
@@ -58,6 +65,11 @@ public sealed class EngineState
     public string TenantId { get; }
 
     public string? BusinessKey { get; set; }
+
+    /// <summary>Set when this instance was started by a call activity (FR-EXEC-011).</summary>
+    public long? ParentInstanceKey { get; init; }
+
+    public long? ParentElementInstanceKey { get; init; }
 
     public DateTimeOffset StartedAt { get; }
 
@@ -98,6 +110,8 @@ public sealed class EngineState
         var copy = new EngineState(InstanceKey, DefinitionKey, Graph, TenantId, StartedAt)
         {
             BusinessKey = BusinessKey,
+            ParentInstanceKey = ParentInstanceKey,
+            ParentElementInstanceKey = ParentElementInstanceKey,
             EndedAt = EndedAt,
             State = State,
         };

@@ -36,25 +36,33 @@ internal static class InstanceCommands
                 : $"'{command.StartElementId}' is not a start event of this process.");
         }
 
-        context.Emit(new InstanceStarted(state.InstanceKey, state.DefinitionKey, state.TenantId, state.BusinessKey, state.StartedAt));
+        context.Emit(new InstanceStarted(state.InstanceKey, state.DefinitionKey, state.TenantId, state.BusinessKey, state.StartedAt, state.ParentInstanceKey, state.ParentElementInstanceKey));
         context.Record(HistoryEventTypes.InstanceStarted);
         if (WriteAll(context, state.InstanceKey, command.Variables, propagate: false) is { } rejection)
         {
             return rejection;
         }
 
+        Triggers.OpenEventSubProcesses(context, context.RootOwner, null);
         context.Enqueue(new ActivateElement(start.Id, state.InstanceKey, null));
         return null;
     }
 
     public static CommandRejected? Cancel(StepContext context)
     {
-        var state = context.State;
-        if (state.State != InstanceState.Active)
+        if (context.State.State != InstanceState.Active)
         {
             return Rejections.Conflict(InstanceNotActive, "The instance is not active.");
         }
 
+        TerminateInstance(context, notifyParent: true);
+        return null;
+    }
+
+    /// <summary>Terminates everything, resolves open incidents and ends the instance (FR-EXEC-015).</summary>
+    public static void TerminateInstance(StepContext context, bool notifyParent)
+    {
+        var state = context.State;
         foreach (var element in state.LiveElements().OrderByDescending(e => e.Key).ToList())
         {
             context.Terminate(element);
@@ -68,11 +76,15 @@ internal static class InstanceCommands
             context.Record(HistoryEventTypes.IncidentResolved);
         }
 
+        context.CloseTriggersOwnedBy(state.InstanceKey);
         state.State = InstanceState.Terminated;
         state.EndedAt = context.Now;
         context.Emit(new InstanceStateChanged(InstanceState.Terminated, context.Now));
         context.Record(HistoryEventTypes.InstanceTerminated);
-        return null;
+        if (notifyParent && state is { ParentInstanceKey: { } parent, ParentElementInstanceKey: { } parentElement })
+        {
+            context.Emit(new ChildInstanceEnded(parent, parentElement, false, []));
+        }
     }
 
     public static CommandRejected? SetVariables(StepContext context, SetVariables command)

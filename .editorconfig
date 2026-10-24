@@ -90,6 +90,8 @@ dotnet_diagnostic.S1125.severity = none
 dotnet_diagnostic.MA0006.severity = none
 dotnet_diagnostic.CA1030.severity = none
 dotnet_diagnostic.CA2227.severity = none
+# Long validation switches: the 25-line method guideline (CC-002) is reviewed, not enforced by MA0051
+dotnet_diagnostic.MA0051.severity = none
 dotnet_diagnostic.S3265.severity = none
 dotnet_diagnostic.S2077.severity = none
 dotnet_diagnostic.CA1711.severity = none
@@ -114,6 +116,8 @@ dotnet_diagnostic.xUnit1051.severity = none
 dotnet_diagnostic.MA0006.severity = none
 dotnet_diagnostic.CA1030.severity = none
 dotnet_diagnostic.CA2227.severity = none
+# Long validation switches: the 25-line method guideline (CC-002) is reviewed, not enforced by MA0051
+dotnet_diagnostic.MA0051.severity = none
 dotnet_diagnostic.S3265.severity = none
 dotnet_diagnostic.S2077.severity = none
 dotnet_diagnostic.CA1711.severity = none

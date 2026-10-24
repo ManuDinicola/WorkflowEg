@@ -13,6 +13,9 @@ public sealed class StartEvent : FlowNode
 {
     /// <summary>Null for a none start event; a timer or message definition starts instances from outside (FR-TMR-005, FR-MSG-004).</summary>
     public EventDefinition? Definition { get; init; }
+
+    /// <summary>For event sub-process start events: false keeps the enclosing scope running (non-interrupting).</summary>
+    public bool IsInterrupting { get; init; } = true;
 }
 
 /// <summary>None or terminate end event (FR-EXEC-008).</summary>
@@ -50,6 +53,8 @@ public sealed class ServiceTask : FlowNode
 
     /// <summary>Static headers from <c>flowd:taskHeaders</c> returned to workers (FR-JOB-009).</summary>
     public IReadOnlyDictionary<string, string> Headers { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+    public LoopCharacteristics? Loop { get; init; }
 }
 
 /// <summary>Pass-through manual task.</summary>
@@ -79,6 +84,11 @@ public sealed class SubProcess : FlowNode
 
     /// <summary>Evaluated on activation into the sub-process scope.</summary>
     public IReadOnlyList<IoMapping> Inputs { get; init; } = [];
+
+    /// <summary>True for an event sub-process: triggered by its start event instead of by sequence flow (section 6.1).</summary>
+    public bool IsEventSubProcess { get; init; }
+
+    public LoopCharacteristics? Loop { get; init; }
 
     /// <summary>Evaluated on completion against the sub-process scope and written to the parent scope.</summary>
     public IReadOnlyList<IoMapping> Outputs { get; init; } = [];
@@ -189,4 +199,31 @@ public sealed class UserTask : FlowNode
     public IReadOnlyList<IoMapping> Outputs { get; init; } = [];
 
     public bool PropagateAllOutputs { get; init; } = true;
+
+    public LoopCharacteristics? Loop { get; init; }
+}
+
+/// <summary>Multi-instance configuration of an activity (FR-EXEC-012).</summary>
+public sealed record LoopCharacteristics(
+    bool IsSequential,
+    string InputCollection,
+    string InputElement,
+    string? OutputCollection,
+    string? OutputElement);
+
+/// <summary>Call activity: starts a child instance of another process and waits for it (FR-EXEC-011).</summary>
+public sealed class CallActivity : FlowNode
+{
+    /// <summary>The called <c>bpmnProcessId</c>; a literal or a <c>=</c> expression. The latest deployed version is used.</summary>
+    public string? CalledElement { get; init; }
+
+    public bool PropagateAllChildVariables { get; init; } = true;
+
+    public bool PropagateAllParentVariables { get; init; } = true;
+
+    public IReadOnlyList<IoMapping> Inputs { get; init; } = [];
+
+    public IReadOnlyList<IoMapping> Outputs { get; init; } = [];
+
+    public LoopCharacteristics? Loop { get; init; }
 }

@@ -42,6 +42,7 @@ public static class IncidentTypes
     public const string ConditionError = "CONDITION_ERROR";
     public const string ExtractValueError = "EXTRACT_VALUE_ERROR";
     public const string IoMappingError = "IO_MAPPING_ERROR";
+    public const string CalledElementError = "CALLED_ELEMENT_ERROR";
     public const string UnhandledErrorEvent = "UNHANDLED_ERROR_EVENT";
     public const string VariableSizeExceeded = "VARIABLE_SIZE_EXCEEDED";
     public const string LoopLimitExceeded = "LOOP_LIMIT_EXCEEDED";
@@ -63,6 +64,9 @@ public sealed class ElementInstance
 
     /// <summary>The sequence flow the token arrived on; used by parallel joins.</summary>
     public string? IncomingFlowId { get; init; }
+
+    /// <summary>Iteration index of a multi-instance child (FR-EXEC-012); null otherwise.</summary>
+    public int? LoopCounter { get; init; }
 
     public required DateTimeOffset StartedAt { get; init; }
 
@@ -143,6 +147,7 @@ public enum TriggerKind
     Catch,
     Boundary,
     EventGateway,
+    EventSubProcess,
     Start,
 }
 

@@ -76,6 +76,7 @@ internal static class FlowdHostBuilder
         services.AddSingleton<IMessageStore, PostgresMessageStore>();
         services.AddSingleton<ISignalStore, PostgresSignalStore>();
         services.AddSingleton<IUserTaskQueries, PostgresUserTaskQueries>();
+        services.AddSingleton<IChildInstanceStore, PostgresChildInstanceStore>();
         services.AddSingleton<IMigrationRunner>(sp =>
             new PostgresMigrationRunner(sp.GetRequiredService<IOptions<FlowdOptions>>().Value.ConnectionString));
         services.AddSingleton<IReadinessProbe>(sp =>
@@ -100,7 +101,9 @@ internal static class FlowdHostBuilder
         services.AddSingleton<MessageService>();
         services.AddSingleton<SignalService>();
         services.AddSingleton<ISignalBroadcaster>(sp => sp.GetRequiredService<SignalService>());
-        services.AddSingleton<Func<ISignalBroadcaster>>(sp => () => sp.GetRequiredService<ISignalBroadcaster>());
+        services.AddSingleton<PostCommitEffects>();
+        services.AddSingleton<IPostCommitEffects>(sp => sp.GetRequiredService<PostCommitEffects>());
+        services.AddSingleton<Func<IPostCommitEffects>>(sp => () => sp.GetRequiredService<IPostCommitEffects>());
         services.AddSingleton<UserTaskService>();
     }
 }

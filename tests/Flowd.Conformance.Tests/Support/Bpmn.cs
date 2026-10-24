@@ -114,4 +114,28 @@ public static class Bpmn
 
     public static string UserTask(string id, string assignment = "", string inner = "") =>
         $"<bpmn:userTask id=\"{id}\"><bpmn:extensionElements>{(assignment.Length == 0 ? string.Empty : $"<flowd:assignmentDefinition {assignment}/>")}{inner}</bpmn:extensionElements></bpmn:userTask>";
+
+    private static string Loop(bool sequential, string inputCollection, string inputElement, string? outputCollection, string? outputElement) =>
+        $"<bpmn:multiInstanceLoopCharacteristics isSequential=\"{(sequential ? "true" : "false")}\"><bpmn:extensionElements><flowd:loopCharacteristics inputCollection=\"{SecurityElement.Escape(inputCollection)}\" inputElement=\"{inputElement}\"{(outputCollection is null ? string.Empty : $" outputCollection=\"{outputCollection}\" outputElement=\"{SecurityElement.Escape(outputElement ?? string.Empty)}\"")}/></bpmn:extensionElements></bpmn:multiInstanceLoopCharacteristics>";
+
+    public static string MiService(string id, string type, bool sequential, string inputCollection, string inputElement, string? outputCollection = null, string? outputElement = null) =>
+        $"<bpmn:serviceTask id=\"{id}\"><bpmn:extensionElements><flowd:taskDefinition type=\"{type}\"/></bpmn:extensionElements>{Loop(sequential, inputCollection, inputElement, outputCollection, outputElement)}</bpmn:serviceTask>";
+
+    public static string CallActivity(string id, string calledElement, string inner = "") =>
+        $"<bpmn:callActivity id=\"{id}\" calledElement=\"{calledElement}\"><bpmn:extensionElements>{inner}</bpmn:extensionElements></bpmn:callActivity>";
+
+    public static string CallFlags(bool propagateChild, bool propagateParent, string mappings = "") =>
+        $"<flowd:calledElement propagateAllChildVariables=\"{(propagateChild ? "true" : "false")}\" propagateAllParentVariables=\"{(propagateParent ? "true" : "false")}\"/>{mappings}";
+
+    public static string EventSubProcess(string id, string start, params string[] inner) =>
+        $"<bpmn:subProcess id=\"{id}\" triggeredByEvent=\"true\">{start}{string.Join(string.Empty, inner)}</bpmn:subProcess>";
+
+    public static string EspStartMessage(string id, string messageRef, bool interrupting) =>
+        $"<bpmn:startEvent id=\"{id}\" isInterrupting=\"{(interrupting ? "true" : "false")}\"><bpmn:messageEventDefinition messageRef=\"{messageRef}\"/></bpmn:startEvent>";
+
+    public static string EspStartTimer(string id, string value, bool interrupting) =>
+        $"<bpmn:startEvent id=\"{id}\" isInterrupting=\"{(interrupting ? "true" : "false")}\"><bpmn:timerEventDefinition><bpmn:timeDuration>{value}</bpmn:timeDuration></bpmn:timerEventDefinition></bpmn:startEvent>";
+
+    public static string EspStartError(string id, string errorRef) =>
+        $"<bpmn:startEvent id=\"{id}\"><bpmn:errorEventDefinition errorRef=\"{errorRef}\"/></bpmn:startEvent>";
 }
