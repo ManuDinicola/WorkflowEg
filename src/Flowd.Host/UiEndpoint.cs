@@ -21,11 +21,31 @@ internal static class UiEndpoint
 
     public static IEndpointRouteBuilder MapUi(this IEndpointRouteBuilder routes)
     {
-        routes.MapGet("/ui", () => Results.Bytes(Page.Value, "text/html; charset=utf-8")).AllowAnonymous();
+        routes.MapGet("/ui", (HttpContext context, IConfiguration configuration) =>
+        {
+            Harden(context, configuration);
+            return Results.Bytes(Page.Value, "text/html; charset=utf-8");
+        }).AllowAnonymous();
         routes.MapGet("/", () => Results.Redirect("/ui")).AllowAnonymous();
         routes.MapGet("/ui/vendor/{file}", Vendor).AllowAnonymous();
         routes.MapGet("/ui/config", Config).AllowAnonymous();
         return routes;
+    }
+
+    /// <summary>
+    /// Response headers of the page (FR-SEC-010): no framing, no content sniffing, no referrer, and a content security policy that only allows
+    /// the page's own scripts and styles and calls to itself and to the configured identity provider. The token the page keeps in the browser
+    /// is what this protects, so the policy is strict about where code can come from.
+    /// </summary>
+    internal static void Harden(HttpContext context, IConfiguration configuration)
+    {
+        var authority = configuration["Flowd:Ui:Oidc:Authority"] ?? configuration["Flowd:Auth:JwtAuthority"];
+        var connect = string.IsNullOrWhiteSpace(authority) || !Uri.TryCreate(authority, UriKind.Absolute, out var uri) ? "'self'" : $"'self' {uri.GetLeftPart(UriPartial.Authority)}";
+        var headers = context.Response.Headers;
+        headers["Content-Security-Policy"] = $"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src {connect}; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+        headers["X-Content-Type-Options"] = "nosniff";
+        headers["X-Frame-Options"] = "DENY";
+        headers["Referrer-Policy"] = "no-referrer";
     }
 
     /// <summary>

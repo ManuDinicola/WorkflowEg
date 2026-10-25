@@ -22,6 +22,9 @@ public static class InstanceEndpoints
 {
     private const int MaxPageSize = 1000;
 
+    /// <summary>At most this many start requests wait for a result at once on a node; more answer at once without waiting, so waiting callers cannot use up the database connections (FR-API-021).</summary>
+    private static readonly SemaphoreSlim AwaitSlots = new(64);
+
     public static IEndpointRouteBuilder MapInstanceEndpoints(this IEndpointRouteBuilder routes)
     {
         ArgumentNullException.ThrowIfNull(routes);
@@ -68,18 +71,20 @@ public static class InstanceEndpoints
     private static async Task<StartInstanceResponseDto> ResponseAsync(ClaimsPrincipal user, StartedInstance started, StartInstanceRequestDto request, IInstanceQueries queries, TimeProvider time, CancellationToken cancellationToken)
     {
         var response = new StartInstanceResponseDto(Id(started.InstanceKey), Id(started.DefinitionKey), started.Version, started.BpmnProcessId);
-        if (request.AwaitResult != true)
+        if (request.AwaitResult != true || !await AwaitSlots.WaitAsync(TimeSpan.Zero, cancellationToken).ConfigureAwait(false))
         {
             return response;
         }
 
-        var deadline = time.GetUtcNow() + TimeSpan.FromMilliseconds(Math.Clamp(request.RequestTimeoutMs ?? 10_000, 1, 60_000));
         var tenant = user.TenantId();
-        var view = await queries.GetInstanceAsync(tenant, started.InstanceKey, cancellationToken).ConfigureAwait(false);
-        while (view is { State: "ACTIVE" } && time.GetUtcNow() < deadline)
+        InstanceView? view;
+        try
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(50), time, cancellationToken).ConfigureAwait(false);
-            view = await queries.GetInstanceAsync(tenant, started.InstanceKey, cancellationToken).ConfigureAwait(false);
+            view = await WaitForEndAsync(tenant, started.InstanceKey, TimeSpan.FromMilliseconds(Math.Clamp(request.RequestTimeoutMs ?? 10_000, 1, 60_000)), queries, time, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            AwaitSlots.Release();
         }
 
         if (view is not { State: "COMPLETED" })
@@ -89,6 +94,19 @@ public static class InstanceEndpoints
 
         var variables = await queries.GetVariablesAsync(tenant, started.InstanceKey, cancellationToken).ConfigureAwait(false);
         return response with { State = view.State, Variables = Fetch(variables, request.FetchVariables) };
+    }
+
+    private static async Task<InstanceView?> WaitForEndAsync(string tenant, long instanceKey, TimeSpan wait, IInstanceQueries queries, TimeProvider time, CancellationToken cancellationToken)
+    {
+        var deadline = time.GetUtcNow() + wait;
+        var view = await queries.GetInstanceAsync(tenant, instanceKey, cancellationToken).ConfigureAwait(false);
+        while (view is { State: "ACTIVE" } && time.GetUtcNow() < deadline)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(50), time, cancellationToken).ConfigureAwait(false);
+            view = await queries.GetInstanceAsync(tenant, instanceKey, cancellationToken).ConfigureAwait(false);
+        }
+
+        return view;
     }
 
     private static JsonObject? Fetch(JsonObject? variables, IReadOnlyList<string>? names)

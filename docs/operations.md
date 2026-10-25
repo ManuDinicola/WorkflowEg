@@ -23,6 +23,8 @@ User tasks carry `dueDate`, `followUpDate` and `priority` (0-100, default 50) in
 | `Flowd__Retention__InstanceDays`, `HistoryDays`, `OutboxDays`, `BatchSize`, `IntervalSeconds` | janitor retention (defaults 30/30/7/500/60) |
 
 ## Health and monitoring
+Going live? Read `docs/production.md` first.
+
 - `/healthz` liveness, `/readyz` database reachable and migrations current.
 - `/metrics` Prometheus text. Alert on rising incident count, job activation latency and 5xx rate.
 - Logs are JSON on stdout; variable values are never logged at Info.
