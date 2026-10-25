@@ -23,3 +23,11 @@ User-defined functions, the time-of-day (`time`) type, years-and-months duration
 
 ## User defined functions
 `{double: function(x) x * 2, r: double(4)}.r` gives `8`. A function keeps the scope it was created in, so it can read the variables of the expression. Inside a context, entries do not see each other, except functions: a later entry can call a function defined in an earlier one. Functions are not recursive and cannot be stored in process variables (they become null as JSON).
+
+## Type checks, temporal literals, sorting with a function
+- `x instance of number` (also `string`, `boolean`, `date`, `date and time`, `time`, `duration`, `days and time duration`, `years and months duration`, `list`, `context`, `function`, `null`). A date and a date with a time are one kind of value in Flowd, so both names accept any date.
+- Temporal literals: `@"2026-10-25"`, `@"10:30:00"`, `@"2026-10-25T10:30:00Z"`, `@"P1Y2M"`, `@"PT1H"`.
+- `sort(list, function(a, b) a < b)` sorts with your own "comes before" function (stable).
+- `before(a, b)` and `after(a, b)` compare single values. Ranges are not values in Flowd, so `meets`, `overlaps`, `includes` and the other range functions are not available.
+- `day of year(date)`, `date and time(date, time)`, `number("1.000,50", ".", ",")` (text, grouping character, decimal character), `format number(1234.5, "#,##0.00")` (a .NET number format, not Java's pattern language).
+- `uuid()` and `random number()` do not exist on purpose: an expression always gives the same result for the same input.

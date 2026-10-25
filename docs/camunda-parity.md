@@ -176,12 +176,13 @@ The first list was too narrow: Flowd scored 98 % on it while there were still ma
 - [ ] Call activity with the called process id as an expression
 
 ### FEEL
-- [ ] `instance of` and type checks
-- [ ] Range functions (`before`, `after`, `meets`, `overlaps`, `includes`, ...)
-- [ ] `sort` with a comparison function
-- [ ] Temporal literals such as `@"2026-10-25"`
-- [ ] `day of year`, `date and time(date, time)`, `number(text, grouping, decimal)`, `format number`
-- [ ] `uuid()` and `random number()`
+- [x] `instance of` and type checks (dates and dates with a time are one kind of value here)
+- [x] `before` and `after` on single values
+- [ ] Range values and the range functions on them (`meets`, `overlaps`, `includes`, `during`, ...)
+- [x] `sort` with a comparison function
+- [x] Temporal literals such as `@"2026-10-25"`
+- [x] `day of year`, `date and time(date, time)`, `number(text, grouping, decimal)`, `format number`
+- [ ] `uuid()` and `random number()` (not planned: the engine stays deterministic, so a replay gives the same result)
 
 ### API
 - [x] Search of instances, jobs, tasks, incidents, variables and element instances

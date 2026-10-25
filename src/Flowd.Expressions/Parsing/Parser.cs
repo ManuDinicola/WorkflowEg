@@ -94,6 +94,13 @@ internal sealed class Parser
     private Expr ParseComparison()
     {
         var left = ParseAdditive();
+        if (IsKeyword("instance of"))
+        {
+            Advance();
+            var type = Advance().Text;
+            return new CallExpr("instance of", [left, new LiteralExpr(type)]);
+        }
+
         if (IsKeyword("between"))
         {
             Advance();

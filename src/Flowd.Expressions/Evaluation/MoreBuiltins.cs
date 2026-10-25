@@ -23,6 +23,33 @@ internal static class MoreBuiltins
         ["to json"] = (a, _) => ExpressionJson.ToJson(Builtins.Arg(a, 0))?.ToJsonString() ?? "null",
         ["from json"] = (a, _) => FromJson(Builtins.Text(a, 0)),
         ["to base64"] = (a, _) => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(Builtins.Text(a, 0))),
+        ["instance of"] = (a, _) => InstanceOf(Builtins.Arg(a, 0), Builtins.Text(a, 1)),
+        ["before"] = (a, _) => Operators.Compare("<", Builtins.Arg(a, 0), Builtins.Arg(a, 1)),
+        ["after"] = (a, _) => Operators.Compare(">", Builtins.Arg(a, 0), Builtins.Arg(a, 1)),
+        ["day of year"] = (a, _) => Instant(a).DayOfYear,
+        ["format number"] = (a, _) => Builtins.Number(a, 0).ToString(Builtins.Text(a, 1), CultureInfo.InvariantCulture),
+    };
+
+    /// <summary>
+    /// <c>x instance of number</c> and the other FEEL type names. Dates and dates with a time are one kind of value here (an instant), so both type
+    /// names accept any instant.
+    /// </summary>
+    private static ExpressionValue InstanceOf(ExpressionValue value, string type) => type switch
+    {
+        "number" => value is decimal,
+        "string" => value is string,
+        "boolean" => value is bool,
+        "date" or "date and time" => value is DateTimeOffset,
+        "time" => value is TimeOnly,
+        "duration" => value is TimeSpan or YearsMonthsDuration,
+        "days and time duration" => value is TimeSpan,
+        "years and months duration" => value is YearsMonthsDuration,
+        "list" => value is ListValue,
+        "context" => value is ContextValue,
+        "function" => value is FunctionValue,
+        "null" => value is NullValue,
+        "Any" => true,
+        _ => Operators.Null, // non-union: an unknown type name is not an error in FEEL, the answer is null
     };
 
     private static DateTimeOffset Instant(IReadOnlyList<ExpressionValue> args) =>
