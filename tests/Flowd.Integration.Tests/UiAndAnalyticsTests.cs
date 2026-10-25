@@ -55,4 +55,21 @@ public sealed class UiAndAnalyticsTests(PostgresFixture postgres) : IClassFixtur
         var task = process["elements"]!.AsArray().Single(e => e!["elementId"]!.GetValue<string>() == "A")!;
         task["activations"]!.GetValue<int>().ShouldBe(2);
     }
+
+    [Fact]
+    public async Task FR_UI_005_the_embedded_modeler_files_are_served_without_a_key_and_unknown_files_are_404()
+    {
+        await using var app = await TestApp.StartAsync(postgres, secure: true);
+
+        var script = await app.Client.GetAsync(new Uri("/ui/vendor/bpmn-modeler.production.min.js", UriKind.Relative));
+        var css = await app.Client.GetAsync(new Uri("/ui/vendor/diagram-js.css", UriKind.Relative));
+
+        script.StatusCode.ShouldBe(HttpStatusCode.OK);
+        script.Content.Headers.ContentType!.MediaType.ShouldBe("text/javascript");
+        (await script.Content.ReadAsByteArrayAsync()).Length.ShouldBeGreaterThan(100_000);
+        css.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await app.Client.GetAsync(new Uri("/ui/vendor/nope.js", UriKind.Relative))).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await app.Client.GetAsync(new Uri("/ui/vendor/..%2Fappsettings.json", UriKind.Relative))).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await (await app.Client.GetAsync(new Uri("/ui", UriKind.Relative))).Content.ReadAsStringAsync()).ShouldContain("Modeler");
+    }
 }

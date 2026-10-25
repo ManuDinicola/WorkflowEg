@@ -28,6 +28,10 @@
   .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
   .badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; border:1px solid var(--line); }
   .ACTIVE, .OPEN, .CREATED { color:var(--accent); } .COMPLETED { color:var(--ok); } .TERMINATED { color:var(--muted); } .bad { color:var(--bad); }
+  .modeler { height:520px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  .split { display:grid; grid-template-columns:1fr 280px; gap:12px; margin-top:10px; }
+  .props label { display:block; margin-top:8px; }
+  .props input { width:100%; box-sizing:border-box; }
   .diagram { overflow:auto; border:1px solid var(--line); border-radius:8px; background:var(--card); }
   svg text { fill:var(--fg); font:11px system-ui, sans-serif; }
   .shape { fill:var(--card); stroke:var(--fg); stroke-width:1.2; }
@@ -259,9 +263,100 @@ const views = {
     select.addEventListener("change", load);
     box.append(el("div", { class: "row" }, select), out); await load();
   },
+  async modeler(box) {
+    const BpmnJS = await loadModeler();
+    const canvas = el("div", { class: "modeler" }), props = el("div", { class: "card props" }), message = el("div");
+    const modeler = new BpmnJS({ container: canvas, moddleExtensions: { flowd: FLOWD_MODDLE } });
+    canvas.modeler = modeler; // lets tests drive the modeler
+    const modeling = () => modeler.get("modeling"), factory = () => modeler.get("bpmnFactory");
+    const fit = () => setTimeout(() => { try { modeler.get("canvas").zoom("fit-viewport"); } catch { /* not attached yet or empty: keep the default view */ } }, 50); // the box joins the page after this view returns
+    const open = async (xml) => { await modeler.importXML(xml); fit(); showProps(null); };
+    const save = async () => (await modeler.saveXML({ format: true })).xml;
+    const field = (label, value, apply) => {
+      const input = el("input", { value: value ?? "" });
+      input.addEventListener("change", () => apply(input.value.trim()));
+      return el("div", {}, el("label", {}, label), input);
+    };
+    const ext = (element) => element.businessObject.extensionElements;
+    const extOf = (element, type) => (ext(element)?.values ?? []).find((v) => v.$type === type);
+    const setExt = (element, type, attrs) => {
+      const bo = element.businessObject;
+      const extensions = bo.extensionElements ?? factory().create("bpmn:ExtensionElements", { values: [] });
+      const kept = extensions.values.filter((v) => v.$type !== type);
+      const empty = Object.values(attrs).every((v) => !v);
+      modeling().updateProperties(element, { extensionElements: empty && kept.length === 0 ? undefined : factory().create("bpmn:ExtensionElements", { values: empty ? kept : [...kept, factory().create(type, attrs)] }) });
+    };
+    const showProps = (element) => {
+      props.replaceChildren(el("h3", {}, "Properties"));
+      if (!element || !element.businessObject || element.type === "label") { props.append(el("p", { class: "muted" }, "Select an element.")); return; }
+      const bo = element.businessObject;
+      props.append(el("p", { class: "muted" }, element.type + " · " + element.id), field("Name", bo.name, (v) => modeling().updateProperties(element, { name: v || undefined })));
+      if (["bpmn:ServiceTask", "bpmn:SendTask", "bpmn:BusinessRuleTask"].includes(element.type)) {
+        const def = extOf(element, "flowd:TaskDefinition");
+        const type = field("Job type", def?.type, (v) => setExt(element, "flowd:TaskDefinition", { type: v, retries: extOf(element, "flowd:TaskDefinition")?.retries }));
+        props.append(type, field("Retries", def?.retries, (v) => setExt(element, "flowd:TaskDefinition", { type: extOf(element, "flowd:TaskDefinition")?.type, retries: v })));
+      }
+      if (element.type === "bpmn:UserTask") {
+        const a = extOf(element, "flowd:AssignmentDefinition");
+        const set = (key) => (v) => setExt(element, "flowd:AssignmentDefinition", { assignee: extOf(element, "flowd:AssignmentDefinition")?.assignee, candidateGroups: extOf(element, "flowd:AssignmentDefinition")?.candidateGroups, [key]: v });
+        props.append(field("Assignee", a?.assignee, set("assignee")), field("Candidate groups (comma separated)", a?.candidateGroups, set("candidateGroups")));
+      }
+      if (element.type === "bpmn:SequenceFlow") {
+        props.append(field("Condition (FEEL, starts with =)", bo.conditionExpression?.body, (v) =>
+          modeling().updateProperties(element, { conditionExpression: v ? factory().create("bpmn:FormalExpression", { body: v }) : undefined })));
+      }
+    };
+    modeler.on("selection.changed", ({ newSelection }) => showProps(newSelection[0] ?? null));
+    modeler.on("element.changed", ({ element }) => { if (modeler.get("selection").get()[0] === element) showProps(element); });
+    const file = el("input", { type: "file", accept: ".bpmn,.xml" });
+    file.addEventListener("change", async () => { if (file.files[0]) { try { await open(await file.files[0].text()); } catch (e) { fail(message, e); } } });
+    const defs = (await api("/v1/process-definitions?pageSize=200")).data.items;
+    const deployed = el("select", {}, el("option", { value: "" }, "Open a deployed process…"), ...[...new Set(defs.map((d) => d.bpmnProcessId))].map((i) => el("option", { value: i }, i)));
+    deployed.addEventListener("change", async () => {
+      if (!deployed.value) return;
+      try { const latest = defs.filter((d) => d.bpmnProcessId === deployed.value).sort((a, b) => b.version - a.version)[0]; await open((await api(`/v1/process-definitions/${latest.key}/xml`)).text); } catch (e) { fail(message, e); }
+    });
+    const toolbar = el("div", { class: "row" },
+      el("button", { onclick: () => open(NEW_DIAGRAM).catch((e) => fail(message, e)) }, "New"), file, deployed,
+      el("button", { onclick: async () => { try { const url = URL.createObjectURL(new Blob([await save()], { type: "application/xml" })); const a = el("a", { href: url, download: "process.bpmn" }); a.click(); URL.revokeObjectURL(url); } catch (e) { fail(message, e); } } }, "Download"),
+      el("button", { class: "primary", onclick: async () => {
+        try {
+          const body = new FormData(); body.append("resources", new Blob([await save()], { type: "application/xml" }), "model.bpmn");
+          message.replaceChildren(el("pre", {}, JSON.stringify((await api("/v1/deployments", { method: "POST", body })).data, null, 2)));
+        } catch (e) { fail(message, e); }
+      } }, "Deploy"));
+    box.append(el("p", { class: "muted" }, "Draw the process, set the job type of service tasks and conditions on flows in the panel, then deploy. Powered by bpmn.io."), toolbar, el("div", { class: "split" }, canvas, props), message);
+    await open(NEW_DIAGRAM);
+  },
 };
 
-const tabs = [["overview", "Overview"], ["instances", "Instances"], ["incidents", "Incidents"], ["tasks", "Tasks"], ["deploy", "Deploy"], ["analytics", "Analytics"]];
+
+/* ---------- modeler (bpmn.io, embedded: no internet needed) ---------- */
+let modelerLoad;
+const loadModeler = () => modelerLoad ??= new Promise((resolve, reject) => {
+  for (const css of ["diagram-js.css", "bpmn-js.css", "bpmn-embedded.css"]) document.head.append(el("link", { rel: "stylesheet", href: "/ui/vendor/" + css }));
+  const script = el("script", { src: "/ui/vendor/bpmn-modeler.production.min.js" });
+  script.onload = () => resolve(window.BpmnJS);
+  script.onerror = () => { modelerLoad = undefined; reject(new Error("The modeler could not be loaded.")); };
+  document.head.append(script);
+});
+const FLOWD_MODDLE = {
+  name: "Flowd", uri: "http://flowd.io/schema/1.0", prefix: "flowd", xml: { tagAlias: "lowerCase" },
+  types: [
+    { name: "TaskDefinition", superClass: ["Element"], properties: [{ name: "type", isAttr: true, type: "String" }, { name: "retries", isAttr: true, type: "String" }] },
+    { name: "AssignmentDefinition", superClass: ["Element"], properties: [{ name: "assignee", isAttr: true, type: "String" }, { name: "candidateGroups", isAttr: true, type: "String" }] },
+  ],
+};
+const NEW_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:flowd="http://flowd.io/schema/1.0" id="Definitions_1" targetNamespace="http://flowd.io/model">
+  <bpmn:process id="my-process" isExecutable="true">
+    <bpmn:startEvent id="Start"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_1"><bpmndi:BPMNPlane id="Plane_1" bpmnElement="my-process">
+    <bpmndi:BPMNShape id="Start_di" bpmnElement="Start"><dc:Bounds x="160" y="120" width="36" height="36"/></bpmndi:BPMNShape>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>`;
+const tabs = [["overview", "Overview"], ["instances", "Instances"], ["incidents", "Incidents"], ["tasks", "Tasks"], ["deploy", "Deploy"], ["modeler", "Modeler"], ["analytics", "Analytics"]];
 let current = "overview", showToken = 0;
 async function show(name) {
   current = name;

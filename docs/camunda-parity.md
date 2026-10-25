@@ -138,7 +138,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Operate-like UI: definitions, instances, incidents, variables, history
 - [x] Diagram view with token overlay
 - [x] Tasklist-like UI
-- [ ] Browser modeler (graphical editing)
+- [x] Browser modeler (graphical editing with a side panel for the main Flowd settings; other settings still go through the XML editor)
 - [x] Browser XML editor with live diagram preview and deploy
 - [x] Analytics (Optimize-like): durations, counts, heatmap
 - [x] Connectors: REST (outbound) and signed webhook (inbound)
@@ -147,6 +147,6 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-25): 113 of 118 = 95 %. Target: 95 % (113 of 118).
+Score (2026-10-25): 114 of 118 = 96 %. Target: 95 % (113 of 118).
 
 Not counted: complex gateway, transaction sub-process with cancel event, and multiple / parallel multiple events. Camunda 8 does not support them either (they are BPMN elements that Camunda 8 leaves out), so they are not Camunda 8 features. Flowd does not support them. Before 2026-10-25 these three lines were in the checklist as open items; moving them out raised the percentage by about three points without any new code, so compare scores before and after with that in mind.
