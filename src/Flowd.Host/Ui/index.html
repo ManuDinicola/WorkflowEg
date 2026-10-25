@@ -546,7 +546,7 @@ async function show(name) {
 }
 
 /* ---------- sign in with OpenID Connect (authorization code + PKCE, no client secret, no server session) ---------- */
-let oidc = null, token = JSON.parse(sessionStorage.getItem("flowd-token") || "null");
+let localLogin = false, oidc = null, token = JSON.parse(sessionStorage.getItem("flowd-token") || "null");
 const validToken = () => (token && token.expires > Date.now() ? token.access : null);
 const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const redirectUri = () => location.origin + "/ui";
@@ -575,13 +575,24 @@ async function oidcCallback(params) {
 }
 function drawSignIn() {
   const box = $("#signin"); box.replaceChildren();
-  if (!oidc) return;
-  box.append(validToken()
-    ? el("button", { onclick: () => { token = null; sessionStorage.removeItem("flowd-token"); drawSignIn(); show(current); } }, "Sign out")
-    : el("button", { class: "primary", onclick: () => oidcLogin().catch((e) => fail($("#view"), e)) }, "Sign in"));
+  if (!oidc && !localLogin) return;
+  if (validToken()) { box.append(el("button", { onclick: () => { token = null; sessionStorage.removeItem("flowd-token"); drawSignIn(); show(current); } }, "Sign out")); return; }
+  if (localLogin) {
+    const name = el("input", { placeholder: "user", size: "10", autocomplete: "username" }), pass = el("input", { type: "password", placeholder: "password", size: "10", autocomplete: "current-password" });
+    const go = async () => {
+      try {
+        const reply = (await api("/v1/login", { method: "POST", json: { username: name.value, password: pass.value } })).data;
+        token = { access: reply.accessToken, expires: Date.now() + Math.max(reply.expiresInSeconds - 10, 10) * 1000 };
+        sessionStorage.setItem("flowd-token", JSON.stringify(token)); drawSignIn(); show(current);
+      } catch (e) { fail($("#view"), e); }
+    };
+    pass.addEventListener("keydown", (ev) => { if (ev.key === "Enter") go(); });
+    box.append(name, pass, el("button", { class: "primary", onclick: go }, "Log in"));
+  }
+  if (oidc) box.append(el("button", { onclick: () => oidcLogin().catch((e) => fail($("#view"), e)) }, "Sign in with SSO"));
 }
 async function start() {
-  try { oidc = (await (await fetch("/ui/config")).json()).oidc; } catch { oidc = null; }
+  try { const config = await (await fetch("/ui/config")).json(); oidc = config.oidc; localLogin = !!config.localLogin; } catch { oidc = null; }
   const params = new URLSearchParams(location.search);
   let problem = null;
   if (oidc && params.has("state") && (params.has("code") || params.has("error"))) { try { await oidcCallback(params); } catch (e) { problem = e; } }

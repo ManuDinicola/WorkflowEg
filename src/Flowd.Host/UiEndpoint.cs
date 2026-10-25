@@ -55,14 +55,15 @@ internal static class UiEndpoint
     private static IResult Config(IConfiguration configuration)
     {
         var section = configuration.GetSection("Flowd:Ui:Oidc");
+        var localLogin = !string.IsNullOrWhiteSpace(configuration["Flowd:Auth:JwtSigningKey"]) && !string.IsNullOrWhiteSpace(configuration["Flowd:Auth:JwtIssuer"]);
         var clientId = section["ClientId"];
         var authority = section["Authority"] ?? configuration["Flowd:Auth:JwtAuthority"];
         if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(authority))
         {
-            return Results.Ok(new { oidc = (object?)null });
+            return Results.Ok(new { oidc = (object?)null, localLogin });
         }
 
-        return Results.Ok(new { oidc = new { authority = authority.TrimEnd('/'), clientId, scopes = section["Scopes"] ?? "openid profile" } });
+        return Results.Ok(new { oidc = new { authority = authority.TrimEnd('/'), clientId, scopes = section["Scopes"] ?? "openid profile" }, localLogin });
     }
 
     private static IResult Vendor(string file)
