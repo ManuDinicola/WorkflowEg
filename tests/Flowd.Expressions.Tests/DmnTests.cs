@@ -268,4 +268,25 @@ public sealed class DmnTests
     {
         RunGraph(Knowledge.Replace("net + net * rate / 100", "net +", StringComparison.Ordinal), "total", """{"amount":1}""").ShouldBe("ERR:DMN_KNOWLEDGE_MODEL");
     }
+
+    private const string EditorOutput = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" id="my-decision-defs" name="My decision" namespace="http://flowd.io/dmn">
+          <decision id="my-decision" name="My decision">
+            <decisionTable hitPolicy="FIRST">
+              <input label="Amount"><inputExpression><text>amount</text></inputExpression></input>
+              <output name="result"/>
+              <rule><inputEntry><text>&gt;= 100</text></inputEntry><outputEntry><text>&quot;high&quot;</text></outputEntry></rule>
+              <rule><inputEntry><text>-</text></inputEntry><outputEntry><text>&quot;low&quot;</text></outputEntry></rule>
+            </decisionTable>
+          </decision>
+        </definitions>
+        """;
+
+    [Fact]
+    public void FR_UI_008_a_table_written_by_the_decision_editor_parses_and_evaluates()
+    {
+        RunGraph(EditorOutput, "my-decision", """{"amount":150}""").ShouldBe("high");
+        RunGraph(EditorOutput, "my-decision", """{"amount":5}""").ShouldBe("low");
+    }
 }

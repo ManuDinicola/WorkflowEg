@@ -24,6 +24,7 @@ public static class DecisionEndpoints
         group.MapPost("/", DeployAsync).DisableAntiforgery().RequireAuthorization(Policies.Deploy);
         group.MapGet("/", ListAsync).RequireAuthorization(Policies.Read);
         group.MapPost("/{decisionId}/evaluate", EvaluateAsync).RequireAuthorization(Policies.Start);
+        group.MapGet("/{decisionId}/xml", XmlAsync).RequireAuthorization(Policies.Read);
         return routes;
     }
 
@@ -54,6 +55,14 @@ public static class DecisionEndpoints
     {
         var items = await store.ListAsync(user.TenantId(), cancellationToken).ConfigureAwait(false);
         return Results.Ok(new { items = items.Select(d => new { key = d.Key.ToString(System.Globalization.CultureInfo.InvariantCulture), decisionId = d.DecisionId, version = d.Version, resourceName = d.ResourceName }) });
+    }
+
+    /// <summary>The DMN file the latest version of the decision came from (the file may hold more decisions).</summary>
+    private static async Task<IResult> XmlAsync(ClaimsPrincipal user, string decisionId, IDecisionStore store, CancellationToken cancellationToken)
+    {
+        var info = await store.FindAsync(user.TenantId(), decisionId, cancellationToken).ConfigureAwait(false);
+        var bytes = info is null ? null : await store.GetResourceAsync(user.TenantId(), info.Key, cancellationToken).ConfigureAwait(false);
+        return bytes is null ? FailureMapper.ToProblem(new Failure(new NotFound($"Decision '{decisionId}' not found."))) : Results.Bytes(bytes, "application/xml");
     }
 
     private static async Task<IResult> EvaluateAsync(ClaimsPrincipal user, string decisionId, EvaluateDecisionRequest? body, EvaluateDecisionUseCase useCase, CancellationToken cancellationToken) =>

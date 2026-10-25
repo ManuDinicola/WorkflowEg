@@ -33,3 +33,6 @@ A decision can list the decisions it needs: `<informationRequirement><requiredDe
 
 ## Business knowledge models
 A `businessKnowledgeModel` with `encapsulatedLogic` (`formalParameter` names and a `literalExpression`) becomes a FEEL function with the model's name. Decisions of the same file call it like any function: `withTax(amount, 20)`. A model can call the models defined before it in the file. Names must be plain identifiers (no spaces), because they are called by name. Only literal expression logic is supported (not decision tables or other boxed expressions inside the model), and `knowledgeRequirement` links are not checked: every model of the file is available to every decision of the file.
+
+## Decision table editor
+The **Decisions** tab of the UI edits a decision table in a grid: inputs (label and FEEL expression), outputs, hit policy, aggregation and one row per rule (`-` means any value; text results need quotes). Open a file or a deployed decision, **Download** or **Deploy** it, and try the deployed version with a JSON of variables. The editor reads and writes one decision table per file; business knowledge models, required decisions and literal-expression decisions in an opened file are not kept when you save, and the editor tells you when the file has more decisions. `GET /v1/decisions/{id}/xml` returns the latest DMN file of a decision.

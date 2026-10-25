@@ -29,6 +29,7 @@
   .badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; border:1px solid var(--line); }
   .ACTIVE, .OPEN, .CREATED { color:var(--accent); } .COMPLETED { color:var(--ok); } .TERMINATED { color:var(--muted); } .bad { color:var(--bad); }
   .modeler { height:520px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  table.dmn { border-collapse:collapse; margin:10px 0; } table.dmn th, table.dmn td { border:1px solid var(--line); padding:4px; vertical-align:top; }
   .split { display:grid; grid-template-columns:1fr 280px; gap:12px; margin-top:10px; }
   .props label { display:block; margin-top:8px; }
   .props input { width:100%; box-sizing:border-box; }
@@ -297,6 +298,79 @@ const views = {
       builder, message, el("div", { class: "split" }, preview, el("div", {}, el("h4", {}, "Form JSON"), json)));
     load({ id: formId, components: [{ type: "textfield", key: "name", label: "Name", validate: { required: true } }] });
   },
+  async decisions(box) {
+    const POLICIES = ["UNIQUE", "FIRST", "ANY", "PRIORITY", "COLLECT", "RULE ORDER", "OUTPUT ORDER"], AGGREGATIONS = ["", "SUM", "MIN", "MAX", "COUNT"];
+    const blank = () => ({ id: "my-decision", name: "My decision", hitPolicy: "FIRST", aggregation: "", inputs: [{ label: "Amount", expr: "amount" }], outputs: [{ name: "result" }], rules: [{ ins: [">= 100"], outs: ['"high"'] }, { ins: ["-"], outs: ['"low"'] }] });
+    let model = blank();
+    const grid = el("div"), message = el("div"), result = el("div");
+    const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const toXml = () => `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" id="${esc(model.id)}-defs" name="${esc(model.name)}" namespace="http://flowd.io/dmn">
+  <decision id="${esc(model.id)}" name="${esc(model.name)}">
+    <decisionTable hitPolicy="${model.hitPolicy}"${model.aggregation ? ` aggregation="${model.aggregation}"` : ""}>
+${model.inputs.map((i) => `      <input label="${esc(i.label)}"><inputExpression><text>${esc(i.expr)}</text></inputExpression></input>`).join("\n")}
+${model.outputs.map((o) => `      <output name="${esc(o.name)}"/>`).join("\n")}
+${model.rules.map((r) => `      <rule>${r.ins.map((t) => `<inputEntry><text>${esc(t)}</text></inputEntry>`).join("")}${r.outs.map((t) => `<outputEntry><text>${esc(t)}</text></outputEntry>`).join("")}</rule>`).join("\n")}
+    </decisionTable>
+  </decision>
+</definitions>`;
+    const fromXml = (xml) => {
+      const doc = new DOMParser().parseFromString(xml, "application/xml");
+      if (doc.querySelector("parsererror")) throw new Error("The file is not valid XML.");
+      const local = (root, name) => [...root.getElementsByTagNameNS("*", name)];
+      const decision = local(doc, "decision").find((d) => local(d, "decisionTable").length);
+      if (!decision) throw new Error("No decision table found. This editor edits decision tables.");
+      const table = local(decision, "decisionTable")[0], text = (n) => (local(n, "text")[0]?.textContent ?? "").trim();
+      model = {
+        id: decision.getAttribute("id") || "decision", name: decision.getAttribute("name") || "", hitPolicy: (table.getAttribute("hitPolicy") || "UNIQUE").toUpperCase(), aggregation: (table.getAttribute("aggregation") || "").toUpperCase(),
+        inputs: local(table, "input").map((i) => ({ label: i.getAttribute("label") || "", expr: text(local(i, "inputExpression")[0] ?? i) })),
+        outputs: local(table, "output").map((o) => ({ name: o.getAttribute("name") || o.getAttribute("label") || "result" })),
+        rules: local(table, "rule").map((r) => ({ ins: local(r, "inputEntry").map(text), outs: local(r, "outputEntry").map(text) })),
+      };
+      const others = local(doc, "decision").length - 1;
+      if (others > 0) message.replaceChildren(el("p", { class: "muted" }, `The file has ${others} more decision(s); saving writes only this table.`));
+    };
+    const cell = (value, apply, size = "12") => { const i = el("input", { value: value ?? "", size }); i.addEventListener("change", () => apply(i.value)); return i; };
+    const draw = () => {
+      const head = el("tr", {},
+        ...model.inputs.map((c, i) => el("th", {}, cell(c.label, (v) => { c.label = v; }, "10"), el("br"), cell(c.expr, (v) => { c.expr = v; }, "10"), el("button", { onclick: () => { if (model.inputs.length > 1) { model.inputs.splice(i, 1); model.rules.forEach((r) => r.ins.splice(i, 1)); draw(); } } }, "✕"))),
+        ...model.outputs.map((c, i) => el("th", {}, cell(c.name, (v) => { c.name = v; }, "10"), el("button", { onclick: () => { if (model.outputs.length > 1) { model.outputs.splice(i, 1); model.rules.forEach((r) => r.outs.splice(i, 1)); draw(); } } }, "✕"))), el("th", {}));
+      const body = model.rules.map((r, ri) => el("tr", {}, ...r.ins.map((t, i) => el("td", {}, cell(t, (v) => { r.ins[i] = v; }))), ...r.outs.map((t, i) => el("td", {}, cell(t, (v) => { r.outs[i] = v; }))),
+        el("td", {}, el("button", { onclick: () => { model.rules.splice(ri, 1); draw(); } }, "✕"))));
+      const policy = el("select", {}, ...POLICIES.map((p) => el("option", { value: p, ...(p === model.hitPolicy ? { selected: "selected" } : {}) }, p)));
+      policy.addEventListener("change", () => { model.hitPolicy = policy.value; });
+      const aggregation = el("select", {}, ...AGGREGATIONS.map((a) => el("option", { value: a, ...(a === model.aggregation ? { selected: "selected" } : {}) }, a || "no aggregation")));
+      aggregation.addEventListener("change", () => { model.aggregation = aggregation.value; });
+      grid.replaceChildren(
+        el("div", { class: "row" }, el("label", {}, "Decision id"), cell(model.id, (v) => { model.id = v.trim(); }), el("label", {}, "Name"), cell(model.name, (v) => { model.name = v; }), el("label", {}, "Hit policy"), policy, el("label", {}, "Aggregation (COLLECT)"), aggregation),
+        el("table", { class: "dmn" }, el("thead", {}, head), el("tbody", {}, ...body)),
+        el("div", { class: "row" },
+          el("button", { onclick: () => { model.inputs.push({ label: "Input " + (model.inputs.length + 1), expr: "" }); model.rules.forEach((r) => r.ins.push("-")); draw(); } }, "Add input"),
+          el("button", { onclick: () => { model.outputs.push({ name: "output" + (model.outputs.length + 1) }); model.rules.forEach((r) => r.outs.push("")); draw(); } }, "Add output"),
+          el("button", { onclick: () => { model.rules.push({ ins: model.inputs.map(() => "-"), outs: model.outputs.map(() => "") }); draw(); } }, "Add rule")));
+    };
+    const file = el("input", { type: "file", accept: ".dmn,.xml" });
+    file.addEventListener("change", async () => { if (file.files[0]) { try { fromXml(await file.files[0].text()); draw(); } catch (e) { fail(message, e); } } });
+    const known = [...new Set(((await api("/v1/decisions")).data.items ?? []).map((d) => d.decisionId))];
+    const open = el("select", {}, el("option", { value: "" }, "Open a deployed decision…"), ...known.map((d) => el("option", { value: d }, d)));
+    open.addEventListener("change", async () => { if (open.value) { try { fromXml((await api(`/v1/decisions/${encodeURIComponent(open.value)}/xml`)).text); draw(); } catch (e) { fail(message, e); } } });
+    const variables = el("textarea", { rows: "3", placeholder: '{"amount": 150}' });
+    box.append(el("p", { class: "muted" }, "Edit a decision table: inputs with their FEEL expressions, outputs, and one row per rule. Use - for any value. Text results need quotes, for example \"high\"."),
+      el("div", { class: "row" }, el("button", { onclick: () => { model = blank(); message.replaceChildren(); draw(); } }, "New"), file, open,
+        el("button", { onclick: () => { const url = URL.createObjectURL(new Blob([toXml()], { type: "application/xml" })); el("a", { href: url, download: model.id + ".dmn" }).click(); URL.revokeObjectURL(url); } }, "Download"),
+        el("button", { class: "primary", onclick: async () => {
+          try {
+            const body = new FormData(); body.append("resources", new Blob([toXml()], { type: "application/xml" }), model.id + ".dmn");
+            message.replaceChildren(el("pre", {}, JSON.stringify((await api("/v1/decisions", { method: "POST", body })).data, null, 2)));
+          } catch (e) { fail(message, e); }
+        } }, "Deploy")),
+      grid, message,
+      el("div", { class: "card" }, el("h4", {}, "Try it (the deployed version)"), variables,
+        el("button", { onclick: async () => {
+          try { result.replaceChildren(el("pre", {}, JSON.stringify((await api(`/v1/decisions/${encodeURIComponent(model.id)}/evaluate`, { method: "POST", json: { variables: variables.value ? JSON.parse(variables.value) : {} } })).data, null, 2))); } catch (e) { fail(result, e); }
+        } }, "Evaluate"), result));
+    draw();
+  },
   async analytics(box) {
     const defs = (await api("/v1/process-definitions?pageSize=200")).data.items;
     const ids = [...new Set(defs.map((d) => d.bpmnProcessId))];
@@ -437,7 +511,7 @@ const NEW_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
     <bpmndi:BPMNShape id="Start_di" bpmnElement="Start"><dc:Bounds x="160" y="120" width="36" height="36"/></bpmndi:BPMNShape>
   </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
-const tabs = [["overview", "Overview"], ["instances", "Instances"], ["incidents", "Incidents"], ["tasks", "Tasks"], ["deploy", "Deploy"], ["modeler", "Modeler"], ["forms", "Forms"], ["analytics", "Analytics"]];
+const tabs = [["overview", "Overview"], ["instances", "Instances"], ["incidents", "Incidents"], ["tasks", "Tasks"], ["deploy", "Deploy"], ["modeler", "Modeler"], ["forms", "Forms"], ["decisions", "Decisions"], ["analytics", "Analytics"]];
 let current = "overview", showToken = 0;
 async function show(name) {
   current = name;
