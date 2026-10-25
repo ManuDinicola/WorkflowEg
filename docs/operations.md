@@ -4,7 +4,7 @@
 1. Install PostgreSQL 14-17 and create a database and user.
 2. Download the release zip, extract it, then in an elevated PowerShell:
    `.\install-service.ps1 -ConnectionString "Host=localhost;Database=flowd;Username=flowd;Password=..." -Urls "http://0.0.0.0:8080"`
-   This migrates the database and registers the `Flowd` auto-start service. Use a distinct `-NodeId` per node.
+   This migrates the database and registers the `Flowd` auto-start service. Use a distinct `-NodeId` per node: a node whose id is already used by a running node on the same database refuses to start (exit code 3).
 3. Create the first API key with `flowd apikey create` `--name ops --roles admin [--tenant acme]`; roles are admin, operator, developer, worker, reader. The key is shown once.
 4. Put a TLS-terminating reverse proxy (IIS ARR, nginx, Caddy) in front. Flowd speaks plain HTTP.
 

@@ -71,6 +71,19 @@ internal static class FlowdHostBuilder
     public static IMigrationRunner CreateMigrationRunner(FlowdOptions options) =>
         new PostgresMigrationRunner(options.ConnectionString);
 
+    /// <summary>Holds this node's id on the database for the life of the process; a second node with the same id is refused (FR-DOM-002).</summary>
+    private static void ClaimNodeId(WebApplicationBuilder builder)
+    {
+        var options = builder.Configuration.GetSection(FlowdOptions.SectionName).Get<FlowdOptions>();
+        if (options is null || string.IsNullOrWhiteSpace(options.ConnectionString))
+        {
+            return; // option validation reports the missing connection string
+        }
+
+        var lease = NodeLease.AcquireAsync(options.ConnectionString, options.NodeId, TimeSpan.FromSeconds(options.NodeIdWaitSeconds), CancellationToken.None).GetAwaiter().GetResult();
+        builder.Services.AddSingleton(_ => lease); // registered through a factory so that the container disposes it with the host, which frees the id
+    }
+
     public static WebApplication Build(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
@@ -86,9 +99,11 @@ internal static class FlowdHostBuilder
         AddSecurity(builder.Services, builder.Configuration);
         AddLimits(builder);
         builder.Services.AddOpenApi();
+        ClaimNodeId(builder);
 
         var app = builder.Build();
         _ = app.Services.GetRequiredService<PrometheusMetrics>(); // start listening before the first measurement
+        _ = app.Services.GetService<NodeLease>(); // create it now so the container owns it and disposes it (freeing the node id) when the host is disposed
         app.UseProblemStatusCodes();
         app.UseAuthentication();
         app.UseAuthorization();

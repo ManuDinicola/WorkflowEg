@@ -31,7 +31,17 @@ serve.SetAction(async (parseResult, cancellationToken) =>
         return 1;
     }
 
-    var app = FlowdHostBuilder.Build(args);
+    Microsoft.AspNetCore.Builder.WebApplication app;
+    try
+    {
+        app = FlowdHostBuilder.Build(args);
+    }
+    catch (InvalidOperationException ex) when (ex.Message.Contains("Node id", StringComparison.Ordinal))
+    {
+        await Console.Error.WriteLineAsync(ex.Message.AsMemory(), cancellationToken).ConfigureAwait(false);
+        return 3; // a clear message and a failing exit code, not a stack trace
+    }
+
     await app.RunAsync(cancellationToken).ConfigureAwait(false);
     return 0;
 });

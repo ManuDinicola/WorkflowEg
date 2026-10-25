@@ -15,6 +15,10 @@ public sealed class FlowdOptions
     [Range(0, 1023)]
     public int NodeId { get; init; }
 
+    /// <summary>How long a starting node waits for its node id to be free on the database (a killed node may hold it briefly) before it refuses to start (FR-DOM-002).</summary>
+    [Range(0, 300)]
+    public int NodeIdWaitSeconds { get; init; } = 15;
+
     /// <summary>Webhook endpoint that receives lifecycle events (FR-HIS-002). Empty disables delivery.</summary>
     public Uri? WebhookUrl { get; init; }
 
