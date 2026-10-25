@@ -273,7 +273,11 @@ internal static class FlowdHostBuilder
         services.AddSingleton(sp => sp.GetRequiredService<IConfiguration>().GetSection(ConnectorOptions.SectionName).Get<ConnectorOptions>() ?? new ConnectorOptions());
         services.AddSingleton<ISecretProvider, ConfigSecretProvider>();
         services.AddSingleton<IHttpCallSender, HttpCallSender>();
-        services.AddSingleton<IConnectorHandler, HttpConnectorHandler>();
+        services.AddSingleton<HttpAuthenticator>();
+        services.AddSingleton<HttpConnectorHandler>();
+        services.AddSingleton<IConnectorHandler>(sp => sp.GetRequiredService<HttpConnectorHandler>());
+        services.AddSingleton<IConnectorHandler, GraphQlConnectorHandler>();
+        services.AddSingleton<IConnectorHandler, SlackConnectorHandler>();
         services.AddSingleton<IQueuePublisher, RabbitMqPublisher>();
         services.AddSingleton<IConnectorHandler, QueueConnectorHandler>();
         services.AddSingleton<IEmailSender, SmtpEmailSender>();

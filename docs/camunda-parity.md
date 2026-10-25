@@ -194,9 +194,9 @@ The first list was too narrow: Flowd scored 98 % on it while there were still ma
 
 ### Connectors
 - [x] Outbound HTTP, e-mail and RabbitMQ; inbound signed webhooks; secrets
-- [ ] REST connector with OAuth 2.0 client credentials and basic/bearer helpers
-- [ ] GraphQL connector
-- [ ] Slack connector
+- [x] REST connector with OAuth 2.0 client credentials and basic/bearer helpers
+- [x] GraphQL connector
+- [x] Slack connector (posting messages only)
 - [ ] Kafka connector
 - [ ] SQL connector
 - [ ] AWS (SQS, SNS, Lambda) connectors

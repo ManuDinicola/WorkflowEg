@@ -13,6 +13,9 @@ public sealed class ConnectorOptions
     /// </summary>
     public string[] AllowedHosts { get; init; } = [];
 
+    /// <summary>True when <paramref name="host"/> is in <see cref="AllowedHosts"/> (or the list has <c>*</c>).</summary>
+    public bool AllowsHost(string host) => AllowedHosts.Any(h => h == "*" || string.Equals(h, host, StringComparison.OrdinalIgnoreCase));
+
     public int TimeoutSeconds { get; init; } = 10;
 
     public int MaxResponseBytes { get; init; } = 1_048_576;

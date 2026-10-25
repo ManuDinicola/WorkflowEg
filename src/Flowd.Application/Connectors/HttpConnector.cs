@@ -10,8 +10,11 @@ namespace Flowd.Application.Connectors;
 /// The result variable gets <c>{ status, body }</c>, the body parsed as JSON when it is JSON. A non-2xx answer fails the job (retries apply)
 /// unless <c>failOnError="false"</c>. Only hosts in <see cref="ConnectorOptions.AllowedHosts"/> can be called.
 /// </summary>
-public sealed class HttpConnectorHandler(IHttpCallSender sender, ISecretProvider secrets, ConnectorOptions options) : IConnectorHandler
+public sealed class HttpConnectorHandler(IHttpCallSender sender, ISecretProvider secrets, ConnectorOptions options, HttpAuthenticator authenticator) : IConnectorHandler
 {
+    /// <summary>Internal setting: a body that is sent exactly as it is, without the template pass (used by connectors that build the body themselves).</summary>
+    public const string RawBodySetting = "_rawBody";
+
     public string TaskType => Flowd.Bpmn.Model.ServiceTask.HttpConnectorTaskType;
 
     public async Task<ConnectorResult> ExecuteAsync(ActivatedJob job, CancellationToken cancellationToken)
@@ -19,7 +22,7 @@ public sealed class HttpConnectorHandler(IHttpCallSender sender, ISecretProvider
         ArgumentNullException.ThrowIfNull(job);
         try
         {
-            var call = Build(job);
+            var call = await authenticator.ApplyAsync(Build(job), job, cancellationToken).ConfigureAwait(false);
             var reply = await sender.SendAsync(call, TimeSpan.FromSeconds(Math.Max(options.TimeoutSeconds, 1)), options.MaxResponseBytes, cancellationToken).ConfigureAwait(false);
             var failOnError = !string.Equals(job.CustomHeaders.GetValueOrDefault("failOnError"), "false", StringComparison.OrdinalIgnoreCase);
             if (failOnError && reply.Status is < 200 or >= 300)
@@ -55,12 +58,21 @@ public sealed class HttpConnectorHandler(IHttpCallSender sender, ISecretProvider
         }
 
         var method = (settings.GetValueOrDefault("method") ?? "GET").ToUpperInvariant();
-        var body = settings.TryGetValue("body", out var bodyTemplate) ? Render(bodyTemplate, job) : null;
+        string? body = null;
+        if (settings.TryGetValue(RawBodySetting, out var raw))
+        {
+            body = raw;
+        }
+        else if (settings.TryGetValue("body", out var bodyTemplate))
+        {
+            body = Render(bodyTemplate, job);
+        }
+
         return new HttpCall(method, url, Headers(settings.GetValueOrDefault("headers"), job), body);
     }
 
     private bool HostAllowed(string host) =>
-        options.AllowedHosts.Any(h => h == "*" || string.Equals(h, host, StringComparison.OrdinalIgnoreCase));
+        options.AllowsHost(host);
 
     private string Render(string template, ActivatedJob job) => Template.Render(template, job.Variables, secrets);
 

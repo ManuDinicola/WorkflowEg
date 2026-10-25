@@ -512,7 +512,10 @@ const loadModeler = () => modelerLoad ??= new Promise((resolve, reject) => {
 });
 const ELEMENT_TEMPLATES = {
   job: { label: "Job worker (your own code)", fields: [] },
-  http: { label: "HTTP request (built in)", fields: ["url", "method", "body", "headers", "resultVariable", "failOnError"], defaults: { method: "POST", resultVariable: "response" } },
+  http: { label: "HTTP request (built in)", fields: ["url", "method", "body", "headers", "authType", "token", "username", "password", "tokenUrl", "clientId", "clientSecret", "scope", "resultVariable", "failOnError"], defaults: { method: "POST", resultVariable: "response" } },
+  graphql: { label: "GraphQL (built in)", fields: ["url", "query", "variables", "operationName", "authType", "token", "tokenUrl", "clientId", "clientSecret", "resultVariable"], defaults: { resultVariable: "response" } },
+  slack: { label: "Slack message (built in)", fields: ["token", "channel", "text", "resultVariable"], defaults: { resultVariable: "slack" } },
+  rabbitmq: { label: "RabbitMQ message (built in)", fields: ["exchange", "routingKey", "body", "contentType", "resultVariable"], defaults: { contentType: "application/json", resultVariable: "published" } },
   email: { label: "E-mail (built in)", fields: ["to", "subject", "body", "from", "html", "resultVariable"], defaults: { resultVariable: "email" } },
   decision: { label: "Decision (DMN)", fields: ["decisionId", "resultVariable"] },
 };
@@ -521,7 +524,7 @@ const FLOWD_MODDLE = {
   types: [
     { name: "TaskDefinition", superClass: ["Element"], properties: [{ name: "type", isAttr: true, type: "String" }, { name: "retries", isAttr: true, type: "String" }] },
     { name: "AssignmentDefinition", superClass: ["Element"], properties: [{ name: "assignee", isAttr: true, type: "String" }, { name: "candidateGroups", isAttr: true, type: "String" }] },
-    { name: "Connector", superClass: ["Element"], properties: ["type", "url", "method", "body", "headers", "resultVariable", "failOnError", "to", "subject", "from", "html"].map((name) => ({ name, isAttr: true, type: "String" })) },
+    { name: "Connector", superClass: ["Element"], properties: ["type", "url", "method", "body", "headers", "resultVariable", "failOnError", "to", "subject", "from", "html", "authType", "token", "username", "password", "tokenUrl", "clientId", "clientSecret", "scope", "clientAuthentication", "query", "variables", "operationName", "channel", "text", "exchange", "routingKey", "contentType"].map((name) => ({ name, isAttr: true, type: "String" })) },
     { name: "CalledDecision", superClass: ["Element"], properties: ["decisionId", "resultVariable"].map((name) => ({ name, isAttr: true, type: "String" })) },
   ],
 };

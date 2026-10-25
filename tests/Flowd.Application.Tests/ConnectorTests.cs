@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Flowd.Application.Connectors;
 using Flowd.Application.Jobs;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Flowd.Application.Tests;
 
@@ -26,8 +27,14 @@ public sealed class ConnectorTests
     private static ActivatedJob Job(Dictionary<string, string> headers, string variables = "{}") =>
         new(1, "io.flowd:http", 2, "A", 3, DateTimeOffset.UnixEpoch, JsonNode.Parse(variables)!.AsObject(), headers, DateTimeOffset.UnixEpoch);
 
-    private static HttpConnectorHandler Handler(FakeSender sender, params string[] hosts) =>
-        new(sender, new Secrets(("TOKEN", "s3cret")), new ConnectorOptions { AllowedHosts = hosts });
+    private static HttpConnectorHandler Handler(FakeSender sender, params string[] hosts) => Handler(sender, new FakeTimeProvider(), hosts);
+
+    private static HttpConnectorHandler Handler(FakeSender sender, TimeProvider clock, params string[] hosts)
+    {
+        var options = new ConnectorOptions { AllowedHosts = hosts };
+        var secrets = new Secrets(("TOKEN", "s3cret"), ("CLIENT", "id-1"), ("SECRET", "shh"));
+        return new HttpConnectorHandler(sender, secrets, options, new HttpAuthenticator(sender, secrets, options, clock));
+    }
 
     [Fact]
     public void FR_CON_010_templates_fill_variables_paths_and_secrets_and_refuse_unknown_names()
