@@ -144,8 +144,9 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Browser XML editor with live diagram preview and deploy
 - [x] Analytics (Optimize-like): durations, counts, heatmap
 - [x] Connectors: REST (outbound) and signed webhook (inbound)
-- [ ] Connectors: e-mail and message queue
+- [x] Connector: e-mail (SMTP)
+- [ ] Connector: message queue
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 106 of 119 = 89 %. Target: 95 % (114 of 119).
+Score (2026-10-24): 107 of 120 = 89 %. Target: 95 % (114 of 120).

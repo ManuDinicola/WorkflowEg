@@ -243,6 +243,8 @@ internal static class FlowdHostBuilder
         services.AddSingleton<ISecretProvider, ConfigSecretProvider>();
         services.AddSingleton<IHttpCallSender, HttpCallSender>();
         services.AddSingleton<HttpConnectorHandler>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        services.AddSingleton<EmailConnectorHandler>();
         services.AddSingleton<ConnectorJobProcessor>();
         services.AddHostedService<ConnectorWorker>();
         services.AddHostedService<DecisionWorker>();

@@ -32,3 +32,8 @@ Flowd__Connectors__Webhooks__order-paid__Tenant=                    # default: n
 
 ## Not built yet
 E-mail and message-queue connectors. Calling a service that needs more than headers and a text body (multipart, mutual TLS) is not supported.
+
+## E-mail connector
+A service task with `<flowd:connector type="email" to="{{customer.email}}" subject="Order {{id}}" body="Hello" html="false" from="..." resultVariable="mail"/>` sends one mail through your SMTP server (the built-in worker, at least once: a retry after a crash can send twice). All text settings are templates. The result variable gets `{ "sent": <number of recipients> }`.
+
+Settings under `Flowd:Connectors:Smtp`: `Host` (required), `Port` (587), `UseSsl` (true), `User`, `Password`, `From` (default sender), `AllowedRecipientDomains` (exact domains; empty refuses every mail, `*` allows any). Put the password in an environment variable (`Flowd__Connectors__Smtp__Password`), never in a file you commit. Line breaks in sender, subject or recipients are refused, so a variable cannot inject headers.

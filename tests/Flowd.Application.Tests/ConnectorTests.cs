@@ -95,4 +95,45 @@ public sealed class ConnectorTests
         result.Message!.ShouldContain("nope");
         sender.Calls.ShouldBeEmpty();
     }
+
+    private sealed class FakeMail : IEmailSender
+    {
+        public List<EmailMessage> Sent { get; } = [];
+
+        public Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
+        {
+            Sent.Add(message);
+            return Task.CompletedTask;
+        }
+    }
+
+    private static EmailConnectorHandler Mail(FakeMail mail, string host = "smtp.example.com", params string[] domains) =>
+        new(mail, new Secrets(), new ConnectorOptions { Smtp = new SmtpSettings { Host = host, From = "flowd@example.com", AllowedRecipientDomains = domains } });
+
+    [Fact]
+    public async Task FR_CON_012_the_email_connector_renders_templates_and_reports_the_recipient_count()
+    {
+        var mail = new FakeMail();
+        var job = Job(new() { ["to"] = "{{who}}@example.com; b@example.com", ["subject"] = "Order {{id}}", ["body"] = "Hello {{who}}" }, """{"who":"ann","id":5}""");
+
+        var result = await Mail(mail, domains: "example.com").ExecuteAsync(job, CancellationToken.None);
+
+        result.Success.ShouldBeTrue();
+        result.Variables!["email"]!["sent"]!.GetValue<int>().ShouldBe(2);
+        var sent = mail.Sent.Single();
+        sent.To.ShouldBe(["ann@example.com", "b@example.com"]);
+        (sent.From, sent.Subject, sent.Body).ShouldBe(("flowd@example.com", "Order 5", "Hello ann"));
+    }
+
+    [Fact]
+    public async Task FR_CON_012_unlisted_domains_missing_smtp_and_header_injection_are_refused_without_sending()
+    {
+        var mail = new FakeMail();
+        var ok = new Dictionary<string, string> { ["to"] = "a@evil.com", ["subject"] = "x" };
+
+        (await Mail(mail, domains: "example.com").ExecuteAsync(Job(ok), CancellationToken.None)).Message!.ShouldContain("AllowedRecipientDomains");
+        (await Mail(mail, host: string.Empty, "example.com").ExecuteAsync(Job(new() { ["to"] = "a@example.com" }), CancellationToken.None)).Message!.ShouldContain("Smtp:Host");
+        (await Mail(mail, domains: "example.com").ExecuteAsync(Job(new() { ["to"] = "a@example.com", ["subject"] = "hi\nBcc: x@y.z" }), CancellationToken.None)).Success.ShouldBeFalse();
+        mail.Sent.ShouldBeEmpty();
+    }
 }

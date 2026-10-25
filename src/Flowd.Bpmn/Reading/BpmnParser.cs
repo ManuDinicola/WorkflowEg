@@ -354,10 +354,13 @@ public sealed class BpmnParser
             return ServiceTask.DecisionTaskType;
         }
 
-        return IsHttpConnector(connector) ? ServiceTask.HttpConnectorTaskType : null;
+        return (string?)connector?.Attribute("type") switch
+        {
+            { } t when string.Equals(t, "http", StringComparison.OrdinalIgnoreCase) => ServiceTask.HttpConnectorTaskType,
+            { } t when string.Equals(t, "email", StringComparison.OrdinalIgnoreCase) => ServiceTask.EmailConnectorTaskType,
+            _ => null,
+        };
     }
-
-    private static bool IsHttpConnector(XElement? connector) => string.Equals((string?)connector?.Attribute("type"), "http", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The settings of a <c>flowd:connector</c> element become task headers the built-in connector worker reads (url, method, body, headers, resultVariable, failOnError).</summary>
     private static IEnumerable<KeyValuePair<string, string>> ConnectorHeaders(XElement? connector) =>

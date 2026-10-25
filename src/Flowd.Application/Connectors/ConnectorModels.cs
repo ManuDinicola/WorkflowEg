@@ -19,6 +19,9 @@ public sealed class ConnectorOptions
 
     /// <summary>Inbound webhooks by message name (FR-CON-011).</summary>
     public Dictionary<string, WebhookSettings> Webhooks { get; init; } = new(StringComparer.Ordinal);
+
+    /// <summary>SMTP server of the e-mail connector (FR-CON-012).</summary>
+    public SmtpSettings Smtp { get; init; } = new();
 }
 
 /// <summary>Port: named secrets for connector templates (<c>{{secrets.NAME}}</c>). Secrets never appear in process variables or history.</summary>
