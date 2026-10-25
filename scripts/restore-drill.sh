@@ -3,6 +3,7 @@
 # and that the restored copy is complete and usable. Used by CI; you can run it against a scratch PostgreSQL too.
 #
 #   PGHOST=localhost PGUSER=postgres PGPASSWORD=postgres FLOWD_DLL=src/Flowd.Host/bin/Release/net11.0/flowd.dll ./scripts/restore-drill.sh
+#   (add PG_DOCKER_IMAGE=postgres:16 to run psql, pg_dump and pg_restore from a docker image that matches your server)
 #
 # Needs: psql, pg_dump, pg_restore, curl, dotnet. Creates and drops the databases flowd_drill_src and flowd_drill_restored.
 set -euo pipefail
@@ -12,8 +13,20 @@ PGPORT="${PGPORT:-5432}"
 PGBIN="${PGBIN:+$PGBIN/}"  # directory of psql, pg_dump and pg_restore when they are not on the PATH; use the version of your server
 FLOWD_DLL="${FLOWD_DLL:-src/Flowd.Host/bin/Release/net11.0/flowd.dll}"
 WORK="$(mktemp -d)"
+# Runs a PostgreSQL client tool. With PG_DOCKER_IMAGE (for example postgres:16) the tool runs from that image, so its version always
+# matches the server; otherwise it is taken from PGBIN or the PATH.
+TOOL_DIR="$WORK"
+if [ -n "${PG_DOCKER_IMAGE:-}" ]; then TOOL_DIR=/work; fi
+pgtool() {
+  if [ -n "${PG_DOCKER_IMAGE:-}" ]; then
+    docker run --rm --network host --user "$(id -u):$(id -g)" -e PGPASSWORD -e PGHOST -e PGPORT -e PGUSER -v "$WORK:/work" "$PG_DOCKER_IMAGE" "$@"
+  else
+    local tool="$1"; shift
+    "${PGBIN}${tool}" "$@"
+  fi
+}
 SERVER_PID=""
-trap 'if [ -n "$SERVER_PID" ]; then kill "$SERVER_PID" 2>/dev/null || true; fi; rm -rf "$WORK"; "${PGBIN}psql" -q -d postgres -c "DROP DATABASE IF EXISTS flowd_drill_src" -c "DROP DATABASE IF EXISTS flowd_drill_restored" >/dev/null 2>&1 || true' EXIT
+trap 'if [ -n "$SERVER_PID" ]; then kill "$SERVER_PID" 2>/dev/null || true; fi; rm -rf "$WORK"; pgtool psql -q -d postgres -c "DROP DATABASE IF EXISTS flowd_drill_src" -c "DROP DATABASE IF EXISTS flowd_drill_restored" >/dev/null 2>&1 || true' EXIT
 
 conn() { echo "Host=$PGHOST;Port=$PGPORT;Database=$1;Username=$PGUSER;Password=$PGPASSWORD;Maximum Pool Size=10"; }
 
@@ -42,7 +55,7 @@ cat >"$WORK/drill.bpmn" <<'EOF'
 </bpmn:definitions>
 EOF
 
-"${PGBIN}psql" -q -d postgres -c "DROP DATABASE IF EXISTS flowd_drill_src" -c "DROP DATABASE IF EXISTS flowd_drill_restored" -c "CREATE DATABASE flowd_drill_src" -c "CREATE DATABASE flowd_drill_restored"
+pgtool psql -q -d postgres -c "DROP DATABASE IF EXISTS flowd_drill_src" -c "DROP DATABASE IF EXISTS flowd_drill_restored" -c "CREATE DATABASE flowd_drill_src" -c "CREATE DATABASE flowd_drill_restored"
 
 echo "1. run Flowd on the source database and create some state"
 serve flowd_drill_src 18181
@@ -53,8 +66,8 @@ echo "   instance $KEY started"
 stop
 
 echo "2. back up and restore into an empty database"
-"${PGBIN}pg_dump" -Fc -d flowd_drill_src -f "$WORK/flowd.dump"
-"${PGBIN}pg_restore" --no-owner -d flowd_drill_restored "$WORK/flowd.dump"
+pgtool pg_dump -Fc -d flowd_drill_src -f "$TOOL_DIR/flowd.dump"
+pgtool pg_restore --no-owner -d flowd_drill_restored "$TOOL_DIR/flowd.dump"
 
 echo "3. the restored database needs no migration and holds the instance"
 APPLIED="$(Flowd__ConnectionString="$(conn flowd_drill_restored)" dotnet "$FLOWD_DLL" migrate)"

@@ -91,8 +91,6 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - name: PostgreSQL 16 client tools (they must match the server)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-16
       - run: dotnet build src/Flowd.Host -c Release -v:q
       - name: Backup and restore drill
-        run: PGBIN=/usr/lib/postgresql/16/bin ./scripts/restore-drill.sh
+        run: PG_DOCKER_IMAGE=postgres:16 ./scripts/restore-drill.sh
