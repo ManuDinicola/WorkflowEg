@@ -25,6 +25,7 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
             InExpr membership => EvaluateIn(membership, scope),
             QuantifiedExpr quantified => EvaluateQuantified(quantified, scope),
             RangeExpr => throw new EvaluationFailure(ExpressionErrorCodes.Syntax, "A range is only allowed after 'in'."),
+            FunctionExpr function => new FunctionValue(function.Parameters, function.Body, scope),
         };
     }
 
@@ -39,7 +40,7 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
         ListValue list => new ListValue([.. list.Items.Select(i => Member(i, member))]),
         DateTimeOffset instant => InstantProperty(instant, member),
         TimeSpan span => DurationProperty(span, member),
-        NullValue or bool or decimal or string => Operators.Null,
+        NullValue or bool or decimal or string or FunctionValue => Operators.Null,
     };
 
     /// <summary>FEEL properties of a date and time: <c>.year .month .day .hour .minute .second .weekday</c> (1 = Monday).</summary>
@@ -65,12 +66,20 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
         _ => Operators.Null, // non-union: property name
     };
 
+    /// <summary>Entries of a context do not see each other, except functions: a function defined in an entry can be called by the entries after it (FR-EXPR-014).</summary>
     private ExpressionValue EvaluateContext(ContextExpr context, Scope scope)
     {
         var entries = new Dictionary<string, ExpressionValue>(StringComparer.Ordinal);
+        var functions = new Dictionary<string, ExpressionValue>(StringComparer.Ordinal);
+        var inner = new Scope(functions, scope);
         foreach (var (key, value) in context.Entries)
         {
-            entries[key] = Evaluate(value, scope);
+            var result = Evaluate(value, inner);
+            entries[key] = result;
+            if (result is FunctionValue)
+            {
+                functions[key] = result;
+            }
         }
 
         return new ContextValue(entries);
@@ -134,6 +143,11 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
 
     private ExpressionValue EvaluateCall(CallExpr call, Scope scope)
     {
+        if (scope.TryGet(call.Function, out var callee) && callee is FunctionValue function)
+        {
+            return Invoke(function, call, scope);
+        }
+
         if (!Builtins.Exists(call.Function))
         {
             throw new EvaluationFailure(ExpressionErrorCodes.UnknownFunction, $"Unknown function '{call.Function}'.");
@@ -146,6 +160,22 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
 
         var arguments = call.Arguments.Select(a => Evaluate(a, scope)).ToList();
         return Builtins.Call(call.Function, arguments, now);
+    }
+
+    private ExpressionValue Invoke(FunctionValue function, CallExpr call, Scope scope)
+    {
+        if (call.Arguments.Count != function.Parameters.Count)
+        {
+            throw new EvaluationFailure(ExpressionErrorCodes.Type, $"Function '{call.Function}' takes {function.Parameters.Count} argument(s).");
+        }
+
+        var bindings = new Dictionary<string, ExpressionValue>(StringComparer.Ordinal);
+        for (var i = 0; i < function.Parameters.Count; i++)
+        {
+            bindings[function.Parameters[i]] = Evaluate(call.Arguments[i], scope);
+        }
+
+        return Evaluate((Expr)function.Body, new Scope(bindings, (Scope)function.Closure));
     }
 
     private bool IsDefined(CallExpr call, Scope scope)

@@ -33,6 +33,7 @@ public static class ExpressionJson
         TimeSpan span => JsonValue.Create(XmlConvert.ToString(span)),
         ListValue list => new JsonArray([.. list.Items.Select(ToJson)]),
         ContextValue context => ToObject(context),
+        FunctionValue => null,
     };
 
     private static JsonObject ToObject(ContextValue context)

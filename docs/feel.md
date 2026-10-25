@@ -19,4 +19,7 @@ Regular expressions have a 100 ms match timeout; a pattern that runs longer fail
 User-defined functions, the time-of-day (`time`) type, years-and-months durations, `instance of`, and the less common standard functions (`stddev`, `mode`, `list replace`, ...). Check `docs/camunda-parity.md`.
 
 ## More functions
-`stddev`, `variance`, `mode`, `trim`, `is blank`, `is empty`, `decimal(n, scale)`, `list replace(list, position, value)`, `get entries(context)` (list of `{key, value}`), `week of year(date)`, `to json(value)`, `from json(text)` (null when the text is not JSON) and `to base64(text)`. There is still no time-of-day type, no years-and-months duration and no user defined functions.
+`stddev`, `variance`, `mode`, `trim`, `is blank`, `is empty`, `decimal(n, scale)`, `list replace(list, position, value)`, `get entries(context)` (list of `{key, value}`), `week of year(date)`, `to json(value)`, `from json(text)` (null when the text is not JSON) and `to base64(text)`. There is still no time-of-day type and no years-and-months duration.
+
+## User defined functions
+`{double: function(x) x * 2, r: double(4)}.r` gives `8`. A function keeps the scope it was created in, so it can read the variables of the expression. Inside a context, entries do not see each other, except functions: a later entry can call a function defined in an earlier one. Functions are not recursive and cannot be stored in process variables (they become null as JSON).

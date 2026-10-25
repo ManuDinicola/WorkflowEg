@@ -57,6 +57,7 @@ internal static class Builtins
         TimeSpan span => XmlConvert.ToString(span),
         ListValue l => "[" + string.Join(", ", l.Items.Select(ToText)) + "]",
         ContextValue c => "{" + string.Join(", ", c.Entries.Select(e => $"{e.Key}: {ToText(e.Value)}")) + "}",
+        FunctionValue f => $"function({string.Join(", ", f.Parameters)})",
     };
 
     internal static ExpressionValue Arg(IReadOnlyList<ExpressionValue> args, int index) =>

@@ -106,7 +106,7 @@ internal static class Operators
     {
         decimal d => -d,
         TimeSpan t => -t,
-        NullValue or bool or string or DateTimeOffset or ListValue or ContextValue => Null,
+        NullValue or bool or string or DateTimeOffset or ListValue or ContextValue or FunctionValue => Null,
     };
 
     private static ExpressionValue Power(decimal x, decimal y)

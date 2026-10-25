@@ -150,4 +150,11 @@ public sealed class BuiltinFunctionTests
     [InlineData("to json({a: 1})", "{\"a\":1}")]
     [InlineData("get entries({a: 1})[1].key", "a")]
     public void FR_EXPR_013_more_standard_and_camunda_functions(string expression, string expected) => Run(expression).ShouldBe(expected);
+
+    [Theory]
+    [InlineData("{double: function(x) x * 2, r: double(4)}.r", "8")]
+    [InlineData("{add: function(a, b) a + b, r: add(1, 2) + add(10, 20)}.r", "33")]
+    [InlineData("{addk: function(x) x + 1, r: addk(1)}.r", "2")]
+    [InlineData("{f: function(x) x, r: f(1, 2)}.r", "ERR")]
+    public void FR_EXPR_014_user_defined_functions(string expression, string expected) => Run(expression).ShouldBe(expected);
 }

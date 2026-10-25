@@ -111,3 +111,10 @@ internal sealed class RangeExpr(Expr low, Expr high, bool lowInclusive, bool hig
 
     public bool HighInclusive { get; } = highInclusive;
 }
+
+internal sealed class FunctionExpr(IReadOnlyList<string> parameters, Expr body) : Expr
+{
+    public IReadOnlyList<string> Parameters { get; } = parameters;
+
+    public Expr Body { get; } = body;
+}

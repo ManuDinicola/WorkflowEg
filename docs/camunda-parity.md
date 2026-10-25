@@ -25,9 +25,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Link events
 - [x] Conditional events (boundary, catch, event sub-process; fire once)
 - [ ] Conditional start events
-- [ ] Multiple and parallel multiple events
 - [x] Compensation (simplified: boundary event with handler task, intermediate and end throw; handlers start together, the throw does not wait)
-- [ ] Transaction sub-process and cancel event
 
 ## BPMN activities and gateways
 - [x] Service task (job worker)
@@ -43,7 +41,6 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Parallel gateway
 - [x] Inclusive gateway
 - [x] Event-based gateway
-- [ ] Complex gateway
 - [x] Ad-hoc sub-process (all free activities start; no completion condition or dynamic selection)
 - [x] Business rule task with DMN
 - [x] Multi-instance completion condition
@@ -60,7 +57,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] FEEL: date and time arithmetic, properties (.year .hour .days ...) and date functions
 - [ ] FEEL: time-of-day type and years-and-months durations
 - [x] FEEL: the rarer standard functions (stddev, variance, mode, trim, is blank, is empty, decimal, list replace, get entries, week of year, to json, from json, to base64)
-- [ ] FEEL: user defined functions
+- [x] FEEL: user defined functions (defined and called inside one expression; they cannot be stored in variables)
 - [x] Variable and message payload size limits and truncation rules
 - [x] Execution listeners (non-blocking jobs: start and end; Camunda 8.6 listeners can block, Flowd's cannot)
 
@@ -150,4 +147,6 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 111 of 121 = 91 %. Target: 95 % (115 of 121).
+Score (2026-10-25): 112 of 118 = 94 %. Target: 95 % (113 of 118).
+
+Not counted: complex gateway, transaction sub-process with cancel event, and multiple / parallel multiple events. Camunda 8 does not support them either (they are BPMN elements that Camunda 8 leaves out), so they are not Camunda 8 features. Flowd does not support them. Before 2026-10-25 these three lines were in the checklist as open items; moving them out raised the percentage by about three points without any new code, so compare scores before and after with that in mind.
