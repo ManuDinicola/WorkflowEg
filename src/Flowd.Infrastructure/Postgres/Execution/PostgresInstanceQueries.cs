@@ -10,7 +10,7 @@ public sealed class PostgresInstanceQueries(NpgsqlDataSource dataSource) : IInst
 {
     private const string InstanceSelect =
         "SELECT p.key AS Key, p.definition_key AS DefinitionKey, d.bpmn_process_id AS BpmnProcessId, d.version AS Version, p.state AS State, " +
-        "p.started_at AS StartedAt, p.ended_at AS EndedAt, p.business_key AS BusinessKey " +
+        "p.started_at AS StartedAt, p.ended_at AS EndedAt, p.business_key AS BusinessKey, p.tags AS Tags " +
         "FROM process_instance p JOIN process_definition d ON d.key = p.definition_key";
 
     public async Task<InstanceView?> GetInstanceAsync(string tenantId, long instanceKey, CancellationToken cancellationToken)
@@ -32,6 +32,7 @@ public sealed class PostgresInstanceQueries(NpgsqlDataSource dataSource) : IInst
             "AND (@varName::text IS NULL OR EXISTS (SELECT 1 FROM variable v WHERE v.scope_key = p.key AND v.name = @varName AND v.value = @varValue::jsonb)) " +
             "AND (@state::text IS NULL OR p.state = @state) AND (@process::text IS NULL OR d.bpmn_process_id = @process) " +
             "AND (@business::text IS NULL OR p.business_key = @business) AND (@allowed::text[] IS NULL OR d.bpmn_process_id = ANY (@allowed)) " +
+            "AND (@tag::text IS NULL OR (',' || p.tags || ',') LIKE '%,' || @tag || ',%') " +
             "AND (@from::timestamptz IS NULL OR p.started_at >= @from) AND (@to::timestamptz IS NULL OR p.started_at < @to) " +
             "ORDER BY CASE WHEN @desc THEN -p.key ELSE p.key END LIMIT @take",
             new
@@ -45,6 +46,7 @@ public sealed class PostgresInstanceQueries(NpgsqlDataSource dataSource) : IInst
                 state = filter.State?.ToUpperInvariant(),
                 process = filter.BpmnProcessId,
                 business = filter.BusinessKey,
+                tag = filter.Tag,
                 allowed = filter.AllowedProcessIds?.ToArray(),
                 from = filter.StartedAfter?.UtcDateTime,
                 to = filter.StartedBefore?.UtcDateTime,
@@ -149,9 +151,11 @@ public sealed class PostgresInstanceQueries(NpgsqlDataSource dataSource) : IInst
 
         public string? BusinessKey { get; set; }
 
+        public string Tags { get; set; } = string.Empty;
+
         public InstanceView ToView() => new(
             Key, DefinitionKey, BpmnProcessId, Version, State,
-            PostgresInstanceTransaction.Utc(StartedAt), EndedAt is { } e ? PostgresInstanceTransaction.Utc(e) : null, BusinessKey);
+            PostgresInstanceTransaction.Utc(StartedAt), EndedAt is { } e ? PostgresInstanceTransaction.Utc(e) : null, BusinessKey, Tags.Split(',', StringSplitOptions.RemoveEmptyEntries));
     }
 
     private sealed class HistoryRow

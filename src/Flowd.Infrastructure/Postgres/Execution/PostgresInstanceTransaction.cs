@@ -404,8 +404,8 @@ internal static class EffectWriter
     private static void InsertInstance(NpgsqlBatch batch, InstanceStarted s) =>
         Add(
             batch,
-            "INSERT INTO process_instance (key, definition_key, state, business_key, tenant_id, started_at, parent_instance_key, parent_element_instance_key) VALUES (@k, @d, 'ACTIVE', @b, @t, @a, @pi, @pe)",
-            ("k", s.InstanceKey), ("d", s.DefinitionKey), ("b", (object?)s.BusinessKey ?? DBNull.Value), ("t", s.TenantId), ("a", s.StartedAt.UtcDateTime), ("pi", (object?)s.ParentInstanceKey ?? DBNull.Value), ("pe", (object?)s.ParentElementInstanceKey ?? DBNull.Value));
+            "INSERT INTO process_instance (key, definition_key, state, business_key, tenant_id, started_at, parent_instance_key, parent_element_instance_key, tags) VALUES (@k, @d, 'ACTIVE', @b, @t, @a, @pi, @pe, @tags)",
+            ("k", s.InstanceKey), ("d", s.DefinitionKey), ("b", (object?)s.BusinessKey ?? DBNull.Value), ("t", s.TenantId), ("a", s.StartedAt.UtcDateTime), ("pi", (object?)s.ParentInstanceKey ?? DBNull.Value), ("pe", (object?)s.ParentElementInstanceKey ?? DBNull.Value), ("tags", string.Join(',', s.Tags ?? [])));
 
     private static void UpsertElement(NpgsqlBatch batch, long instanceKey, ElementInstance e) =>
         Add(

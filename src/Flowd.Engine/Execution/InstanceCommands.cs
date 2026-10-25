@@ -25,7 +25,7 @@ internal static class InstanceCommands
                 : $"'{command.StartElementId}' cannot be used as the start element of this process.");
         }
 
-        context.Emit(new InstanceStarted(state.InstanceKey, state.DefinitionKey, state.TenantId, state.BusinessKey, state.StartedAt, state.ParentInstanceKey, state.ParentElementInstanceKey));
+        context.Emit(new InstanceStarted(state.InstanceKey, state.DefinitionKey, state.TenantId, state.BusinessKey, state.StartedAt, state.ParentInstanceKey, state.ParentElementInstanceKey, state.Tags));
         context.Record(HistoryEventTypes.InstanceStarted);
         if (WriteAll(context, state.InstanceKey, command.Variables, propagate: false) is { } rejection)
         {

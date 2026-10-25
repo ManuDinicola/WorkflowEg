@@ -29,7 +29,8 @@ public sealed record StartInstanceRequest(
     long? CorrelatedMessageKey = null,
     long? ParentInstanceKey = null,
     long? ParentElementInstanceKey = null,
-    string? VersionTag = null);
+    string? VersionTag = null,
+    IReadOnlyList<string>? Tags = null);
 
 public sealed record StartedInstance(long InstanceKey, long DefinitionKey, int Version, string BpmnProcessId);
 
@@ -148,6 +149,11 @@ public sealed class StartInstanceUseCase(
     public async Task<Result<StartedInstance>> ExecuteAsync(StartInstanceRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (InstanceTags.Check(request.Tags) is { } tagProblem)
+        {
+            return new Failure(new ValidationFailure(tagProblem));
+        }
+
         var definition = await ResolveDefinitionAsync(request, cancellationToken).ConfigureAwait(false);
         if (definition is null)
         {
@@ -163,6 +169,7 @@ public sealed class StartInstanceUseCase(
         var state = new EngineState(engine.Keys.NextKey(), definition.Key, graph, request.TenantId, engine.Time.GetUtcNow())
         {
             BusinessKey = request.BusinessKey,
+            Tags = request.Tags ?? [],
             ParentInstanceKey = request.ParentInstanceKey,
             ParentElementInstanceKey = request.ParentElementInstanceKey,
         };

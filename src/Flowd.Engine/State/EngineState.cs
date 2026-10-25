@@ -93,6 +93,9 @@ public sealed class EngineState
 
     public string? BusinessKey { get; set; }
 
+    /// <summary>Tags given when the instance was started (FR-EXEC-020). Only used to store them; they never change.</summary>
+    public IReadOnlyList<string> Tags { get; set; } = [];
+
     /// <summary>Set when this instance was started by a call activity (FR-EXEC-011).</summary>
     public long? ParentInstanceKey { get; init; }
 
@@ -137,6 +140,7 @@ public sealed class EngineState
         var copy = new EngineState(InstanceKey, DefinitionKey, Graph, TenantId, StartedAt)
         {
             BusinessKey = BusinessKey,
+            Tags = Tags,
             ParentInstanceKey = ParentInstanceKey,
             ParentElementInstanceKey = ParentElementInstanceKey,
             EndedAt = EndedAt,

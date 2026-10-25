@@ -10,10 +10,11 @@ public sealed record InstanceView(
     string State,
     DateTimeOffset StartedAt,
     DateTimeOffset? EndedAt,
-    string? BusinessKey);
+    string? BusinessKey,
+    IReadOnlyList<string>? Tags = null);
 
 /// <summary>Instance search: <c>VariableName</c> with <c>VariableValueJson</c> matches a root-scope variable; <c>Descending</c> lists the newest first.</summary>
-public sealed record InstanceFilter(string? State, string? BpmnProcessId, string? BusinessKey, DateTimeOffset? StartedAfter, DateTimeOffset? StartedBefore, string? VariableName = null, string? VariableValueJson = null, bool Descending = false, IReadOnlyList<string>? AllowedProcessIds = null);
+public sealed record InstanceFilter(string? State, string? BpmnProcessId, string? BusinessKey, DateTimeOffset? StartedAfter, DateTimeOffset? StartedBefore, string? VariableName = null, string? VariableValueJson = null, bool Descending = false, IReadOnlyList<string>? AllowedProcessIds = null, string? Tag = null);
 
 public sealed record InstancePage(IReadOnlyList<InstanceView> Items, long? NextCursor);
 

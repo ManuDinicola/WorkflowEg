@@ -38,7 +38,7 @@ public static class HistoryEventTypes
 }
 
 /// <summary>The instance row was created (first effect of <c>StartInstance</c>).</summary>
-public sealed record InstanceStarted(long InstanceKey, long DefinitionKey, string TenantId, string? BusinessKey, DateTimeOffset StartedAt, long? ParentInstanceKey = null, long? ParentElementInstanceKey = null);
+public sealed record InstanceStarted(long InstanceKey, long DefinitionKey, string TenantId, string? BusinessKey, DateTimeOffset StartedAt, long? ParentInstanceKey = null, long? ParentElementInstanceKey = null, IReadOnlyList<string>? Tags = null);
 
 /// <summary>The instance changed state.</summary>
 public sealed record InstanceStateChanged(InstanceState State, DateTimeOffset? EndedAt);

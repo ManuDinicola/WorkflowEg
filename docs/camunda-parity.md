@@ -172,7 +172,7 @@ The first list was too narrow: Flowd scored 98 % on it while there were still ma
 - [x] Job type, retries and headers given as expressions
 - [x] Signal end event
 - [x] Version tags on process definitions, and call activities that bind to a version tag (not the "deployment" binding)
-- [ ] Process instance tags
+- [x] Process instance tags (set at start, searchable; not changeable afterwards)
 - [x] Call activity with the called process id as an expression
 
 ### FEEL
