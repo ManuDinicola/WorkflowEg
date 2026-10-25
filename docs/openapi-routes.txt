@@ -5,10 +5,12 @@ GET /healthz
 GET /metrics
 GET /readyz
 GET /ui
+GET /ui/vendor/{file}
 GET /v1/analytics/processes/{bpmnProcessId}
 GET /v1/analytics/summary
 GET /v1/audit
 GET /v1/decisions
+GET /v1/decisions/{decisionId}/xml
 GET /v1/events/stream
 GET /v1/forms
 GET /v1/forms/{formId}
