@@ -75,7 +75,7 @@ public sealed class EvaluateDecisionUseCase(IDecisionStore store, TimeProvider t
             return new Failure(new NotFound($"Decision '{decisionId}' not found."));
         }
 
-        var outcome = DecisionEvaluator.Evaluate(decision, definitions.Decisions, ExpressionJson.ToVariables(variables ?? []), time.GetUtcNow());
+        var outcome = DecisionEvaluator.Evaluate(decision, definitions, ExpressionJson.ToVariables(variables ?? []), time.GetUtcNow());
         return outcome switch
         {
             DecisionResult result => new DecisionEvaluation(ExpressionJson.ToJson(result.Value)),

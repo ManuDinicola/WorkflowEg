@@ -193,7 +193,7 @@ public sealed class DmnTests
         var read = DmnParser.Read(new MemoryStream(Encoding.UTF8.GetBytes(xml)));
         var definitions = read is DmnDefinitions parsed ? parsed : throw new InvalidOperationException("DMN did not parse.");
         var variables = ExpressionJson.ToVariables(JsonNode.Parse(json)!.AsObject());
-        return DecisionEvaluator.Evaluate(definitions.Decisions.Single(d => d.Id == decisionId), definitions.Decisions, variables, Now) switch
+        return DecisionEvaluator.Evaluate(definitions.Decisions.Single(d => d.Id == decisionId), definitions, variables, Now) switch
         {
             DecisionResult result => Text(result.Value),
             DecisionFailure failure => $"ERR:{failure.Code}",
@@ -240,5 +240,53 @@ public sealed class DmnTests
 
         RunGraph(missing, "discount", """{"amount":1}""").ShouldBe("ERR:DMN_REQUIREMENT_MISSING");
         RunGraph(Cycle, "a", "{}").ShouldBe("ERR:DMN_CYCLE");
+    }
+
+    private const string Knowledge = """
+        <definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/">
+          <businessKnowledgeModel id="m1" name="withTax">
+            <encapsulatedLogic><formalParameter name="net"/><formalParameter name="rate"/><literalExpression><text>net + net * rate / 100</text></literalExpression></encapsulatedLogic>
+          </businessKnowledgeModel>
+          <businessKnowledgeModel id="m2" name="gross">
+            <encapsulatedLogic><formalParameter name="x"/><literalExpression><text>withTax(x, 20)</text></literalExpression></encapsulatedLogic>
+          </businessKnowledgeModel>
+          <decision id="total" name="Total">
+            <knowledgeRequirement><requiredKnowledge href="#m2"/></knowledgeRequirement>
+            <literalExpression><text>gross(amount) + withTax(1, 10)</text></literalExpression>
+          </decision>
+        </definitions>
+        """;
+
+    [Fact]
+    public void FR_DMN_006_business_knowledge_models_are_functions_decisions_can_call_and_models_can_call_earlier_ones()
+    {
+        RunGraph(Knowledge, "total", """{"amount":100}""").ShouldBe("121.1");
+    }
+
+    [Fact]
+    public void FR_DMN_006_a_broken_knowledge_model_is_an_error_not_a_crash()
+    {
+        RunGraph(Knowledge.Replace("net + net * rate / 100", "net +", StringComparison.Ordinal), "total", """{"amount":1}""").ShouldBe("ERR:DMN_KNOWLEDGE_MODEL");
+    }
+
+    private const string EditorOutput = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" id="my-decision-defs" name="My decision" namespace="http://flowd.io/dmn">
+          <decision id="my-decision" name="My decision">
+            <decisionTable hitPolicy="FIRST">
+              <input label="Amount"><inputExpression><text>amount</text></inputExpression></input>
+              <output name="result"/>
+              <rule><inputEntry><text>&gt;= 100</text></inputEntry><outputEntry><text>&quot;high&quot;</text></outputEntry></rule>
+              <rule><inputEntry><text>-</text></inputEntry><outputEntry><text>&quot;low&quot;</text></outputEntry></rule>
+            </decisionTable>
+          </decision>
+        </definitions>
+        """;
+
+    [Fact]
+    public void FR_UI_008_a_table_written_by_the_decision_editor_parses_and_evaluates()
+    {
+        RunGraph(EditorOutput, "my-decision", """{"amount":150}""").ShouldBe("high");
+        RunGraph(EditorOutput, "my-decision", """{"amount":5}""").ShouldBe("low");
     }
 }

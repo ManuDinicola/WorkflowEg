@@ -28,11 +28,17 @@
   .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
   .badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; border:1px solid var(--line); }
   .ACTIVE, .OPEN, .CREATED { color:var(--accent); } .COMPLETED { color:var(--ok); } .TERMINATED { color:var(--muted); } .bad { color:var(--bad); }
+  .modeler { height:520px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  table.dmn { border-collapse:collapse; margin:10px 0; } table.dmn th, table.dmn td { border:1px solid var(--line); padding:4px; vertical-align:top; }
+  .split { display:grid; grid-template-columns:1fr 280px; gap:12px; margin-top:10px; }
+  .props label { display:block; margin-top:8px; }
+  .props input { width:100%; box-sizing:border-box; }
   .diagram { overflow:auto; border:1px solid var(--line); border-radius:8px; background:var(--card); }
   svg text { fill:var(--fg); font:11px system-ui, sans-serif; }
   .shape { fill:var(--card); stroke:var(--fg); stroke-width:1.2; }
   pre { margin:0; white-space:pre-wrap; word-break:break-word; font-size:12px; }
   .err { color:var(--bad); margin:8px 0; }
+  label.inline { display:inline-block; margin:0 8px 0 0; }
   label { display:block; margin:8px 0 2px; color:var(--muted); }
   @media (max-width:600px) { main { padding:10px; } }
 </style>
@@ -41,7 +47,7 @@
 <header>
   <h1>Flowd</h1>
   <nav id="nav"></nav>
-  <div class="key"><label for="apikey" style="margin:0">API key</label><input id="apikey" type="password" placeholder="not needed in dev mode" size="18"><button id="savekey">Use</button></div>
+  <div class="key"><span id="signin"></span><label for="apikey" style="margin:0">API key</label><input id="apikey" type="password" placeholder="not needed in dev mode" size="18"><button id="savekey">Use</button></div>
 </header>
 <main id="view"></main>
 <script>
@@ -63,7 +69,8 @@ $("#savekey").addEventListener("click", () => { apiKey = $("#apikey").value; ses
 
 async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
-  if (apiKey) headers["X-Api-Key"] = apiKey;
+  const bearer = validToken();
+  if (bearer) headers["Authorization"] = "Bearer " + bearer; else if (apiKey) headers["X-Api-Key"] = apiKey;
   if (options.json !== undefined) { headers["Content-Type"] = "application/json"; options.body = JSON.stringify(options.json); }
   const response = await fetch(path, { method: options.method || "GET", headers, body: options.body });
   const text = await response.text();
@@ -71,6 +78,18 @@ async function api(path, options = {}) {
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   if (!response.ok) { const detail = data && (data.detail || data.title || JSON.stringify(data)) || response.statusText; throw new Error(response.status + " " + detail); }
   return { data, text };
+}
+
+/* ---------- form fields (shared by the Tasks tab and the form builder) ---------- */
+function formField(c) {
+  const options = (c.values || []).map((o) => el("option", { value: o.value }, o.label ?? o.value));
+  let input;
+  if (c.type === "checkbox") input = el("input", { type: "checkbox" });
+  else if (c.type === "textarea") input = el("textarea", {});
+  else if (c.type === "select") input = el("select", {}, el("option", { value: "" }, ""), ...options);
+  else if (c.type === "radio") input = el("select", {}, el("option", { value: "" }, ""), ...options); // one choice: shown as a list
+  else input = el("input", { type: c.type === "number" ? "number" : "text" });
+  return { c, input, row: el("div", {}, el("label", {}, (c.label || c.key) + (c.validate && c.validate.required ? " *" : "")), input) };
 }
 const fmt = (iso) => iso ? new Date(iso).toLocaleString() : "";
 const fail = (box, error) => { box.replaceChildren(el("div", { class: "err" }, String(error.message || error))); };
@@ -201,10 +220,7 @@ const views = {
       const inputs = [];
       const walk = (components) => { for (const c of components || []) { if (c.key) inputs.push(c); walk(c.components); } };
       walk(schema.components);
-      const fields = inputs.map((c) => {
-        const input = c.type === "checkbox" ? el("input", { type: "checkbox" }) : c.type === "textarea" ? el("textarea", {}) : el("input", { type: c.type === "number" ? "number" : "text" });
-        return { c, input, row: el("div", {}, el("label", {}, (c.label || c.key) + (c.validate && c.validate.required ? " *" : "")), input) };
-      });
+      const fields = inputs.map(formField);
       const message = el("div");
       form.replaceChildren(el("div", { class: "card" }, el("h3", {}, `Task ${task.key} — ${task.elementId}`), ...fields.map((f) => f.row), message,
         el("button", { class: "primary", onclick: async () => {
@@ -238,6 +254,146 @@ const views = {
       el("div", { class: "row" }, el("button", { onclick: () => { try { preview.replaceChildren(drawDiagram(editor.value)); } catch (e) { fail(preview, e); } } }, "Preview"),
         el("button", { class: "primary", onclick: async () => { try { await upload(new Blob([editor.value], { type: "application/xml" }), "editor.bpmn"); } catch (e) { fail(message, e); } } }, "Deploy")), preview, message));
   },
+  async forms(box) {
+    const TYPES = ["textfield", "number", "textarea", "checkbox", "select", "radio"];
+    let comps = [], formId = "my-form";
+    const message = el("div"), builder = el("div"), preview = el("div"), json = el("textarea", { readonly: "readonly", rows: "10" });
+    const schema = () => ({ id: formId, type: "default", components: comps });
+    const refresh = () => {
+      json.value = JSON.stringify(schema(), null, 2);
+      preview.replaceChildren(el("div", { class: "card" }, el("h4", {}, "Preview"), ...comps.map((c) => formField(c).row)));
+    };
+    const num = (v) => (v === "" ? undefined : Number(v));
+    const input = (value, apply, attrs = {}) => { const i = el("input", { value: value ?? "", ...attrs }); i.addEventListener("change", () => { apply(i.value.trim()); refresh(); }); return i; };
+    const validate = (c, key, value) => { const v = { ...(c.validate || {}) }; if (value === undefined || value === "" || value === false) delete v[key]; else v[key] = value; if (Object.keys(v).length) c.validate = v; else delete c.validate; };
+    const rows = () => {
+      builder.replaceChildren(...comps.map((c, index) => {
+        const type = el("select", {}, ...TYPES.map((t) => el("option", { value: t, ...(t === c.type ? { selected: "selected" } : {}) }, t)));
+        type.addEventListener("change", () => { c.type = type.value; if (!["select", "radio"].includes(c.type)) delete c.values; rows(); refresh(); });
+        const required = el("input", { type: "checkbox", ...(c.validate?.required ? { checked: "checked" } : {}) });
+        required.addEventListener("change", () => { validate(c, "required", required.checked); refresh(); });
+        const extra = [];
+        if (c.type === "number") extra.push(el("label", {}, "min"), input(c.validate?.min, (v) => validate(c, "min", num(v)), { size: "5" }), el("label", {}, "max"), input(c.validate?.max, (v) => validate(c, "max", num(v)), { size: "5" }));
+        if (c.type === "textfield" || c.type === "textarea") extra.push(el("label", {}, "min length"), input(c.validate?.minLength, (v) => validate(c, "minLength", num(v)), { size: "4" }), el("label", {}, "max length"), input(c.validate?.maxLength, (v) => validate(c, "maxLength", num(v)), { size: "4" }), el("label", {}, "pattern"), input(c.validate?.pattern, (v) => validate(c, "pattern", v), { size: "14" }));
+        if (c.type === "select" || c.type === "radio") extra.push(el("label", {}, "options (label=value, comma separated)"), input((c.values || []).map((o) => `${o.label}=${o.value}`).join(", "), (v) => { c.values = v.split(",").map((s) => s.trim()).filter(Boolean).map((s) => { const [label, value = label] = s.split("="); return { label: label.trim(), value: value.trim() }; }); }, { size: "24" }));
+        const move = (by) => () => { const to = index + by; if (to < 0 || to >= comps.length) return; [comps[index], comps[to]] = [comps[to], comps[index]]; rows(); refresh(); };
+        return el("div", { class: "card row" }, type, el("label", {}, "key"), input(c.key, (v) => { c.key = v; }, { size: "12" }), el("label", {}, "label"), input(c.label, (v) => { c.label = v || undefined; }, { size: "14" }),
+          el("label", {}, "required"), required, ...extra, el("button", { onclick: move(-1) }, "↑"), el("button", { onclick: move(1) }, "↓"), el("button", { onclick: () => { comps.splice(index, 1); rows(); refresh(); } }, "✕"));
+      }));
+    };
+    const load = (s) => { formId = s.id || "my-form"; comps = JSON.parse(JSON.stringify(s.components || [])); idBox.value = formId; rows(); refresh(); };
+    const idBox = el("input", { value: formId });
+    idBox.addEventListener("change", () => { formId = idBox.value.trim(); refresh(); });
+    const known = (await api("/v1/forms")).data.items ?? [];
+    const open = el("select", {}, el("option", { value: "" }, "Open a deployed form…"), ...known.map((f) => el("option", { value: f.formId }, f.formId)));
+    open.addEventListener("change", async () => { if (open.value) { try { load((await api("/v1/forms/" + encodeURIComponent(open.value))).data.schema); } catch (e) { fail(message, e); } } });
+    box.append(el("p", { class: "muted" }, "Build a form for user tasks: add fields, set their checks, see the preview, then deploy. The checks are enforced when the task is completed."),
+      el("div", { class: "row" }, el("label", {}, "Form id"), idBox, open,
+        el("button", { onclick: () => { comps.push({ type: "textfield", key: "field" + (comps.length + 1), label: "Field " + (comps.length + 1) }); rows(); refresh(); } }, "Add field"),
+        el("button", { class: "primary", onclick: async () => {
+          try {
+            if (!/^[A-Za-z0-9_.-]+$/.test(formId)) throw new Error("The form id may use letters, digits, dots, dashes and underscores.");
+            const body = new FormData(); body.append("resources", new Blob([json.value], { type: "application/json" }), formId + ".form");
+            message.replaceChildren(el("pre", {}, JSON.stringify((await api("/v1/forms", { method: "POST", body })).data, null, 2)));
+          } catch (e) { fail(message, e); }
+        } }, "Deploy")),
+      builder, message, el("div", { class: "split" }, preview, el("div", {}, el("h4", {}, "Form JSON"), json)));
+    load({ id: formId, components: [{ type: "textfield", key: "name", label: "Name", validate: { required: true } }] });
+  },
+  async decisions(box) {
+    const POLICIES = ["UNIQUE", "FIRST", "ANY", "PRIORITY", "COLLECT", "RULE ORDER", "OUTPUT ORDER"], AGGREGATIONS = ["", "SUM", "MIN", "MAX", "COUNT"];
+    const blank = () => ({ id: "my-decision", name: "My decision", hitPolicy: "FIRST", aggregation: "", inputs: [{ label: "Amount", expr: "amount" }], outputs: [{ name: "result" }], rules: [{ ins: [">= 100"], outs: ['"high"'] }, { ins: ["-"], outs: ['"low"'] }] });
+    let model = blank();
+    const grid = el("div"), message = el("div"), result = el("div");
+    const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const toXml = () => `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" id="${esc(model.id)}-defs" name="${esc(model.name)}" namespace="http://flowd.io/dmn">
+  <decision id="${esc(model.id)}" name="${esc(model.name)}">
+    <decisionTable hitPolicy="${model.hitPolicy}"${model.aggregation ? ` aggregation="${model.aggregation}"` : ""}>
+${model.inputs.map((i) => `      <input label="${esc(i.label)}"><inputExpression><text>${esc(i.expr)}</text></inputExpression></input>`).join("\n")}
+${model.outputs.map((o) => `      <output name="${esc(o.name)}"/>`).join("\n")}
+${model.rules.map((r) => `      <rule>${r.ins.map((t) => `<inputEntry><text>${esc(t)}</text></inputEntry>`).join("")}${r.outs.map((t) => `<outputEntry><text>${esc(t)}</text></outputEntry>`).join("")}</rule>`).join("\n")}
+    </decisionTable>
+  </decision>
+</definitions>`;
+    const fromXml = (xml) => {
+      const doc = new DOMParser().parseFromString(xml, "application/xml");
+      if (doc.querySelector("parsererror")) throw new Error("The file is not valid XML.");
+      const local = (root, name) => [...root.getElementsByTagNameNS("*", name)];
+      const decision = local(doc, "decision").find((d) => local(d, "decisionTable").length);
+      if (!decision) throw new Error("No decision table found. This editor edits decision tables.");
+      const table = local(decision, "decisionTable")[0], text = (n) => (local(n, "text")[0]?.textContent ?? "").trim();
+      model = {
+        id: decision.getAttribute("id") || "decision", name: decision.getAttribute("name") || "", hitPolicy: (table.getAttribute("hitPolicy") || "UNIQUE").toUpperCase(), aggregation: (table.getAttribute("aggregation") || "").toUpperCase(),
+        inputs: local(table, "input").map((i) => ({ label: i.getAttribute("label") || "", expr: text(local(i, "inputExpression")[0] ?? i) })),
+        outputs: local(table, "output").map((o) => ({ name: o.getAttribute("name") || o.getAttribute("label") || "result" })),
+        rules: local(table, "rule").map((r) => ({ ins: local(r, "inputEntry").map(text), outs: local(r, "outputEntry").map(text) })),
+      };
+      const others = local(doc, "decision").length - 1;
+      if (others > 0) message.replaceChildren(el("p", { class: "muted" }, `The file has ${others} more decision(s); saving writes only this table.`));
+    };
+    const cell = (value, apply, size = "12") => { const i = el("input", { value: value ?? "", size }); i.addEventListener("change", () => apply(i.value)); return i; };
+    const draw = () => {
+      const head = el("tr", {},
+        ...model.inputs.map((c, i) => el("th", {}, cell(c.label, (v) => { c.label = v; }, "10"), el("br"), cell(c.expr, (v) => { c.expr = v; }, "10"), el("button", { onclick: () => { if (model.inputs.length > 1) { model.inputs.splice(i, 1); model.rules.forEach((r) => r.ins.splice(i, 1)); draw(); } } }, "✕"))),
+        ...model.outputs.map((c, i) => el("th", {}, cell(c.name, (v) => { c.name = v; }, "10"), el("button", { onclick: () => { if (model.outputs.length > 1) { model.outputs.splice(i, 1); model.rules.forEach((r) => r.outs.splice(i, 1)); draw(); } } }, "✕"))), el("th", {}));
+      const body = model.rules.map((r, ri) => el("tr", {}, ...r.ins.map((t, i) => el("td", {}, cell(t, (v) => { r.ins[i] = v; }))), ...r.outs.map((t, i) => el("td", {}, cell(t, (v) => { r.outs[i] = v; }))),
+        el("td", {}, el("button", { onclick: () => { model.rules.splice(ri, 1); draw(); } }, "✕"))));
+      const policy = el("select", {}, ...POLICIES.map((p) => el("option", { value: p, ...(p === model.hitPolicy ? { selected: "selected" } : {}) }, p)));
+      policy.addEventListener("change", () => { model.hitPolicy = policy.value; });
+      const aggregation = el("select", {}, ...AGGREGATIONS.map((a) => el("option", { value: a, ...(a === model.aggregation ? { selected: "selected" } : {}) }, a || "no aggregation")));
+      aggregation.addEventListener("change", () => { model.aggregation = aggregation.value; });
+      grid.replaceChildren(
+        el("div", { class: "row" }, el("label", {}, "Decision id"), cell(model.id, (v) => { model.id = v.trim(); }), el("label", {}, "Name"), cell(model.name, (v) => { model.name = v; }), el("label", {}, "Hit policy"), policy, el("label", {}, "Aggregation (COLLECT)"), aggregation),
+        el("table", { class: "dmn" }, el("thead", {}, head), el("tbody", {}, ...body)),
+        el("div", { class: "row" },
+          el("button", { onclick: () => { model.inputs.push({ label: "Input " + (model.inputs.length + 1), expr: "" }); model.rules.forEach((r) => r.ins.push("-")); draw(); } }, "Add input"),
+          el("button", { onclick: () => { model.outputs.push({ name: "output" + (model.outputs.length + 1) }); model.rules.forEach((r) => r.outs.push("")); draw(); } }, "Add output"),
+          el("button", { onclick: () => { model.rules.push({ ins: model.inputs.map(() => "-"), outs: model.outputs.map(() => "") }); draw(); } }, "Add rule")));
+    };
+    const file = el("input", { type: "file", accept: ".dmn,.xml" });
+    file.addEventListener("change", async () => { if (file.files[0]) { try { fromXml(await file.files[0].text()); draw(); } catch (e) { fail(message, e); } } });
+    const known = [...new Set(((await api("/v1/decisions")).data.items ?? []).map((d) => d.decisionId))];
+    const open = el("select", {}, el("option", { value: "" }, "Open a deployed decision…"), ...known.map((d) => el("option", { value: d }, d)));
+    open.addEventListener("change", async () => { if (open.value) { try { fromXml((await api(`/v1/decisions/${encodeURIComponent(open.value)}/xml`)).text); draw(); } catch (e) { fail(message, e); } } });
+    const variables = el("textarea", { rows: "3", placeholder: '{"amount": 150}' });
+    box.append(el("p", { class: "muted" }, "Edit a decision table: inputs with their FEEL expressions, outputs, and one row per rule. Use - for any value. Text results need quotes, for example \"high\"."),
+      el("div", { class: "row" }, el("button", { onclick: () => { model = blank(); message.replaceChildren(); draw(); } }, "New"), file, open,
+        el("button", { onclick: () => { const url = URL.createObjectURL(new Blob([toXml()], { type: "application/xml" })); el("a", { href: url, download: model.id + ".dmn" }).click(); URL.revokeObjectURL(url); } }, "Download"),
+        el("button", { class: "primary", onclick: async () => {
+          try {
+            const body = new FormData(); body.append("resources", new Blob([toXml()], { type: "application/xml" }), model.id + ".dmn");
+            message.replaceChildren(el("pre", {}, JSON.stringify((await api("/v1/decisions", { method: "POST", body })).data, null, 2)));
+          } catch (e) { fail(message, e); }
+        } }, "Deploy")),
+      grid, message,
+      el("div", { class: "card" }, el("h4", {}, "Try it (the deployed version)"), variables,
+        el("button", { onclick: async () => {
+          try { result.replaceChildren(el("pre", {}, JSON.stringify((await api(`/v1/decisions/${encodeURIComponent(model.id)}/evaluate`, { method: "POST", json: { variables: variables.value ? JSON.parse(variables.value) : {} } })).data, null, 2))); } catch (e) { fail(result, e); }
+        } }, "Evaluate"), result));
+    draw();
+  },
+  async access(box) {
+    const out = el("div"), message = el("div");
+    const name = el("input", { placeholder: "name, for example ci-pipeline", size: "24" }), tenant = el("input", { placeholder: "tenant (optional)", size: "14" }), processes = el("input", { placeholder: "limit to process ids, comma separated (optional)", size: "34" }), groups = el("input", { placeholder: "groups: sees only its own tasks (optional)", size: "30" });
+    const roles = ["admin", "operator", "developer", "worker", "reader"].map((r) => { const box = el("input", { type: "checkbox", value: r }); return { r, box, label: el("label", { class: "inline" }, box, " " + r) }; });
+    const load = async () => {
+      const items = (await api("/v1/api-keys")).data.items;
+      out.replaceChildren(el("table", {}, el("tr", {}, ...["Id", "Name", "Roles", "Tenant", "Processes", "Groups", "Created", "State", ""].map((h) => el("th", {}, h))),
+        ...items.map((k) => el("tr", {}, el("td", {}, k.id), el("td", {}, k.name), el("td", {}, k.roles.join(", ")), el("td", {}, k.tenant), el("td", {}, k.processes.join(", ")), el("td", {}, k.groups.join(", ")), el("td", {}, fmt(k.createdAt)), el("td", {}, k.revokedAt ? "revoked " + fmt(k.revokedAt) : "active"),
+          el("td", {}, k.revokedAt ? "" : el("button", { onclick: async () => { try { await api("/v1/api-keys/" + k.id, { method: "DELETE" }); message.replaceChildren(); await load(); } catch (e) { fail(message, e); } } }, "Revoke"))))));
+    };
+    box.append(el("p", { class: "muted" }, "API keys for workers and automation. The key is shown once, when you create it; only a hash is stored. Needs the admin role."),
+      el("div", { class: "card" }, el("h3", {}, "New key"), el("div", { class: "row" }, name, tenant, processes, groups), el("div", { class: "row" }, ...roles.map((r) => r.label),
+        el("button", { class: "primary", onclick: async () => {
+          try {
+            const created = (await api("/v1/api-keys", { method: "POST", json: { name: name.value, roles: roles.filter((r) => r.box.checked).map((r) => r.r), tenant: tenant.value || undefined, processes: processes.value.split(",").map((s) => s.trim()).filter(Boolean), groups: groups.value.split(",").map((s) => s.trim()).filter(Boolean) } })).data;
+            message.replaceChildren(el("div", { class: "card" }, el("p", {}, "Copy this key now. It cannot be shown again:"), el("pre", { class: "newkey" }, created.key)));
+            name.value = ""; await load();
+          } catch (e) { fail(message, e); }
+        } }, "Create key"))), message, out);
+    await load();
+  },
   async analytics(box) {
     const defs = (await api("/v1/process-definitions?pageSize=200")).data.items;
     const ids = [...new Set(defs.map((d) => d.bpmnProcessId))];
@@ -259,9 +415,126 @@ const views = {
     select.addEventListener("change", load);
     box.append(el("div", { class: "row" }, select), out); await load();
   },
+  async modeler(box) {
+    const BpmnJS = await loadModeler();
+    const canvas = el("div", { class: "modeler" }), props = el("div", { class: "card props" }), message = el("div");
+    const modeler = new BpmnJS({ container: canvas, moddleExtensions: { flowd: FLOWD_MODDLE } });
+    canvas.modeler = modeler; // lets tests drive the modeler
+    const modeling = () => modeler.get("modeling"), factory = () => modeler.get("bpmnFactory");
+    const fit = () => setTimeout(() => { try { modeler.get("canvas").zoom("fit-viewport"); } catch { /* not attached yet or empty: keep the default view */ } }, 50); // the box joins the page after this view returns
+    const open = async (xml) => { await modeler.importXML(xml); fit(); showProps(null); };
+    const save = async () => (await modeler.saveXML({ format: true })).xml;
+    const field = (label, value, apply) => {
+      const input = el("input", { value: value ?? "" });
+      input.addEventListener("change", () => apply(input.value.trim()));
+      return el("div", {}, el("label", {}, label), input);
+    };
+    const ext = (element) => element.businessObject.extensionElements;
+    const extOf = (element, type) => (ext(element)?.values ?? []).find((v) => v.$type === type);
+    const setExt = (element, type, attrs, alsoRemove = []) => {
+      const extensions = element.businessObject.extensionElements ?? factory().create("bpmn:ExtensionElements", { values: [] });
+      const kept = extensions.values.filter((v) => v.$type !== type && !alsoRemove.includes(v.$type));
+      const empty = Object.values(attrs).every((v) => !v);
+      const values = empty ? kept : [...kept, factory().create(type, attrs)];
+      modeling().updateProperties(element, { extensionElements: values.length === 0 ? undefined : factory().create("bpmn:ExtensionElements", { values }) });
+    };
+    const attrsOf = (node) => Object.fromEntries(Object.entries(node ?? {}).filter(([k, v]) => !k.startsWith("$") && typeof v === "string"));
+    const showProps = (element) => {
+      props.replaceChildren(el("h3", {}, "Properties"));
+      if (!element || !element.businessObject || element.type === "label") { props.append(el("p", { class: "muted" }, "Select an element.")); return; }
+      const bo = element.businessObject;
+      props.append(el("p", { class: "muted" }, element.type + " · " + element.id), field("Name", bo.name, (v) => modeling().updateProperties(element, { name: v || undefined })));
+      if (["bpmn:ServiceTask", "bpmn:SendTask", "bpmn:BusinessRuleTask"].includes(element.type)) {
+        const connector = extOf(element, "flowd:Connector"), decision = extOf(element, "flowd:CalledDecision");
+        const kind = connector ? connector.type : decision ? "decision" : "job";
+        const select = el("select", {}, ...Object.entries(ELEMENT_TEMPLATES).map(([key, t]) => el("option", { value: key, ...(key === kind ? { selected: "selected" } : {}) }, t.label)));
+        select.addEventListener("change", () => {
+          const template = ELEMENT_TEMPLATES[select.value];
+          if (select.value === "job") setExt(element, "flowd:TaskDefinition", { type: "my-job" }, ["flowd:Connector", "flowd:CalledDecision"]);
+          else if (select.value === "decision") setExt(element, "flowd:CalledDecision", { decisionId: "my-decision", resultVariable: "decisionResult" }, ["flowd:Connector", "flowd:TaskDefinition"]);
+          else setExt(element, "flowd:Connector", { type: select.value, ...template.defaults }, ["flowd:TaskDefinition", "flowd:CalledDecision"]);
+          showProps(element);
+        });
+        props.append(el("label", {}, "Template"), select);
+        const template = ELEMENT_TEMPLATES[kind];
+        if (connector || decision) {
+          const type = connector ? "flowd:Connector" : "flowd:CalledDecision";
+          for (const name of template.fields) props.append(field(name, extOf(element, type)?.[name], (v) => setExt(element, type, { ...attrsOf(extOf(element, type)), [name]: v })));
+        } else {
+          const def = extOf(element, "flowd:TaskDefinition");
+          props.append(field("Job type", def?.type, (v) => setExt(element, "flowd:TaskDefinition", { type: v, retries: extOf(element, "flowd:TaskDefinition")?.retries })),
+            field("Retries", def?.retries, (v) => setExt(element, "flowd:TaskDefinition", { type: extOf(element, "flowd:TaskDefinition")?.type, retries: v })));
+        }
+      }
+      if (element.type === "bpmn:UserTask") {
+        const a = extOf(element, "flowd:AssignmentDefinition");
+        const set = (key) => (v) => setExt(element, "flowd:AssignmentDefinition", { assignee: extOf(element, "flowd:AssignmentDefinition")?.assignee, candidateGroups: extOf(element, "flowd:AssignmentDefinition")?.candidateGroups, [key]: v });
+        props.append(field("Assignee", a?.assignee, set("assignee")), field("Candidate groups (comma separated)", a?.candidateGroups, set("candidateGroups")));
+      }
+      if (element.type === "bpmn:SequenceFlow") {
+        props.append(field("Condition (FEEL, starts with =)", bo.conditionExpression?.body, (v) =>
+          modeling().updateProperties(element, { conditionExpression: v ? factory().create("bpmn:FormalExpression", { body: v }) : undefined })));
+      }
+    };
+    modeler.on("selection.changed", ({ newSelection }) => showProps(newSelection[0] ?? null));
+    modeler.on("element.changed", ({ element }) => { if (modeler.get("selection").get()[0] === element) showProps(element); });
+    const file = el("input", { type: "file", accept: ".bpmn,.xml" });
+    file.addEventListener("change", async () => { if (file.files[0]) { try { await open(await file.files[0].text()); } catch (e) { fail(message, e); } } });
+    const defs = (await api("/v1/process-definitions?pageSize=200")).data.items;
+    const deployed = el("select", {}, el("option", { value: "" }, "Open a deployed process…"), ...[...new Set(defs.map((d) => d.bpmnProcessId))].map((i) => el("option", { value: i }, i)));
+    deployed.addEventListener("change", async () => {
+      if (!deployed.value) return;
+      try { const latest = defs.filter((d) => d.bpmnProcessId === deployed.value).sort((a, b) => b.version - a.version)[0]; await open((await api(`/v1/process-definitions/${latest.key}/xml`)).text); } catch (e) { fail(message, e); }
+    });
+    const toolbar = el("div", { class: "row" },
+      el("button", { onclick: () => open(NEW_DIAGRAM).catch((e) => fail(message, e)) }, "New"), file, deployed,
+      el("button", { onclick: async () => { try { const url = URL.createObjectURL(new Blob([await save()], { type: "application/xml" })); const a = el("a", { href: url, download: "process.bpmn" }); a.click(); URL.revokeObjectURL(url); } catch (e) { fail(message, e); } } }, "Download"),
+      el("button", { class: "primary", onclick: async () => {
+        try {
+          const body = new FormData(); body.append("resources", new Blob([await save()], { type: "application/xml" }), "model.bpmn");
+          message.replaceChildren(el("pre", {}, JSON.stringify((await api("/v1/deployments", { method: "POST", body })).data, null, 2)));
+        } catch (e) { fail(message, e); }
+      } }, "Deploy"));
+    box.append(el("p", { class: "muted" }, "Draw the process, set the job type of service tasks and conditions on flows in the panel, then deploy. Powered by bpmn.io."), toolbar, el("div", { class: "split" }, canvas, props), message);
+    await open(NEW_DIAGRAM);
+  },
 };
 
-const tabs = [["overview", "Overview"], ["instances", "Instances"], ["incidents", "Incidents"], ["tasks", "Tasks"], ["deploy", "Deploy"], ["analytics", "Analytics"]];
+
+/* ---------- modeler (bpmn.io, embedded: no internet needed) ---------- */
+let modelerLoad;
+const loadModeler = () => modelerLoad ??= new Promise((resolve, reject) => {
+  for (const css of ["diagram-js.css", "bpmn-js.css", "bpmn-embedded.css"]) document.head.append(el("link", { rel: "stylesheet", href: "/ui/vendor/" + css }));
+  const script = el("script", { src: "/ui/vendor/bpmn-modeler.production.min.js" });
+  script.onload = () => resolve(window.BpmnJS);
+  script.onerror = () => { modelerLoad = undefined; reject(new Error("The modeler could not be loaded.")); };
+  document.head.append(script);
+});
+const ELEMENT_TEMPLATES = {
+  job: { label: "Job worker (your own code)", fields: [] },
+  http: { label: "HTTP request (built in)", fields: ["url", "method", "body", "headers", "resultVariable", "failOnError"], defaults: { method: "POST", resultVariable: "response" } },
+  email: { label: "E-mail (built in)", fields: ["to", "subject", "body", "from", "html", "resultVariable"], defaults: { resultVariable: "email" } },
+  decision: { label: "Decision (DMN)", fields: ["decisionId", "resultVariable"] },
+};
+const FLOWD_MODDLE = {
+  name: "Flowd", uri: "http://flowd.io/schema/1.0", prefix: "flowd", xml: { tagAlias: "lowerCase" },
+  types: [
+    { name: "TaskDefinition", superClass: ["Element"], properties: [{ name: "type", isAttr: true, type: "String" }, { name: "retries", isAttr: true, type: "String" }] },
+    { name: "AssignmentDefinition", superClass: ["Element"], properties: [{ name: "assignee", isAttr: true, type: "String" }, { name: "candidateGroups", isAttr: true, type: "String" }] },
+    { name: "Connector", superClass: ["Element"], properties: ["type", "url", "method", "body", "headers", "resultVariable", "failOnError", "to", "subject", "from", "html"].map((name) => ({ name, isAttr: true, type: "String" })) },
+    { name: "CalledDecision", superClass: ["Element"], properties: ["decisionId", "resultVariable"].map((name) => ({ name, isAttr: true, type: "String" })) },
+  ],
+};
+const NEW_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:flowd="http://flowd.io/schema/1.0" id="Definitions_1" targetNamespace="http://flowd.io/model">
+  <bpmn:process id="my-process" isExecutable="true">
+    <bpmn:startEvent id="Start"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_1"><bpmndi:BPMNPlane id="Plane_1" bpmnElement="my-process">
+    <bpmndi:BPMNShape id="Start_di" bpmnElement="Start"><dc:Bounds x="160" y="120" width="36" height="36"/></bpmndi:BPMNShape>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>`;
+const tabs = [["overview", "Overview"], ["instances", "Instances"], ["incidents", "Incidents"], ["tasks", "Tasks"], ["deploy", "Deploy"], ["modeler", "Modeler"], ["forms", "Forms"], ["decisions", "Decisions"], ["access", "Access"], ["analytics", "Analytics"]];
 let current = "overview", showToken = 0;
 async function show(name) {
   current = name;
@@ -271,7 +544,52 @@ async function show(name) {
   try { await views[name](box); } catch (e) { fail(box, e); }
   if (mine === showToken) $("#view").replaceChildren(box); // a newer click wins: never mix two tabs
 }
-show("overview");
+
+/* ---------- sign in with OpenID Connect (authorization code + PKCE, no client secret, no server session) ---------- */
+let oidc = null, token = JSON.parse(sessionStorage.getItem("flowd-token") || "null");
+const validToken = () => (token && token.expires > Date.now() ? token.access : null);
+const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const redirectUri = () => location.origin + "/ui";
+async function discover() { const r = await fetch(oidc.authority + "/.well-known/openid-configuration"); if (!r.ok) throw new Error("The identity provider did not answer."); return r.json(); }
+async function oidcLogin() {
+  const meta = await discover();
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48))), state = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  sessionStorage.setItem("flowd-pkce", JSON.stringify({ verifier, state }));
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  const q = new URLSearchParams({ response_type: "code", client_id: oidc.clientId, redirect_uri: redirectUri(), scope: oidc.scopes, state, code_challenge: challenge, code_challenge_method: "S256" });
+  location.assign(meta.authorization_endpoint + "?" + q);
+}
+async function oidcCallback(params) {
+  const saved = JSON.parse(sessionStorage.getItem("flowd-pkce") || "null");
+  sessionStorage.removeItem("flowd-pkce");
+  history.replaceState(null, "", "/ui");
+  if (!saved || saved.state !== params.get("state")) throw new Error("Sign-in was refused: the answer did not match the request.");
+  if (params.get("error")) throw new Error("Sign-in failed: " + params.get("error"));
+  const meta = await discover();
+  const response = await fetch(meta.token_endpoint, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "authorization_code", code: params.get("code"), redirect_uri: redirectUri(), client_id: oidc.clientId, code_verifier: saved.verifier }) });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.access_token) throw new Error("Sign-in failed: " + (body.error_description || body.error || response.status));
+  token = { access: body.access_token, expires: Date.now() + Math.max((body.expires_in ?? 300) - 10, 10) * 1000 };
+  sessionStorage.setItem("flowd-token", JSON.stringify(token));
+}
+function drawSignIn() {
+  const box = $("#signin"); box.replaceChildren();
+  if (!oidc) return;
+  box.append(validToken()
+    ? el("button", { onclick: () => { token = null; sessionStorage.removeItem("flowd-token"); drawSignIn(); show(current); } }, "Sign out")
+    : el("button", { class: "primary", onclick: () => oidcLogin().catch((e) => fail($("#view"), e)) }, "Sign in"));
+}
+async function start() {
+  try { oidc = (await (await fetch("/ui/config")).json()).oidc; } catch { oidc = null; }
+  const params = new URLSearchParams(location.search);
+  let problem = null;
+  if (oidc && params.has("state") && (params.has("code") || params.has("error"))) { try { await oidcCallback(params); } catch (e) { problem = e; } }
+  drawSignIn();
+  await show("overview");
+  if (problem) fail($("#view"), problem);
+}
+start();
 </script>
 </body>
 </html>

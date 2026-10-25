@@ -103,6 +103,7 @@ internal static class FlowdHostBuilder
         app.MapInstanceEndpoints();
         app.MapJobEndpoints();
         app.MapMessageEndpoints();
+        app.MapApiKeyEndpoints();
         app.MapGrpcService<Flowd.Api.Grpc.GatewayService>();
         app.MapMetricsEndpoint();
         app.MapSignalAndUserTaskEndpoints();

@@ -2,9 +2,11 @@ using System.Text.Json.Nodes;
 
 namespace Flowd.Contracts.Execution;
 
-public sealed record StartInstanceRequestDto(string BpmnProcessId, int? Version, JsonObject? Variables, string? BusinessKey, string? StartElementId);
+/// <summary>With <c>AwaitResult</c> the call waits (up to <c>RequestTimeoutMs</c>, at most 60 s) for the instance to end and returns its state and variables (FR-API-021).</summary>
+public sealed record StartInstanceRequestDto(string BpmnProcessId, int? Version, JsonObject? Variables, string? BusinessKey, string? StartElementId, bool? AwaitResult = null, long? RequestTimeoutMs = null, IReadOnlyList<string>? FetchVariables = null);
 
-public sealed record StartInstanceResponseDto(string ProcessInstanceKey, string ProcessDefinitionKey, int Version, string BpmnProcessId);
+/// <summary>State and Variables are set only when the request asked to await the result; Variables only when the instance completed.</summary>
+public sealed record StartInstanceResponseDto(string ProcessInstanceKey, string ProcessDefinitionKey, int Version, string BpmnProcessId, string? State = null, JsonObject? Variables = null);
 
 public sealed record InstanceDto(
     string Key,

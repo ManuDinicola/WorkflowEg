@@ -60,7 +60,7 @@ public static class FormEndpoints
     private static async Task<IResult> TaskFormAsync(ClaimsPrincipal user, string key, IUserTaskQueries tasks, IFormStore store, CancellationToken cancellationToken)
     {
         var task = InstanceEndpoints.TryKey(key) is { } taskKey ? await tasks.GetAsync(user.TenantId(), taskKey, cancellationToken).ConfigureAwait(false) : null;
-        if (task is null)
+        if (task is null || !user.MayWorkOn(task.Assignee, task.CandidateGroups, task.CandidateUsers))
         {
             return FailureMapper.ToProblem(new Failure(new NotFound("User task not found.")));
         }

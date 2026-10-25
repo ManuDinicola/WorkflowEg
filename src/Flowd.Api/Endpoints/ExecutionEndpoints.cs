@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Claims;
+using System.Text.Json.Nodes;
 using Flowd.Api.Errors;
 using Flowd.Api.Security;
 using Flowd.Application.Execution;
@@ -41,7 +42,7 @@ public static class InstanceEndpoints
         return routes;
     }
 
-    private static async Task<IResult> StartAsync(ClaimsPrincipal user, StartInstanceRequestDto request, StartInstanceUseCase useCase, CancellationToken cancellationToken)
+    private static async Task<IResult> StartAsync(ClaimsPrincipal user, StartInstanceRequestDto request, StartInstanceUseCase useCase, IInstanceQueries queries, TimeProvider time, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.BpmnProcessId))
         {
@@ -58,9 +59,52 @@ public static class InstanceEndpoints
             cancellationToken).ConfigureAwait(false);
         return result switch
         {
-            StartedInstance started => Results.Ok(new StartInstanceResponseDto(Id(started.InstanceKey), Id(started.DefinitionKey), started.Version, started.BpmnProcessId)),
+            StartedInstance started => Results.Ok(await ResponseAsync(user, started, request, queries, time, cancellationToken).ConfigureAwait(false)),
             Failure failure => FailureMapper.ToProblem(failure),
         };
+    }
+
+    /// <summary>Builds the start response; when asked, waits (polling) until the instance leaves the active state or the wait ends (FR-API-021).</summary>
+    private static async Task<StartInstanceResponseDto> ResponseAsync(ClaimsPrincipal user, StartedInstance started, StartInstanceRequestDto request, IInstanceQueries queries, TimeProvider time, CancellationToken cancellationToken)
+    {
+        var response = new StartInstanceResponseDto(Id(started.InstanceKey), Id(started.DefinitionKey), started.Version, started.BpmnProcessId);
+        if (request.AwaitResult != true)
+        {
+            return response;
+        }
+
+        var deadline = time.GetUtcNow() + TimeSpan.FromMilliseconds(Math.Clamp(request.RequestTimeoutMs ?? 10_000, 1, 60_000));
+        var tenant = user.TenantId();
+        var view = await queries.GetInstanceAsync(tenant, started.InstanceKey, cancellationToken).ConfigureAwait(false);
+        while (view is { State: "ACTIVE" } && time.GetUtcNow() < deadline)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(50), time, cancellationToken).ConfigureAwait(false);
+            view = await queries.GetInstanceAsync(tenant, started.InstanceKey, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (view is not { State: "COMPLETED" })
+        {
+            return response with { State = view?.State };
+        }
+
+        var variables = await queries.GetVariablesAsync(tenant, started.InstanceKey, cancellationToken).ConfigureAwait(false);
+        return response with { State = view.State, Variables = Fetch(variables, request.FetchVariables) };
+    }
+
+    private static JsonObject? Fetch(JsonObject? variables, IReadOnlyList<string>? names)
+    {
+        if (variables is null || names is null)
+        {
+            return variables;
+        }
+
+        var kept = new JsonObject();
+        foreach (var name in names.Where(variables.ContainsKey))
+        {
+            kept[name] = variables[name]?.DeepClone();
+        }
+
+        return kept;
     }
 
     private static async Task<IResult> GetAsync(ClaimsPrincipal user, string key, IInstanceQueries queries, CancellationToken cancellationToken)

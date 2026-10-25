@@ -119,7 +119,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 ## Security and tenancy
 - [x] API keys and JWT, roles
 - [x] Multi-tenancy
-- [ ] OIDC login flows for UIs
+- [x] OIDC login flows for UIs (authorization code with PKCE in the browser; no refresh token; not yet run against a real provider)
 - [x] Fine-grained permissions: API keys limited to process ids (deploy, start, batch)
 - [x] Fine-grained permissions on instance routes and instance lists (jobs, incidents and tasks by key stay tenant-scoped)
 - [x] Audit log
@@ -138,7 +138,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Operate-like UI: definitions, instances, incidents, variables, history
 - [x] Diagram view with token overlay
 - [x] Tasklist-like UI
-- [ ] Browser modeler (graphical editing)
+- [x] Browser modeler (graphical editing with a side panel for the main Flowd settings; other settings still go through the XML editor)
 - [x] Browser XML editor with live diagram preview and deploy
 - [x] Analytics (Optimize-like): durations, counts, heatmap
 - [x] Connectors: REST (outbound) and signed webhook (inbound)
@@ -147,6 +147,16 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-25): 113 of 118 = 95 %. Target: 95 % (113 of 118).
+Score (2026-10-25): 121 of 125 = 96 %. Target: 95 % (119 of 125).
 
 Not counted: complex gateway, transaction sub-process with cancel event, and multiple / parallel multiple events. Camunda 8 does not support them either (they are BPMN elements that Camunda 8 leaves out), so they are not Camunda 8 features. Flowd does not support them. Before 2026-10-25 these three lines were in the checklist as open items; moving them out raised the percentage by about three points without any new code, so compare scores before and after with that in mind.
+
+## Audit of what the first checklist missed (2026-10-25)
+Features of Camunda 8 that were not in the checklist above. They count in the score from now on.
+- [x] Create an instance and wait for its result (with fetched variables)
+- [x] Business knowledge models (BKM) in DMN (literal expression logic only)
+- [x] Element templates in the modeler (built-in HTTP, e-mail and decision templates; no import of custom template files)
+- [x] Form builder (graphical) in the UI (six field types; no groups or conditional fields)
+- [x] DMN decision table editor in the UI (one table per file)
+- [x] Resource-based authorizations: processes (key limits) and user tasks (groups); not decisions, forms or incidents
+- [ ] Users, groups and role management (identity): API keys are managed in Flowd (done); people and groups stay in your identity provider

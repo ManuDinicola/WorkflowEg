@@ -35,6 +35,26 @@ public static class DecisionEvaluator
         return EvaluateWithRequirements(decision, graph, new Dictionary<string, ExpressionValue>(variables, StringComparer.Ordinal), now, new HashSet<string>(StringComparer.Ordinal));
     }
 
+    /// <summary>Evaluates a decision of a file: its business knowledge models become functions (bound by name, in file order, so a model can call the ones before it) and its required decisions are evaluated first (FR-DMN-006).</summary>
+    public static DecisionOutcome Evaluate(Decision decision, DmnDefinitions definitions, IReadOnlyDictionary<string, ExpressionValue> variables, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+        ArgumentNullException.ThrowIfNull(variables);
+        var scope = new Dictionary<string, ExpressionValue>(variables, StringComparer.Ordinal);
+        foreach (var model in definitions.Functions)
+        {
+            var source = $"= function({string.Join(", ", model.Parameters)}) {model.Expression}";
+            if (FeelEvaluator.Evaluate(source, new ExpressionContext(scope, now)) is not EvaluationSuccess { Value: FunctionValue function })
+            {
+                return new DecisionFailure("DMN_KNOWLEDGE_MODEL", $"Business knowledge model '{model.Name}' is not a valid function.");
+            }
+
+            scope[model.Name] = function;
+        }
+
+        return Evaluate(decision, definitions.Decisions, scope, now);
+    }
+
     private static DecisionOutcome EvaluateWithRequirements(Decision decision, IReadOnlyList<Decision> graph, Dictionary<string, ExpressionValue> variables, DateTimeOffset now, HashSet<string> path)
     {
         if (!path.Add(decision.Id))

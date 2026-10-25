@@ -21,6 +21,7 @@ public static class Policies
     public const string Publish = "flowd.publish";
     public const string UserTask = "flowd.usertask";
     public const string Audit = "flowd.audit";
+    public const string Admin = "flowd.admin";
 }
 
 /// <summary>Settings of the authentication stack, bound from <c>Flowd:Auth</c>.</summary>
@@ -44,6 +45,9 @@ public sealed class AuthOptions
     public string RoleClaim { get; init; } = "role";
 
     public string TenantClaim { get; init; } = "tenant";
+
+    /// <summary>Token claim whose values become the caller's groups.</summary>
+    public string GroupsClaim { get; init; } = "groups";
 }
 
 public static class ClaimsExtensions
@@ -52,6 +56,9 @@ public static class ClaimsExtensions
 
     /// <summary>Process ids the caller may deploy, start and batch-operate on; no such claim means all (FR-SEC-006).</summary>
     public const string ProcessClaimType = "flowd:processes";
+
+    /// <summary>Groups of the caller. A caller with groups sees and works on user tasks only when it is the assignee or a candidate (FR-SEC-009); no groups means no restriction.</summary>
+    public const string GroupClaimType = "flowd:groups";
 
     /// <summary>True when the caller may use the process id: no restriction claim, or the id is listed.</summary>
     public static bool MayUseProcess(this ClaimsPrincipal user, string? bpmnProcessId)
@@ -67,6 +74,28 @@ public static class ClaimsExtensions
         ArgumentNullException.ThrowIfNull(user);
         var allowed = user.FindAll(ProcessClaimType).Select(c => c.Value).ToHashSet(StringComparer.Ordinal);
         return allowed.Count == 0 ? null : allowed;
+    }
+
+    /// <summary>The caller's groups; empty means the caller is not restricted to its own user tasks.</summary>
+    public static IReadOnlyList<string> Groups(this ClaimsPrincipal user)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        return [.. user.FindAll(GroupClaimType).Select(c => c.Value)];
+    }
+
+    /// <summary>True when the caller may see and work on the task: unrestricted callers always; callers with groups only as assignee, candidate user or member of a candidate group.</summary>
+    public static bool MayWorkOn(this ClaimsPrincipal user, string? assignee, IReadOnlyList<string> candidateGroups, IReadOnlyList<string> candidateUsers)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        var groups = user.Groups();
+        if (groups.Count == 0)
+        {
+            return true;
+        }
+
+        var name = user.Identity?.Name;
+        return name is not null && (string.Equals(assignee, name, StringComparison.Ordinal) || candidateUsers.Contains(name, StringComparer.Ordinal))
+            || candidateGroups.Any(g => groups.Contains(g, StringComparer.Ordinal));
     }
 
     /// <summary>The caller's tenant; the empty string in single-tenant or insecure mode (FR-SEC-003).</summary>
@@ -103,6 +132,7 @@ public sealed class ApiKeyAuthenticationHandler(
         var claims = new List<Claim> { new(ClaimTypes.Name, info.Name), new(ClaimsExtensions.TenantClaimType, info.TenantId) };
         claims.AddRange(info.Roles.Select(r => new Claim(ClaimTypes.Role, r)));
         claims.AddRange((info.Processes ?? []).Select(p => new Claim(ClaimsExtensions.ProcessClaimType, p)));
+        claims.AddRange((info.Groups ?? []).Select(g => new Claim(ClaimsExtensions.GroupClaimType, g)));
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName));
         return AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName));
     }
@@ -121,6 +151,11 @@ public sealed class FlowdClaimsTransformation(IOptions<AuthOptions> options) : I
 
         var transformed = new ClaimsIdentity(identity);
         transformed.AddClaim(new Claim(ClaimsExtensions.TenantClaimType, principal.FindFirst(options.Value.TenantClaim)?.Value ?? string.Empty));
+        foreach (var group in principal.FindAll(options.Value.GroupsClaim).Where(c => !transformed.HasClaim(ClaimsExtensions.GroupClaimType, c.Value)))
+        {
+            transformed.AddClaim(new Claim(ClaimsExtensions.GroupClaimType, group.Value));
+        }
+
         foreach (var role in principal.FindAll(options.Value.RoleClaim).Where(c => !transformed.HasClaim(ClaimTypes.Role, c.Value)))
         {
             transformed.AddClaim(new Claim(ClaimTypes.Role, role.Value));
@@ -142,6 +177,7 @@ public static class SecurityRegistration
         [Policies.Publish] = [Roles.Admin, Roles.Operator, Roles.Worker],
         [Policies.UserTask] = [Roles.Admin, Roles.Operator, Roles.Worker],
         [Policies.Audit] = [Roles.Admin],
+        [Policies.Admin] = [Roles.Admin],
     };
 
     public static void AddAuthorizationPolicies(this IServiceCollection services, bool insecure)
