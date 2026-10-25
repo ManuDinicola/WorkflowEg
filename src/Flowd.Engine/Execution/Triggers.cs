@@ -14,7 +14,7 @@ internal static class Triggers
     /// <summary>Opens the boundary triggers of an activity that are not open yet. Idempotent so a re-activation after an incident is safe.</summary>
     public static bool OpenBoundaries(StepContext context, FlowNode activity, ElementInstance instance)
     {
-        foreach (var boundary in context.State.Graph.BoundaryEventsOf(activity.Id).Where(b => b.Definition is not (ErrorEventDefinition or EscalationEventDefinition)))
+        foreach (var boundary in context.State.Graph.BoundaryEventsOf(activity.Id).Where(b => b.Definition is not (ErrorEventDefinition or EscalationEventDefinition or CompensationEventDefinition)))
         {
             if (!IsOpen(context, instance, boundary.Id) && !Open(context, instance, boundary.Id, boundary.Definition, TriggerKind.Boundary))
             {

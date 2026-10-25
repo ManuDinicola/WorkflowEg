@@ -137,12 +137,14 @@ public sealed class BpmnParser
             "startEvent" => ParseStartEvent(e, id, name),
             "endEvent" when !HasEventDefinition(e) => new EndEvent { Id = id, Name = name },
             "endEvent" when HasOnlyEventDefinition(e, "terminateEventDefinition") => new EndEvent { Id = id, Name = name, IsTerminate = true },
+            "endEvent" when HasOnlyEventDefinition(e, "compensateEventDefinition") => new EndEvent { Id = id, Name = name, Compensation = ReadCompensation(e) },
             "endEvent" when HasOnlyEventDefinition(e, "errorEventDefinition") => new EndEvent { Id = id, Name = name, Error = ReadError(e) },
             "endEvent" when HasOnlyEventDefinition(e, "escalationEventDefinition") => new EndEvent { Id = id, Name = name, Escalation = ReadEscalation(e) },
             "endEvent" when HasOnlyEventDefinition(e, "messageEventDefinition") && TaskType(e) is { } endJob => new EndEvent { Id = id, Name = name, MessageJobType = endJob },
             "endEvent" when HasOnlyEventDefinition(e, "messageEventDefinition") && ReadDefinition(e) is MessageEventDefinition endMessage => new EndEvent { Id = id, Name = name, Message = endMessage },
             "intermediateThrowEvent" when !HasEventDefinition(e) => new IntermediateThrowEvent { Id = id, Name = name },
             "intermediateThrowEvent" when HasOnlyEventDefinition(e, "messageEventDefinition") && TaskType(e) is { } throwJob => new IntermediateThrowEvent { Id = id, Name = name, JobType = throwJob },
+            "intermediateThrowEvent" when HasOnlyEventDefinition(e, "compensateEventDefinition") => new IntermediateThrowEvent { Id = id, Name = name, Definition = ReadCompensation(e) },
             "intermediateThrowEvent" when HasOnlyEventDefinition(e, "linkEventDefinition") => new IntermediateThrowEvent { Id = id, Name = name, Definition = ReadLink(e) },
             "intermediateThrowEvent" when HasOnlyEventDefinition(e, "escalationEventDefinition") => new IntermediateThrowEvent { Id = id, Name = name, Definition = ReadEscalation(e) },
             "intermediateThrowEvent" when ReadDefinition(e) is MessageEventDefinition publishing => new IntermediateThrowEvent { Id = id, Name = name, Definition = publishing },
@@ -150,7 +152,7 @@ public sealed class BpmnParser
             "userTask" => ParseUserTask(e, id, name),
             "intermediateCatchEvent" when ReadDefinition(e) is { } definition => new IntermediateCatchEvent { Id = id, Name = name, Definition = definition },
             "boundaryEvent" when ReadDefinition(e) is { } definition && (string?)e.Attribute("attachedToRef") is { } attached =>
-                new BoundaryEvent { Id = id, Name = name, AttachedToRef = attached, CancelActivity = !string.Equals((string?)e.Attribute("cancelActivity"), "false", StringComparison.OrdinalIgnoreCase), Definition = definition },
+                new BoundaryEvent { Id = id, Name = name, AttachedToRef = attached, CancelActivity = !string.Equals((string?)e.Attribute("cancelActivity"), "false", StringComparison.OrdinalIgnoreCase), Definition = definition, CompensationHandlerId = HandlerOf(e) },
             "receiveTask" when ReadDefinition(e, fromMessageRef: true) is MessageEventDefinition message => new ReceiveTask { Id = id, Name = name, Message = message },
             "eventBasedGateway" => new EventBasedGateway { Id = id, Name = name },
             "serviceTask" or "sendTask" or "businessRuleTask" => ParseJobTask(e, id, name),
@@ -194,6 +196,11 @@ public sealed class BpmnParser
         if (e.Element(Bpmn + "signalEventDefinition") is { } signal)
         {
             return _signals.TryGetValue((string?)signal.Attribute("signalRef") ?? string.Empty, out var name) ? new SignalEventDefinition { Name = name } : null;
+        }
+
+        if (e.Element(Bpmn + "compensateEventDefinition") is not null)
+        {
+            return ReadCompensation(e);
         }
 
         if (e.Element(Bpmn + "conditionalEventDefinition") is { } conditional)
@@ -346,6 +353,15 @@ public sealed class BpmnParser
             ResultVariable = (string?)script?.Attribute("resultVariable"),
         };
     }
+
+    private static CompensationEventDefinition ReadCompensation(XElement e) =>
+        new() { ActivityRef = (string?)e.Element(Bpmn + "compensateEventDefinition")?.Attribute("activityRef") };
+
+    /// <summary>The compensation handler of a boundary event: the target of the association that starts at it.</summary>
+    private static string? HandlerOf(XElement boundary) =>
+        boundary.Element(Bpmn + "compensateEventDefinition") is null
+            ? null
+            : (string?)boundary.Parent?.Elements(Bpmn + "association").FirstOrDefault(a => (string?)a.Attribute("sourceRef") == (string?)boundary.Attribute("id"))?.Attribute("targetRef");
 
     private static string? InternalTaskType(XElement? decision, XElement? connector)
     {

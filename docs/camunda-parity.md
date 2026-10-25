@@ -26,7 +26,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Conditional events (boundary, catch, event sub-process; fire once)
 - [ ] Conditional start events
 - [ ] Multiple and parallel multiple events
-- [ ] Compensation (events, handlers)
+- [x] Compensation (simplified: boundary event with handler task, intermediate and end throw; handlers start together, the throw does not wait)
 - [ ] Transaction sub-process and cancel event
 
 ## BPMN activities and gateways
@@ -150,4 +150,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 109 of 121 = 90 %. Target: 95 % (115 of 121).
+Score (2026-10-24): 110 of 121 = 90 %. Target: 95 % (115 of 121).

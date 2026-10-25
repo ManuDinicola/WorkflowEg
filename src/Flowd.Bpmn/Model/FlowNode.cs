@@ -29,6 +29,9 @@ public sealed class EndEvent : FlowNode
     /// <summary>Set for an error end event: throws this BPMN error (FR-EXEC-008).</summary>
     public ErrorEventDefinition? Error { get; init; }
 
+    /// <summary>Set for a compensation end event: starts the compensation handlers of the scope (FR-CMP-001).</summary>
+    public CompensationEventDefinition? Compensation { get; init; }
+
     /// <summary>Set for an escalation end event: raises this escalation and the path ends normally (FR-ESC-001).</summary>
     public EscalationEventDefinition? Escalation { get; init; }
 
@@ -168,6 +171,9 @@ public sealed class BoundaryEvent : FlowNode
 
     public bool CancelActivity { get; init; } = true;
 
+    /// <summary>For a compensation boundary event: the task its association points to (<c>isForCompensation</c>).</summary>
+    public string? CompensationHandlerId { get; init; }
+
     public required EventDefinition Definition { get; init; }
 }
 
@@ -273,4 +279,11 @@ public sealed record ListenerDefinition(string Event, string JobType);
 public sealed class ConditionalEventDefinition : EventDefinition
 {
     public required string Condition { get; init; }
+}
+
+/// <summary>Compensation event: on a boundary event it marks the handler of its activity, on a throw event it starts compensation of completed activities (FR-CMP-001).</summary>
+public sealed class CompensationEventDefinition : EventDefinition
+{
+    /// <summary>Compensate only this activity; null compensates every completed activity of the scope.</summary>
+    public string? ActivityRef { get; init; }
 }

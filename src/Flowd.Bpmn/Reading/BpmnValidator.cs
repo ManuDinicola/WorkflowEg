@@ -212,6 +212,11 @@ public static class BpmnValidator
             issues.Add(new BpmnIssue(boundary.Id, BpmnIssueCodes.InvalidBoundary, $"Boundary event '{boundary.Id}' must not have incoming flows."));
         }
 
+        if (boundary.Definition is CompensationEventDefinition && (boundary.CompensationHandlerId is not { } handler || !nodes.Any(n => string.Equals(n.Id, handler, StringComparison.Ordinal))))
+        {
+            issues.Add(new BpmnIssue(boundary.Id, BpmnIssueCodes.InvalidBoundary, $"Compensation boundary event '{boundary.Id}' needs an association to its handler task."));
+        }
+
         ValidateDefinition(boundary.Id, boundary.Definition, allowCycle: !boundary.CancelActivity, requireCorrelation: true, issues, allowError: boundary.CancelActivity, allowEscalation: true);
     }
 

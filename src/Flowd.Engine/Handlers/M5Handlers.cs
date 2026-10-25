@@ -67,6 +67,14 @@ public sealed class IntermediateThrowEventElementHandler : ElementHandler<Interm
             return;
         }
 
+        if (element.Definition is CompensationEventDefinition compensation)
+        {
+            context.MarkActive(instance);
+            Compensation.Throw(context, instance, compensation.ActivityRef);
+            Complete(context, element, instance);
+            return;
+        }
+
         if (element.Definition is EscalationEventDefinition escalation)
         {
             context.MarkActive(instance);
