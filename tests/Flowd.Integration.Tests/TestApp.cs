@@ -25,6 +25,8 @@ public sealed class TestApp : IAsyncDisposable
 
     public HttpClient Client { get; }
 
+    public IReadOnlyList<string> Urls => _app.Urls.ToList();
+
     public string ConnectionString { get; }
 
     public static async Task<TestApp> StartAsync(PostgresFixture postgres, bool secure = false, params string[] extraArgs)

@@ -91,3 +91,8 @@ Instead of polling, a worker can hold one connection open: `GET /v1/jobs/stream?
 
 ## Limiting an API key to some processes
 `flowd apikey create --name ci --roles developer --processes order,invoice` (JWT: add `flowd:processes` claims). Such a key can deploy only those process ids, start only those, and run batch operations only on those (batch cancel must name a process). Reading or changing a single instance by key is not restricted by process yet; use tenants for hard separation.
+
+## gRPC API
+Besides REST, Flowd serves `flowd.v1.Gateway` (`StartInstance`, `ActivateJobs`, `CompleteJob`, `FailJob`, `PublishMessage`; the contract is `src/Flowd.Api/Grpc/flowd.proto`). It uses the same authentication (send the API key or JWT as call metadata, `X-Api-Key` / `authorization`), roles, tenants and process limits as REST. Variables are JSON text. Failures are gRPC status codes (`NOT_FOUND`, `FAILED_PRECONDITION`, `PERMISSION_DENIED`, `INVALID_ARGUMENT`, `RESOURCE_EXHAUSTED`, `UNAVAILABLE`).
+
+gRPC needs HTTP/2. Behind TLS the normal endpoint works. Without TLS, Kestrel serves HTTP/2 only on an endpoint that says so, for example `Kestrel__Endpoints__Rest__Url=http://0.0.0.0:8080`, `Kestrel__Endpoints__Rest__Protocols=Http1`, `Kestrel__Endpoints__Grpc__Url=http://0.0.0.0:8081`, `Kestrel__Endpoints__Grpc__Protocols=Http2`.

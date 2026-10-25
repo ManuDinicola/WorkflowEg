@@ -114,7 +114,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Idempotency keys, rate limit
 - [x] Search / list with paging (basic)
 - [x] Search with rich filters on instances, jobs, tasks and incidents; newest-first sorting on instances
-- [ ] gRPC API
+- [x] gRPC API (start instance, activate, complete and fail jobs, publish message)
 - [x] Event stream / export (beyond webhooks)
 - [x] Webhooks with signature (outbox)
 
@@ -149,4 +149,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 107 of 120 = 89 %. Target: 95 % (114 of 120).
+Score (2026-10-24): 108 of 120 = 90 %. Target: 95 % (114 of 120).

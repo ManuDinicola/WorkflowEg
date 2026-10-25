@@ -103,6 +103,7 @@ internal static class FlowdHostBuilder
         app.MapInstanceEndpoints();
         app.MapJobEndpoints();
         app.MapMessageEndpoints();
+        app.MapGrpcService<Flowd.Api.Grpc.GatewayService>();
         app.MapMetricsEndpoint();
         app.MapSignalAndUserTaskEndpoints();
         return app;
@@ -198,6 +199,7 @@ internal static class FlowdHostBuilder
 
         services.AddSingleton<IClaimsTransformation, FlowdClaimsTransformation>();
         services.AddAuthorizationPolicies(auth.Insecure);
+        services.AddGrpc();
     }
 
     private static void AddInfrastructure(IServiceCollection services)

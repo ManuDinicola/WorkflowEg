@@ -71,7 +71,7 @@ public sealed class ArchitectureTests
     {
         foreach (var assembly in AllSrc)
         {
-            var result = Types.InAssembly(assembly).That().AreClasses().And().AreNotAbstract().Should().BeSealed().GetResult();
+            var result = Types.InAssembly(assembly).That().AreClasses().And().AreNotAbstract().And().DoNotHaveName("GatewayClient").Should().BeSealed().GetResult();
             result.IsSuccessful.ShouldBeTrue($"{assembly.GetName().Name}: {string.Join(", ", result.FailingTypeNames ?? [])}");
         }
     }

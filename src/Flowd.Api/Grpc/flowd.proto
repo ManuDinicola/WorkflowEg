@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+option csharp_namespace = "Flowd.Api.Grpc";
+
+package flowd.v1;
+
+// The worker and client API over gRPC (FR-API-020). Variables travel as JSON text. Keys are decimal strings, like in the REST API.
+service Gateway {
+  rpc StartInstance (StartInstanceRequest) returns (StartInstanceReply);
+  rpc ActivateJobs (ActivateJobsRequest) returns (ActivateJobsReply);
+  rpc CompleteJob (CompleteJobRequest) returns (Empty);
+  rpc FailJob (FailJobRequest) returns (Empty);
+  rpc PublishMessage (PublishMessageRequest) returns (PublishMessageReply);
+}
+
+message Empty {}
+
+message StartInstanceRequest {
+  string bpmn_process_id = 1;
+  int32 version = 2;
+  string variables_json = 3;
+  string business_key = 4;
+}
+
+message StartInstanceReply {
+  string process_instance_key = 1;
+  int32 version = 2;
+}
+
+message ActivateJobsRequest {
+  string type = 1;
+  string worker = 2;
+  int32 max_jobs = 3;
+  int64 timeout_ms = 4;
+  int64 request_timeout_ms = 5;
+}
+
+message Job {
+  string key = 1;
+  string type = 2;
+  string process_instance_key = 3;
+  string element_id = 4;
+  int32 retries = 5;
+  string variables_json = 6;
+  map<string, string> custom_headers = 7;
+}
+
+message ActivateJobsReply {
+  repeated Job jobs = 1;
+}
+
+message CompleteJobRequest {
+  string job_key = 1;
+  string variables_json = 2;
+  string worker = 3;
+}
+
+message FailJobRequest {
+  string job_key = 1;
+  int32 retries = 2;
+  string error_message = 3;
+  int64 retry_backoff_ms = 4;
+  string worker = 5;
+}
+
+message PublishMessageRequest {
+  string name = 1;
+  string correlation_key = 2;
+  string variables_json = 3;
+  int64 ttl_ms = 4;
+  string message_id = 5;
+}
+
+message PublishMessageReply {
+  string message_key = 1;
+}
