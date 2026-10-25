@@ -33,6 +33,8 @@ public sealed class FeelEvaluatorTests
         ListValue l => "[" + string.Join(",", l.Items.Select(Builtins_ToText)) + "]",
         ContextValue c => "{" + string.Join(",", c.Entries.Select(e => $"{e.Key}:{Builtins_ToText(e.Value)}")) + "}",
         FunctionValue => "function",
+        TimeOnly time => time.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture),
+        YearsMonthsDuration months => "P" + months.Months + "M",
     };
 
     [Theory] // T-EXPR-01 arithmetic

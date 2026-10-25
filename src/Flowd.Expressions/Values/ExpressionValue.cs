@@ -30,4 +30,7 @@ public sealed class FunctionValue
 }
 
 /// <summary>Every value the expression language can produce (UNI-002).</summary>
-public union ExpressionValue(NullValue, bool, decimal, string, DateTimeOffset, TimeSpan, ListValue, ContextValue, FunctionValue);
+/// <summary>A FEEL years and months duration such as <c>P1Y2M</c>, kept as a whole number of months (FR-EXPR-015).</summary>
+public readonly record struct YearsMonthsDuration(int Months);
+
+public union ExpressionValue(NullValue, bool, decimal, string, DateTimeOffset, TimeSpan, ListValue, ContextValue, FunctionValue, TimeOnly, YearsMonthsDuration);

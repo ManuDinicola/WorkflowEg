@@ -157,4 +157,17 @@ public sealed class BuiltinFunctionTests
     [InlineData("{addk: function(x) x + 1, r: addk(1)}.r", "2")]
     [InlineData("{f: function(x) x, r: f(1, 2)}.r", "ERR")]
     public void FR_EXPR_014_user_defined_functions(string expression, string expected) => Run(expression).ShouldBe(expected);
+
+    [Theory]
+    [InlineData("time(\"10:30:00\").hour", "10")]
+    [InlineData("time(\"10:30:00\") < time(\"11:00:00\")", "true")]
+    [InlineData("time(\"23:30:00\") + duration(\"PT1H\") = time(\"00:30:00\")", "true")]
+    [InlineData("time(\"12:00:00\") - time(\"10:30:00\") = duration(\"PT1H30M\")", "true")]
+    [InlineData("time(8, 5, 0).minute", "5")]
+    [InlineData("duration(\"P1Y2M\").months", "2")]
+    [InlineData("duration(\"P1Y2M\") + duration(\"P10M\") = duration(\"P2Y\")", "true")]
+    [InlineData("duration(\"P1Y\") < duration(\"P13M\")", "true")]
+    [InlineData("string(date and time(\"2028-01-31T00:00:00Z\") + duration(\"P1M\"))", "2028-02-29T00:00:00.0000000+00:00")]
+    [InlineData("years and months duration(date and time(\"2020-01-15T00:00:00Z\"), date and time(\"2022-03-10T00:00:00Z\")).years", "2")]
+    public void FR_EXPR_015_time_of_day_and_years_and_months_durations(string expression, string expected) => Run(expression).ShouldBe(expected);
 }

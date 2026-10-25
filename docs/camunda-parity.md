@@ -55,7 +55,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] FEEL: ranges and unary tests
 - [x] FEEL: common built-in functions (strings, lists, numbers, dates, contexts)
 - [x] FEEL: date and time arithmetic, properties (.year .hour .days ...) and date functions
-- [ ] FEEL: time-of-day type and years-and-months durations
+- [x] FEEL: time-of-day type and years-and-months durations
 - [x] FEEL: the rarer standard functions (stddev, variance, mode, trim, is blank, is empty, decimal, list replace, get entries, week of year, to json, from json, to base64)
 - [x] FEEL: user defined functions (defined and called inside one expression; they cannot be stored in variables)
 - [x] Variable and message payload size limits and truncation rules
@@ -147,6 +147,6 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-25): 112 of 118 = 94 %. Target: 95 % (113 of 118).
+Score (2026-10-25): 113 of 118 = 95 %. Target: 95 % (113 of 118).
 
 Not counted: complex gateway, transaction sub-process with cancel event, and multiple / parallel multiple events. Camunda 8 does not support them either (they are BPMN elements that Camunda 8 leaves out), so they are not Camunda 8 features. Flowd does not support them. Before 2026-10-25 these three lines were in the checklist as open items; moving them out raised the percentage by about three points without any new code, so compare scores before and after with that in mind.

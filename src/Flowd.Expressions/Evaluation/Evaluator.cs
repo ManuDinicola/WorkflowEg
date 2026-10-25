@@ -40,6 +40,8 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
         ListValue list => new ListValue([.. list.Items.Select(i => Member(i, member))]),
         DateTimeOffset instant => InstantProperty(instant, member),
         TimeSpan span => DurationProperty(span, member),
+        TimeOnly time => TimeProperty(time, member),
+        YearsMonthsDuration months => MonthsProperty(months, member),
         NullValue or bool or decimal or string or FunctionValue => Operators.Null,
     };
 
@@ -53,6 +55,21 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
         "minute" => instant.Minute,
         "second" => instant.Second,
         "weekday" => instant.DayOfWeek == DayOfWeek.Sunday ? 7 : (int)instant.DayOfWeek,
+        _ => Operators.Null, // non-union: property name
+    };
+
+    private static ExpressionValue TimeProperty(TimeOnly time, string member) => member switch
+    {
+        "hour" => time.Hour,
+        "minute" => time.Minute,
+        "second" => time.Second,
+        _ => Operators.Null, // non-union: property name
+    };
+
+    private static ExpressionValue MonthsProperty(YearsMonthsDuration duration, string member) => member switch
+    {
+        "years" => duration.Months / 12,
+        "months" => duration.Months % 12,
         _ => Operators.Null, // non-union: property name
     };
 

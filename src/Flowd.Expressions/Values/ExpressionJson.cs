@@ -34,6 +34,8 @@ public static class ExpressionJson
         ListValue list => new JsonArray([.. list.Items.Select(ToJson)]),
         ContextValue context => ToObject(context),
         FunctionValue => null,
+        TimeOnly time => JsonValue.Create(time.ToString("HH:mm:ss", CultureInfo.InvariantCulture)),
+        YearsMonthsDuration months => JsonValue.Create(Evaluation.Builtins.ToText(months)),
     };
 
     private static JsonObject ToObject(ContextValue context)

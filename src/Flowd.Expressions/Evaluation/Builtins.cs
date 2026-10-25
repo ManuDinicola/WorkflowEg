@@ -7,7 +7,7 @@ namespace Flowd.Expressions.Evaluation;
 /// <summary>The built-in function library (section 8.2). Functions are pure; <c>now()</c> reads the injected instant.</summary>
 internal delegate ExpressionValue BuiltinFunction(IReadOnlyList<ExpressionValue> args, DateTimeOffset now);
 
-internal static class Builtins
+internal static partial class Builtins
 {
 
 
@@ -30,6 +30,8 @@ internal static class Builtins
         ["date and time"] = (a, _) => ParseInstant(Text(a, 0)),
         ["now"] = (_, now) => now,
         ["duration"] = (a, _) => ParseDuration(Text(a, 0)),
+        ["time"] = (a, _) => ToTime(a),
+        ["years and months duration"] = (a, _) => MonthsBetween(a),
         ["abs"] = (a, _) => Math.Abs(Number(a, 0)),
         ["floor"] = (a, _) => Math.Floor(Number(a, 0)),
         ["ceiling"] = (a, _) => Math.Ceiling(Number(a, 0)),
@@ -58,6 +60,8 @@ internal static class Builtins
         ListValue l => "[" + string.Join(", ", l.Items.Select(ToText)) + "]",
         ContextValue c => "{" + string.Join(", ", c.Entries.Select(e => $"{e.Key}: {ToText(e.Value)}")) + "}",
         FunctionValue f => $"function({string.Join(", ", f.Parameters)})",
+        TimeOnly time => time.ToString("HH:mm:ss", CultureInfo.InvariantCulture),
+        YearsMonthsDuration months => MonthsText(months),
     };
 
     internal static ExpressionValue Arg(IReadOnlyList<ExpressionValue> args, int index) =>
@@ -99,8 +103,23 @@ internal static class Builtins
     private static ExpressionValue ParseInstant(string text) =>
         DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var t) ? t : Operators.Null;
 
+    private static string MonthsText(YearsMonthsDuration duration)
+    {
+        var months = Math.Abs(duration.Months);
+        return (duration.Months < 0 ? "-P" : "P") + (months / 12 > 0 ? $"{months / 12}Y" : string.Empty) + (months % 12 > 0 || months == 0 ? $"{months % 12}M" : string.Empty);
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^(?<sign>-?)P(?:(?<y>\d+)Y)?(?:(?<m>\d+)M)?$", System.Text.RegularExpressions.RegexOptions.None, matchTimeoutMilliseconds: 100)]
+    private static partial System.Text.RegularExpressions.Regex MonthsDuration();
+
     private static ExpressionValue ParseDuration(string text)
     {
+        if (MonthsDuration().Match(text) is { Success: true } match && (match.Groups["y"].Success || match.Groups["m"].Success))
+        {
+            var total = (match.Groups["y"].Success ? int.Parse(match.Groups["y"].Value, CultureInfo.InvariantCulture) * 12 : 0) + (match.Groups["m"].Success ? int.Parse(match.Groups["m"].Value, CultureInfo.InvariantCulture) : 0);
+            return new YearsMonthsDuration(match.Groups["sign"].Value == "-" ? -total : total);
+        }
+
         try
         {
             return XmlConvert.ToTimeSpan(text);
@@ -109,6 +128,30 @@ internal static class Builtins
         {
             return Operators.Null;
         }
+    }
+
+    private static ExpressionValue ToTime(IReadOnlyList<ExpressionValue> args) => Arg(args, 0) switch
+    {
+        string text when TimeOnly.TryParse(text, CultureInfo.InvariantCulture, out var parsed) => parsed,
+        DateTimeOffset instant => TimeOnly.FromDateTime(instant.UtcDateTime),
+        decimal hour when args.Count >= 3 => new TimeOnly((int)hour, (int)Number(args, 1), (int)Number(args, 2)),
+        _ => Operators.Null, // non-union: argument kinds of time()
+    };
+
+    private static ExpressionValue MonthsBetween(IReadOnlyList<ExpressionValue> args)
+    {
+        if (Arg(args, 0) is not DateTimeOffset from || Arg(args, 1) is not DateTimeOffset to)
+        {
+            return Operators.Null;
+        }
+
+        var months = ((to.Year - from.Year) * 12) + to.Month - from.Month;
+        if (to > from && to.Day < from.Day)
+        {
+            months--;
+        }
+
+        return new YearsMonthsDuration(months);
     }
 
     internal static EvaluationFailure TypeError(string message) => new(ExpressionErrorCodes.Type, message);
