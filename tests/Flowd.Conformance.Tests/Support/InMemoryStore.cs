@@ -59,7 +59,7 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
                 continue;
             }
 
-            var info = new ProcessDefinitionInfo(draft.Key, draft.TenantId, draft.BpmnProcessId, (latest?.Info.Version ?? 0) + 1, draft.ResourceName, draft.DeployedAt);
+            var info = new ProcessDefinitionInfo(draft.Key, draft.TenantId, draft.BpmnProcessId, (latest?.Info.Version ?? 0) + 1, draft.ResourceName, draft.DeployedAt, draft.VersionTag);
             _definitions[draft.Key] = (info, draft.Resource, draft.Checksum);
             result.Add(new DeployedDefinition(info, IsNewVersion: true));
         }
@@ -85,6 +85,13 @@ public sealed class InMemoryStore : IProcessDefinitionStore, IInstanceTransactio
         _definitions.Remove(key);
         return Task.FromResult(DeleteDefinitionOutcome.Deleted);
     }
+
+    public Task<ProcessDefinitionInfo?> FindByVersionTagAsync(string tenantId, string bpmnProcessId, string versionTag, CancellationToken cancellationToken) =>
+        Task.FromResult(_definitions.Values
+            .Where(d => d.Info.TenantId == tenantId && d.Info.BpmnProcessId == bpmnProcessId && d.Info.VersionTag == versionTag)
+            .OrderByDescending(d => d.Info.Version)
+            .Select(d => d.Info)
+            .FirstOrDefault());
 
     public Task<ProcessDefinitionInfo?> FindAsync(string tenantId, string bpmnProcessId, int? version, CancellationToken cancellationToken) =>
         Task.FromResult(_definitions.Values

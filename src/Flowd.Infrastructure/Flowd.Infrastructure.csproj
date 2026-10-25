@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <PackageReference Include="RabbitMQ.Client" />
+    <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="Npgsql" />
     <PackageReference Include="dbup-postgresql" />
     <PackageReference Include="Dapper" />

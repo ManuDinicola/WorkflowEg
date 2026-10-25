@@ -125,7 +125,25 @@ createUser.SetAction(async (parseResult, cancellationToken) =>
 });
 user.Add(createUser);
 
-return await new RootCommand("flowd - BPMN workflow engine") { serve, migrate, validate, apiKey, user }
+var urlOption = new Option<string>("--url") { Description = "Address of the running Flowd (default: environment variable FLOWD_URL, else http://localhost:8080).", DefaultValueFactory = _ => Environment.GetEnvironmentVariable("FLOWD_URL") ?? "http://localhost:8080" };
+var filesArgument = new Argument<FileInfo[]>("files") { Description = "BPMN, DMN or form files to deploy.", Arity = ArgumentArity.OneOrMore };
+var deploy = new Command("deploy", "Deploy .bpmn, .dmn and .form files to a running Flowd. The API key or token is read from the environment variable FLOWD_API_KEY.") { filesArgument, urlOption };
+deploy.SetAction(async (parseResult, cancellationToken) =>
+{
+    using var client = RemoteCommands.CreateClient(new Uri(parseResult.GetRequiredValue(urlOption)), Environment.GetEnvironmentVariable("FLOWD_API_KEY"));
+    return await RemoteCommands.DeployAsync(client, parseResult.GetRequiredValue(filesArgument), Console.Out, cancellationToken).ConfigureAwait(false);
+});
+
+var processArgument = new Argument<string>("process") { Description = "The bpmnProcessId to start." };
+var variablesOption = new Option<string>("--variables") { Description = "Variables as a JSON object, for example '{\"orderId\":42}'." };
+var start = new Command("start", "Start an instance of a deployed process. The API key or token is read from FLOWD_API_KEY.") { processArgument, variablesOption, urlOption };
+start.SetAction(async (parseResult, cancellationToken) =>
+{
+    using var client = RemoteCommands.CreateClient(new Uri(parseResult.GetRequiredValue(urlOption)), Environment.GetEnvironmentVariable("FLOWD_API_KEY"));
+    return await RemoteCommands.StartAsync(client, parseResult.GetRequiredValue(processArgument), parseResult.GetValue(variablesOption), Console.Out, cancellationToken).ConfigureAwait(false);
+});
+
+return await new RootCommand("flowd - BPMN workflow engine") { serve, migrate, validate, apiKey, user, deploy, start }
     .Parse(args)
     .InvokeAsync()
     .ConfigureAwait(false);

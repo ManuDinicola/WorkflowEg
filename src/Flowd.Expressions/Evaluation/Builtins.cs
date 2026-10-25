@@ -25,9 +25,9 @@ internal static partial class Builtins
         ["lower case"] = (a, _) => Text(a, 0).ToLowerInvariant(),
         ["string length"] = (a, _) => (decimal)Text(a, 0).Length,
         ["substring"] = (a, _) => Substring(a),
-        ["number"] = (a, _) => ParseNumber(Text(a, 0)),
+        ["number"] = (a, _) => a.Count >= 3 ? ParseNumber(Text(a, 0).Replace(Text(a, 1), string.Empty, StringComparison.Ordinal).Replace(Text(a, 2), ".", StringComparison.Ordinal)) : ParseNumber(Text(a, 0)),
         ["string"] = (a, _) => ToText(Arg(a, 0)),
-        ["date and time"] = (a, _) => ParseInstant(Text(a, 0)),
+        ["date and time"] = (a, _) => a.Count >= 2 ? DateWithTime(a) : ParseInstant(Text(a, 0)),
         ["now"] = (_, now) => now,
         ["duration"] = (a, _) => ParseDuration(Text(a, 0)),
         ["time"] = (a, _) => ToTime(a),
@@ -129,6 +129,12 @@ internal static partial class Builtins
             return Operators.Null;
         }
     }
+
+    /// <summary><c>date and time(date, time)</c>: the day of the first argument at the time of day of the second, in UTC.</summary>
+    private static ExpressionValue DateWithTime(IReadOnlyList<ExpressionValue> args) =>
+        Arg(args, 0) is DateTimeOffset day && Arg(args, 1) is TimeOnly time
+            ? new DateTimeOffset(day.UtcDateTime.Date + time.ToTimeSpan(), TimeSpan.Zero)
+            : Operators.Null;
 
     private static ExpressionValue ToTime(IReadOnlyList<ExpressionValue> args) => Arg(args, 0) switch
     {

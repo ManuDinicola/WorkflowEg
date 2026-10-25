@@ -15,6 +15,11 @@ public sealed class NodeLease : IAsyncDisposable
 
     private NodeLease(NpgsqlConnection connection) => _connection = connection;
 
+    /// <summary>True when an advisory lock key was made by a node lease (and not by something else that uses advisory locks).</summary>
+    public static bool IsNodeKey(long key) => (key & ~0x3FFL) == KeyBase;
+
+    public static int NodeIdOf(long key) => (int)(key & 0x3FFL);
+
     /// <summary>Waits up to <paramref name="wait"/> for the id to be free (a node that was just killed may still hold it for a moment), then gives up with an exception.</summary>
     public static async Task<NodeLease> AcquireAsync(string connectionString, int nodeId, TimeSpan wait, CancellationToken cancellationToken)
     {

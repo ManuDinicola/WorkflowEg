@@ -66,6 +66,7 @@ It applies the migrations and registers an auto-start service named `Flowd`. Run
 - TypeScript worker SDK: `sdk/typescript/README.md`.
 - Python worker SDK: `sdk/python/README.md`.
 - Java worker SDK: `sdk/java/README.md`.
+- Go worker SDK: `sdk/go/README.md`.
 - Going to production: `docs/production.md` (checklist, monitoring, upgrades, known limits).
 - Expressions: `docs/feel.md`.
 - Start here: `docs/overview.md` (what it is, what it is for, how to use it) - `docs/architecture.md` - `docs/bpmn-support.md` - `docs/operations.md` - `docs/benchmarks.md`.

@@ -160,3 +160,70 @@ Features of Camunda 8 that were not in the checklist above. They count in the sc
 - [x] DMN decision table editor in the UI (one table per file)
 - [x] Resource-based authorizations: processes (key limits) and user tasks (groups); not decisions, forms or incidents
 - [x] Users, groups and roles: built-in users with passwords, roles, groups and tenants (no password reset, no 2FA); API keys; or your identity provider
+
+## Second audit: Camunda 8 features the first two lists did not cover (2026-10-25)
+The first list was too narrow: Flowd scored 98 % on it while there were still many Camunda 8 features nobody had looked at. This list adds them. Items are ticked only when Flowd has them, checked in the code or by a test.
+
+### BPMN elements and execution
+- [x] Intermediate signal throw and catch events
+- [x] Escalation end event
+- [x] Script task with a FEEL expression and result variable
+- [x] Boundary events on call activities, and multi-instance call activities
+- [x] Job type, retries and headers given as expressions
+- [x] Signal end event
+- [x] Version tags on process definitions, and call activities that bind to a version tag (not the "deployment" binding)
+- [x] Process instance tags (set at start, searchable; not changeable afterwards)
+- [x] Call activity with the called process id as an expression
+
+### FEEL
+- [x] `instance of` and type checks (dates and dates with a time are one kind of value here)
+- [x] `before` and `after` on single values
+- [ ] Range values and the range functions on them (`meets`, `overlaps`, `includes`, `during`, ...)
+- [x] `sort` with a comparison function
+- [x] Temporal literals such as `@"2026-10-25"`
+- [x] `day of year`, `date and time(date, time)`, `number(text, grouping, decimal)`, `format number`
+- [ ] `uuid()` and `random number()` (not planned: the engine stays deterministic, so a replay gives the same result)
+
+### API
+- [x] Search of instances, jobs, tasks, incidents, variables and element instances
+- [x] Process definition statistics per element
+- [x] Validate a BPMN file through the API without deploying it
+- [x] Topology: which nodes are running
+- [x] Decision instance history (which decision was evaluated with what)
+- [x] Command line deploy and start (`flowd deploy`, `flowd start`)
+
+### Connectors
+- [x] Outbound HTTP, e-mail and RabbitMQ; inbound signed webhooks; secrets
+- [x] REST connector with OAuth 2.0 client credentials and basic/bearer helpers
+- [x] GraphQL connector
+- [x] Slack connector (posting messages only)
+- [x] Kafka connector (producing only)
+- [x] SQL connector (PostgreSQL only)
+- [ ] AWS (SQS, SNS, Lambda) connectors
+- [ ] Azure and Google connectors
+
+### Modeler and tools
+- [x] BPMN modeler, decision table editor, form builder, element templates for HTTP, e-mail and decisions
+- [x] Validation (lint) of the diagram inside the modeler (the server-side check, on demand)
+- [x] Export of the diagram as an image (SVG and PNG)
+- [x] Properties panel for timers, messages, signals, errors, multi-instance, input/output mappings and listeners
+- [x] Import of custom element template files (kept in the browser, for the built-in connector types)
+- [ ] Model versions and milestones, comments, collaboration
+- [ ] Play mode (run a process inside the modeler)
+
+### Operate, Tasklist, Optimize
+- [x] Instance list and detail with diagram and tokens, incidents, batch operations, task list with forms, analytics heat map
+- [x] Modify an instance (move tokens), set variables and migrate instances from the UI
+- [x] Reports over history (Optimize-like, fixed reports only: no custom reports or saved dashboards)
+
+### Clients and developer experience
+- [x] Worker SDKs for .NET, TypeScript, Python and Java; OpenAPI document
+- [x] Go client (worker SDK, standard library only)
+- [ ] Spring Boot starter
+- [ ] Process test library for users (assertions on instances in unit tests)
+
+### Operations
+- [x] Health, metrics, traces, logs, backup and restore (drilled in CI), Windows service, Docker image, rolling start of several nodes
+- [ ] Kubernetes manifests or Helm chart
+- [ ] Elasticsearch or OpenSearch exporter of events
+- [ ] Partitioned, replicated engine (Zeebe-style): Flowd scales by nodes on one PostgreSQL instead

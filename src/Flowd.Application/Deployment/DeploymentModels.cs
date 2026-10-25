@@ -11,7 +11,8 @@ public sealed record DefinitionDraft(
     string ResourceName,
     byte[] Resource,
     byte[] Checksum,
-    DateTimeOffset DeployedAt);
+    DateTimeOffset DeployedAt,
+    string? VersionTag = null);
 
 /// <summary>Stored process definition metadata (the XML is fetched separately, FR-DEP-005).</summary>
 public sealed record ProcessDefinitionInfo(
@@ -20,7 +21,8 @@ public sealed record ProcessDefinitionInfo(
     string BpmnProcessId,
     int Version,
     string ResourceName,
-    DateTimeOffset DeployedAt);
+    DateTimeOffset DeployedAt,
+    string? VersionTag = null);
 
 /// <summary>Outcome for one process of a deployment: new version, or the existing one when the checksum matched.</summary>
 public sealed record DeployedDefinition(ProcessDefinitionInfo Definition, bool IsNewVersion);

@@ -14,6 +14,9 @@ public interface IProcessDefinitionStore
     /// <summary>The definition to start from: the given version, or the latest when <paramref name="version"/> is null (FR-DEP-003).</summary>
     Task<ProcessDefinitionInfo?> FindAsync(string tenantId, string bpmnProcessId, int? version, CancellationToken cancellationToken);
 
+    /// <summary>The newest version of the process that was deployed with this version tag, or null (FR-DEP-007).</summary>
+    Task<ProcessDefinitionInfo?> FindByVersionTagAsync(string tenantId, string bpmnProcessId, string versionTag, CancellationToken cancellationToken);
+
     /// <summary>The original, unmodified XML bytes (FR-DEP-005).</summary>
     Task<byte[]?> GetResourceAsync(string tenantId, long key, CancellationToken cancellationToken);
 

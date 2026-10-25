@@ -23,11 +23,33 @@ public static class DeploymentEndpoints
 
         var group = routes.MapGroup("/v1");
         group.MapPost("/deployments", DeployAsync).DisableAntiforgery().RequireAuthorization(Policies.Deploy);
+        group.MapPost("/deployments/validate", ValidateAsync).DisableAntiforgery().RequireAuthorization(Policies.Deploy);
         group.MapGet("/process-definitions", ListAsync).RequireAuthorization(Policies.Read);
         group.MapGet("/process-definitions/{key}", GetAsync).RequireAuthorization(Policies.Read);
         group.MapGet("/process-definitions/{key}/xml", GetXmlAsync).RequireAuthorization(Policies.Read);
         group.MapDelete("/process-definitions/{key}", DeleteAsync).RequireAuthorization(Policies.Deploy);
         return routes;
+    }
+
+    /// <summary>Checks BPMN files like a deployment would, without deploying them (FR-DEP-008). Always answers 200 with the list of problems.</summary>
+    private static async Task<IResult> ValidateAsync(HttpRequest request, DeployProcessesUseCase useCase, CancellationToken cancellationToken)
+    {
+        if (!request.HasFormContentType)
+        {
+            return FailureMapper.ToProblem(new Failure(new ValidationFailure("Send the BPMN files as multipart/form-data.")));
+        }
+
+        var form = await request.ReadFormAsync(cancellationToken).ConfigureAwait(false);
+        var resources = new List<DeploymentResource>();
+        foreach (var file in form.Files)
+        {
+            using var buffer = new MemoryStream();
+            await file.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
+            resources.Add(new DeploymentResource(file.FileName, buffer.ToArray()));
+        }
+
+        var problems = useCase.Validate(resources);
+        return Results.Ok(new { valid = problems.Count == 0 && resources.Count > 0, problems = problems.Select(p => new { target = p.Target, code = p.Code, message = p.Message }) });
     }
 
     private static async Task<IResult> DeployAsync(
@@ -132,5 +154,6 @@ public static class DeploymentEndpoints
         info.BpmnProcessId,
         info.Version,
         info.ResourceName,
-        info.DeployedAt);
+        info.DeployedAt,
+        info.VersionTag);
 }

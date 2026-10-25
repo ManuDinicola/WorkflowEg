@@ -38,7 +38,7 @@ public static class HistoryEventTypes
 }
 
 /// <summary>The instance row was created (first effect of <c>StartInstance</c>).</summary>
-public sealed record InstanceStarted(long InstanceKey, long DefinitionKey, string TenantId, string? BusinessKey, DateTimeOffset StartedAt, long? ParentInstanceKey = null, long? ParentElementInstanceKey = null);
+public sealed record InstanceStarted(long InstanceKey, long DefinitionKey, string TenantId, string? BusinessKey, DateTimeOffset StartedAt, long? ParentInstanceKey = null, long? ParentElementInstanceKey = null, IReadOnlyList<string>? Tags = null);
 
 /// <summary>The instance changed state.</summary>
 public sealed record InstanceStateChanged(InstanceState State, DateTimeOffset? EndedAt);
@@ -71,7 +71,7 @@ public sealed record SubscriptionClosed(long Key);
 public sealed record MessageCorrelated(long MessageKey, long DefinitionKey);
 
 /// <summary>A call activity needs a child instance of another process (FR-EXEC-011); started after the commit.</summary>
-public sealed record ChildInstanceRequested(long ParentInstanceKey, long ParentElementInstanceKey, string CalledProcessId, System.Text.Json.Nodes.JsonObject Variables);
+public sealed record ChildInstanceRequested(long ParentInstanceKey, long ParentElementInstanceKey, string CalledProcessId, System.Text.Json.Nodes.JsonObject Variables, string? VersionTag = null);
 
 /// <summary>A child instance finished; the parent call activity continues, or gets an incident when the child was terminated.</summary>
 public sealed record ChildInstanceEnded(long ParentInstanceKey, long ParentElementInstanceKey, bool Completed, System.Text.Json.Nodes.JsonObject Variables);

@@ -13,6 +13,8 @@ GET /v1/analytics/processes/{bpmnProcessId}
 GET /v1/analytics/summary
 GET /v1/api-keys
 GET /v1/audit
+GET /v1/decision-instances
+GET /v1/decision-instances/{key}
 GET /v1/decisions
 GET /v1/decisions/{decisionId}/xml
 GET /v1/events/stream
@@ -29,6 +31,11 @@ GET /v1/process-instances/{key}
 GET /v1/process-instances/{key}/elements
 GET /v1/process-instances/{key}/history
 GET /v1/process-instances/{key}/variables
+GET /v1/reports/decisions
+GET /v1/reports/durations
+GET /v1/reports/incidents
+GET /v1/reports/instances
+GET /v1/topology
 GET /v1/user-tasks
 GET /v1/user-tasks/{key}/form
 GET /v1/users
@@ -41,6 +48,7 @@ POST /v1/connectors/webhook/{name}
 POST /v1/decisions
 POST /v1/decisions/{decisionId}/evaluate
 POST /v1/deployments
+POST /v1/deployments/validate
 POST /v1/forms
 POST /v1/incidents/{key}/resolve
 POST /v1/jobs/activate

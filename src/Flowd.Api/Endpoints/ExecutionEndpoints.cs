@@ -58,7 +58,7 @@ public static class InstanceEndpoints
         }
 
         var result = await useCase.ExecuteAsync(
-            new StartInstanceRequest(user.TenantId(), request.BpmnProcessId, request.Version, request.Variables, request.BusinessKey, request.StartElementId),
+            new StartInstanceRequest(user.TenantId(), request.BpmnProcessId, request.Version, request.Variables, request.BusinessKey, request.StartElementId, Tags: request.Tags),
             cancellationToken).ConfigureAwait(false);
         return result switch
         {
@@ -138,7 +138,7 @@ public static class InstanceEndpoints
     }
 
     /// <summary><c>variable=name:value</c> matches a root variable (the value is JSON, or plain text taken as a string); <c>order=desc</c> lists newest first.</summary>
-    private static InstanceFilter ParseFilter(string? state, string? bpmnProcessId, string? businessKey, DateTimeOffset? startedAfter, DateTimeOffset? startedBefore, string? variable, string? order)
+    private static InstanceFilter ParseFilter(string? state, string? bpmnProcessId, string? businessKey, DateTimeOffset? startedAfter, DateTimeOffset? startedBefore, string? variable, string? order, string? tag = null)
     {
         string? name = null;
         string? valueJson = null;
@@ -149,7 +149,7 @@ public static class InstanceEndpoints
             valueJson = IsJson(raw) ? raw : System.Text.Json.JsonSerializer.Serialize(raw);
         }
 
-        return new InstanceFilter(state, bpmnProcessId, businessKey, startedAfter, startedBefore, name, valueJson, string.Equals(order, "desc", StringComparison.OrdinalIgnoreCase));
+        return new InstanceFilter(state, bpmnProcessId, businessKey, startedAfter, startedBefore, name, valueJson, string.Equals(order, "desc", StringComparison.OrdinalIgnoreCase), Tag: string.IsNullOrWhiteSpace(tag) ? null : tag);
     }
 
     private static bool IsJson(string text)
@@ -175,13 +175,14 @@ public static class InstanceEndpoints
         DateTimeOffset? startedBefore,
         string? variable,
         string? order,
+        string? tag,
         int? pageSize,
         string? after,
         CancellationToken cancellationToken)
     {
         var page = await queries.ListInstancesAsync(
             user.TenantId(),
-            ParseFilter(state, bpmnProcessId, businessKey, startedAfter, startedBefore, variable, order) with { AllowedProcessIds = user.AllowedProcesses()?.ToArray() },
+            ParseFilter(state, bpmnProcessId, businessKey, startedAfter, startedBefore, variable, order, tag) with { AllowedProcessIds = user.AllowedProcesses()?.ToArray() },
             Math.Clamp(pageSize ?? 100, 1, MaxPageSize),
             TryKey(after),
             cancellationToken).ConfigureAwait(false);
@@ -288,7 +289,7 @@ public static class InstanceEndpoints
     internal static IResult NotFound(string what, string key) =>
         FailureMapper.ToProblem(new Failure(new NotFound($"{what} '{key}' not found.")));
 
-    private static InstanceDto ToDto(InstanceView v) => new(Id(v.Key), Id(v.DefinitionKey), v.BpmnProcessId, v.Version, v.State, v.StartedAt, v.EndedAt, v.BusinessKey);
+    private static InstanceDto ToDto(InstanceView v) => new(Id(v.Key), Id(v.DefinitionKey), v.BpmnProcessId, v.Version, v.State, v.StartedAt, v.EndedAt, v.BusinessKey, v.Tags);
 }
 
 /// <summary>Worker-facing job endpoints (API-007, API-008).</summary>

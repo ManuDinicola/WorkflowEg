@@ -94,3 +94,26 @@ jobs:
       - run: dotnet build src/Flowd.Host -c Release -v:q
       - name: Backup and restore drill
         run: PG_DOCKER_IMAGE=postgres:16 ./scripts/restore-drill.sh
+
+  ui-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node scripts/check-ui.mjs
+
+  sdk-go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk/go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -race ./...

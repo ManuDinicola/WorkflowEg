@@ -8,7 +8,7 @@ namespace Flowd.Infrastructure.Postgres;
 public sealed class PostgresProcessDefinitionStore(NpgsqlDataSource dataSource) : IProcessDefinitionStore
 {
     private const string Columns =
-        "key AS Key, tenant_id AS TenantId, bpmn_process_id AS BpmnProcessId, version AS Version, resource_name AS ResourceName, deployed_at AS DeployedAt";
+        "key AS Key, tenant_id AS TenantId, bpmn_process_id AS BpmnProcessId, version AS Version, resource_name AS ResourceName, deployed_at AS DeployedAt, version_tag AS VersionTag";
 
     public async Task<IReadOnlyList<DeployedDefinition>> DeployAsync(IReadOnlyList<DefinitionDraft> drafts, CancellationToken cancellationToken)
     {
@@ -43,6 +43,15 @@ public sealed class PostgresProcessDefinitionStore(NpgsqlDataSource dataSource) 
             new { tenantId, bpmnProcessId, version },
             cancellationToken: cancellationToken);
         return (await connection.QuerySingleOrDefaultAsync<Row>(command).ConfigureAwait(false))?.ToInfo();
+    }
+
+    public async Task<ProcessDefinitionInfo?> FindByVersionTagAsync(string tenantId, string bpmnProcessId, string versionTag, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        return await connection.QuerySingleOrDefaultAsync<ProcessDefinitionInfo>(new CommandDefinition(
+            $"SELECT {Columns} FROM process_definition WHERE tenant_id = @tenantId AND bpmn_process_id = @bpmnProcessId AND version_tag = @versionTag ORDER BY version DESC LIMIT 1",
+            new { tenantId, bpmnProcessId, versionTag },
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
     }
 
     public async Task<byte[]?> GetResourceAsync(string tenantId, long key, CancellationToken cancellationToken)
@@ -122,14 +131,14 @@ public sealed class PostgresProcessDefinitionStore(NpgsqlDataSource dataSource) 
         var version = (latest?.Version ?? 0) + 1;
         await connection.ExecuteAsync(new CommandDefinition(
             """
-            INSERT INTO process_definition (key, bpmn_process_id, version, resource_name, resource, checksum, tenant_id, deployed_at)
-            VALUES (@Key, @BpmnProcessId, @version, @ResourceName, @Resource, @Checksum, @TenantId, @DeployedAt)
+            INSERT INTO process_definition (key, bpmn_process_id, version, resource_name, resource, checksum, tenant_id, deployed_at, version_tag)
+            VALUES (@Key, @BpmnProcessId, @version, @ResourceName, @Resource, @Checksum, @TenantId, @DeployedAt, @VersionTag)
             """,
-            new { draft.Key, draft.BpmnProcessId, version, draft.ResourceName, draft.Resource, draft.Checksum, draft.TenantId, DeployedAt = draft.DeployedAt.UtcDateTime },
+            new { draft.Key, draft.BpmnProcessId, version, draft.ResourceName, draft.Resource, draft.Checksum, draft.TenantId, draft.VersionTag, DeployedAt = draft.DeployedAt.UtcDateTime },
             transaction,
             cancellationToken: cancellationToken)).ConfigureAwait(false);
 
-        var info = new ProcessDefinitionInfo(draft.Key, draft.TenantId, draft.BpmnProcessId, version, draft.ResourceName, draft.DeployedAt);
+        var info = new ProcessDefinitionInfo(draft.Key, draft.TenantId, draft.BpmnProcessId, version, draft.ResourceName, draft.DeployedAt, draft.VersionTag);
         return new DeployedDefinition(info, IsNewVersion: true);
     }
 

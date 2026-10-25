@@ -25,7 +25,7 @@ internal static class Lexer
         "starts with", "ends with", "upper case", "lower case", "string length", "is defined", "date and time",
         "day of week", "month of year", "last day of month", "substring before", "substring after", "string join", "index of", "distinct values", "list contains", "insert before",
         "round half up", "round half down", "round up", "round down", "get value", "context put", "context merge",
-        "years and months duration", "is blank", "is empty", "list replace", "get entries", "week of year", "to json", "from json", "to base64",
+        "years and months duration", "days and time duration", "instance of", "day of year", "format number", "is blank", "is empty", "list replace", "get entries", "week of year", "to json", "from json", "to base64",
     ];
 
     private static readonly string[] TwoCharSymbols = ["<=", ">=", "!=", "**", ".."];
@@ -47,6 +47,10 @@ internal static class Lexer
             else if (text[i] == '"')
             {
                 i = ReadString(text, i, tokens);
+            }
+            else if (text[i] == '@' && i + 1 < text.Length && text[i + 1] == '"')
+            {
+                i = ReadTemporal(text, i, tokens);
             }
             else if (IsNameStart(text[i]))
             {
@@ -110,6 +114,38 @@ internal static class Lexer
 
         tokens.Add(new Token(TokenKind.String, builder.ToString(), start));
         return i + 1;
+    }
+
+    /// <summary>
+    /// A temporal literal such as <c>@"2026-10-25"</c> is read as a call of the matching conversion function, so the parser and evaluator need no new cases:
+    /// <c>date("..")</c>, <c>time("..")</c>, <c>date and time("..")</c> or <c>duration("..")</c>.
+    /// </summary>
+    private static int ReadTemporal(string text, int start, List<Token> tokens)
+    {
+        var inner = new List<Token>();
+        var next = ReadString(text, start + 1, inner);
+        var value = inner[0].Text;
+        var function = TemporalFunction(value);
+        tokens.Add(new Token(TokenKind.Name, function, start));
+        tokens.Add(new Token(TokenKind.Symbol, "(", start));
+        tokens.Add(new Token(TokenKind.String, value, start));
+        tokens.Add(new Token(TokenKind.Symbol, ")", start));
+        return next;
+    }
+
+    private static string TemporalFunction(string value)
+    {
+        if (value.StartsWith('P') || value.StartsWith("-P", StringComparison.Ordinal))
+        {
+            return "duration";
+        }
+
+        if (value.Contains('T', StringComparison.Ordinal))
+        {
+            return "date and time";
+        }
+
+        return value.Contains(':', StringComparison.Ordinal) ? "time" : "date";
     }
 
     private static int ReadName(string text, int start, List<Token> tokens)

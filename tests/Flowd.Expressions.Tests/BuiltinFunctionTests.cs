@@ -170,4 +170,31 @@ public sealed class BuiltinFunctionTests
     [InlineData("string(date and time(\"2028-01-31T00:00:00Z\") + duration(\"P1M\"))", "2028-02-29T00:00:00.0000000+00:00")]
     [InlineData("years and months duration(date and time(\"2020-01-15T00:00:00Z\"), date and time(\"2022-03-10T00:00:00Z\")).years", "2")]
     public void FR_EXPR_015_time_of_day_and_years_and_months_durations(string expression, string expected) => Run(expression).ShouldBe(expected);
+
+    [Theory]
+    [InlineData("5 instance of number", "true")]
+    [InlineData("\"a\" instance of number", "false")]
+    [InlineData("[1, 2] instance of list", "true")]
+    [InlineData("{a: 1} instance of context", "true")]
+    [InlineData("@\"2026-10-25T10:00:00Z\" instance of date and time", "true")]
+    [InlineData("@\"10:30:00\" instance of time", "true")]
+    [InlineData("@\"P1Y2M\" instance of years and months duration", "true")]
+    [InlineData("@\"PT1H\" instance of days and time duration", "true")]
+    [InlineData("null instance of null", "true")]
+    [InlineData("@\"2026-10-25\" < @\"2026-10-26\"", "true")]
+    [InlineData("@\"2026-10-25\" + @\"P1D\" = @\"2026-10-26\"", "true")]
+    [InlineData("@\"10:30:00\".hour", "10")]
+    public void FR_EXPR_016_instance_of_and_temporal_literals(string expression, string expected) => Run(expression).ShouldBe(expected);
+
+    [Theory]
+    [InlineData("sort([3, 1, 2], function(a, b) a < b)", "[1,2,3]")]
+    [InlineData("sort([3, 1, 2], function(a, b) a > b)", "[3,2,1]")]
+    [InlineData("sort([{n: 2}, {n: 1}], function(a, b) a.n < b.n)[1].n", "1")]
+    [InlineData("before(1, 2)", "true")]
+    [InlineData("after(1, 2)", "false")]
+    [InlineData("day of year(@\"2026-02-01\")", "32")]
+    [InlineData("date and time(@\"2026-10-25\", @\"10:30:00\") = @\"2026-10-25T10:30:00Z\"", "true")]
+    [InlineData("number(\"1.000,50\", \".\", \",\")", "1000.5")]
+    [InlineData("format number(1234.5, \"#,##0.00\")", "1,234.50")]
+    public void FR_EXPR_017_sort_with_a_function_point_comparisons_and_date_helpers(string expression, string expected) => Run(expression).ShouldBe(expected);
 }

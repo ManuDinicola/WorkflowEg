@@ -59,7 +59,7 @@ public sealed class PostCommitEffects(ISignalBroadcaster signals, StartInstanceU
 
     private async Task StartChildAsync(string tenantId, ChildInstanceRequested requested, CancellationToken cancellationToken)
     {
-        var request = new StartInstanceRequest(tenantId, requested.CalledProcessId, null, requested.Variables, null, null, null, null, requested.ParentInstanceKey, requested.ParentElementInstanceKey);
+        var request = new StartInstanceRequest(tenantId, requested.CalledProcessId, null, requested.Variables, null, null, null, null, requested.ParentInstanceKey, requested.ParentElementInstanceKey, requested.VersionTag);
         var result = await starter.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
         if (result is Engine.Results.Failure failure)
         {

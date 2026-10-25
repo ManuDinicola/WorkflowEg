@@ -165,6 +165,11 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
             return Invoke(function, call, scope);
         }
 
+        if (call.Function == "sort" && call.Arguments.Count == 2 && Evaluate(call.Arguments[1], scope) is FunctionValue order)
+        {
+            return Evaluate(call.Arguments[0], scope) is ListValue items ? SortWith(items, order) : Operators.Null;
+        }
+
         if (!Builtins.Exists(call.Function))
         {
             throw new EvaluationFailure(ExpressionErrorCodes.UnknownFunction, $"Unknown function '{call.Function}'.");
@@ -186,13 +191,41 @@ internal sealed class Evaluator(BudgetMeter meter, DateTimeOffset now)
             throw new EvaluationFailure(ExpressionErrorCodes.Type, $"Function '{call.Function}' takes {function.Parameters.Count} argument(s).");
         }
 
+        return Apply(function, [.. call.Arguments.Select(a => Evaluate(a, scope))]);
+    }
+
+    private ExpressionValue Apply(FunctionValue function, IReadOnlyList<ExpressionValue> arguments)
+    {
         var bindings = new Dictionary<string, ExpressionValue>(StringComparer.Ordinal);
         for (var i = 0; i < function.Parameters.Count; i++)
         {
-            bindings[function.Parameters[i]] = Evaluate(call.Arguments[i], scope);
+            bindings[function.Parameters[i]] = arguments[i];
         }
 
         return Evaluate((Expr)function.Body, new Scope(bindings, (Scope)function.Closure));
+    }
+
+    /// <summary><c>sort(list, function(a, b) a &lt; b)</c>: insertion sort driven by the "precedes" function; stable, and it cannot misbehave with an inconsistent function (the meter bounds the work).</summary>
+    private ExpressionValue SortWith(ListValue list, FunctionValue precedes)
+    {
+        if (precedes.Parameters.Count != 2)
+        {
+            throw new EvaluationFailure(ExpressionErrorCodes.Type, "The sort function takes two arguments.");
+        }
+
+        var sorted = new List<ExpressionValue>();
+        foreach (var item in list.Items)
+        {
+            var position = sorted.Count;
+            while (position > 0 && Apply(precedes, [item, sorted[position - 1]]) is true)
+            {
+                position--;
+            }
+
+            sorted.Insert(position, item);
+        }
+
+        return new ListValue(sorted);
     }
 
     private bool IsDefined(CallExpr call, Scope scope)
