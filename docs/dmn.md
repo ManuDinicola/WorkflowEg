@@ -30,3 +30,6 @@ The task creates an internal job of type `flowd.decision`. A built-in worker (a 
 
 ## Decisions that need other decisions (requirements graph)
 A decision can list the decisions it needs: `<informationRequirement><requiredDecision href="#rate"/></informationRequirement>`. Those decisions (in the same file) are evaluated first, recursively, and their results are available as variables under their name and their id, so `Base rate` / `rate` can be used in input expressions, output entries and literal expressions of the decision that requires them. A requirement that is not in the file answers `DMN_REQUIREMENT_MISSING`, a cycle `DMN_CYCLE`. Requirements across files and input data / knowledge source elements are not used.
+
+## Business knowledge models
+A `businessKnowledgeModel` with `encapsulatedLogic` (`formalParameter` names and a `literalExpression`) becomes a FEEL function with the model's name. Decisions of the same file call it like any function: `withTax(amount, 20)`. A model can call the models defined before it in the file. Names must be plain identifiers (no spaces), because they are called by name. Only literal expression logic is supported (not decision tables or other boxed expressions inside the model), and `knowledgeRequirement` links are not checked: every model of the file is available to every decision of the file.

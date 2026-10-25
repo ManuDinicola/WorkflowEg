@@ -22,7 +22,7 @@ public static class DmnParser
             var decisions = document.Descendants().Where(e => e.Name.LocalName == "decision").Select(ParseDecision).ToList();
             return decisions.Any(d => d is null)
                 ? new DmnInvalid("DMN_UNSUPPORTED", "A decision has neither a decision table nor a literal expression.")
-                : new DmnDefinitions([.. decisions.OfType<Decision>()]);
+                : new DmnDefinitions([.. decisions.OfType<Decision>()], [.. document.Descendants().Where(e => e.Name.LocalName == "businessKnowledgeModel").Select(ParseKnowledge)]);
         }
         catch (XmlException ex)
         {
@@ -42,6 +42,16 @@ public static class DmnParser
         return Child(decision, "literalExpression") is { } literal
             ? new LiteralExpressionDecision { Id = id, Name = name, Expression = Text(literal), Requires = Requirements(decision) }
             : null;
+    }
+
+    private static BusinessKnowledgeModel ParseKnowledge(XElement model)
+    {
+        var logic = Child(model, "encapsulatedLogic");
+        return new BusinessKnowledgeModel(
+            (string?)model.Attribute("id") ?? string.Empty,
+            (string?)model.Attribute("name") ?? string.Empty,
+            [.. Children(logic ?? model, "formalParameter").Select(p => (string?)p.Attribute("name") ?? string.Empty)],
+            Text(logic is null ? null : Child(logic, "literalExpression")));
     }
 
     private static IReadOnlyList<string> Requirements(XElement decision) =>

@@ -147,14 +147,14 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-25): 115 of 125 = 92 %. Target: 95 % (119 of 125).
+Score (2026-10-25): 116 of 125 = 92 %. Target: 95 % (119 of 125).
 
 Not counted: complex gateway, transaction sub-process with cancel event, and multiple / parallel multiple events. Camunda 8 does not support them either (they are BPMN elements that Camunda 8 leaves out), so they are not Camunda 8 features. Flowd does not support them. Before 2026-10-25 these three lines were in the checklist as open items; moving them out raised the percentage by about three points without any new code, so compare scores before and after with that in mind.
 
 ## Audit of what the first checklist missed (2026-10-25)
 Features of Camunda 8 that were not in the checklist above. They count in the score from now on.
 - [x] Create an instance and wait for its result (with fetched variables)
-- [ ] Business knowledge models (BKM) in DMN
+- [x] Business knowledge models (BKM) in DMN (literal expression logic only)
 - [ ] Element templates in the modeler (ready-made connector settings)
 - [ ] Form builder (graphical) in the UI
 - [ ] DMN decision table editor in the UI

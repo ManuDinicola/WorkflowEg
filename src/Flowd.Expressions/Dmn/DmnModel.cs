@@ -58,5 +58,11 @@ public sealed class LiteralExpressionDecision : Decision
     public required string Expression { get; init; }
 }
 
+/// <summary>A business knowledge model: a named function (parameters and a literal expression) that decisions of the file can call (FR-DMN-006).</summary>
+public sealed record BusinessKnowledgeModel(string Id, string Name, IReadOnlyList<string> Parameters, string Expression);
+
 /// <summary>All decisions of one DMN file.</summary>
-public sealed record DmnDefinitions(IReadOnlyList<Decision> Decisions);
+public sealed record DmnDefinitions(IReadOnlyList<Decision> Decisions, IReadOnlyList<BusinessKnowledgeModel>? Knowledge = null)
+{
+    public IReadOnlyList<BusinessKnowledgeModel> Functions { get; } = Knowledge ?? [];
+}
