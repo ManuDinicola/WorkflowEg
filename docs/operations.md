@@ -110,3 +110,5 @@ An API key (set `groups` when you create it through the API or the Access tab) o
 
 ## Idempotency keys
 Send `Idempotency-Key: <unique per logical request>` on POST, PUT, PATCH and DELETE calls you may need to repeat. The first request reserves the key and runs; a repeat with the same body within 24 hours gets the stored response (header `Idempotent-Replayed: true`). A repeat that arrives while the first is still running gets `409` with code `IDEMPOTENCY_IN_PROGRESS` and `Retry-After: 1`: retry and you receive the stored response. The same key with a different body gets `422 IDEMPOTENCY_KEY_REUSED`. Server errors (5xx) are not remembered, so a retry runs. A reservation left by a node that died is taken over after two minutes.
+
+The reservation timeout is `Flowd__Idempotency__InProgressSeconds` (default 120). Keep it above your longest request (a start that waits for its result can take 60 seconds); lower values let a retry run sooner after a crash but risk running a slow request twice.

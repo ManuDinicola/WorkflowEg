@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Flowd.Application.Security;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 
 namespace Flowd.Api.Security;
 
@@ -9,13 +10,13 @@ namespace Flowd.Api.Security;
 /// Replays the original response for a repeated <c>Idempotency-Key</c> with the same request within 24 hours (API-R1).
 /// The same key with a different request is refused with <c>IDEMPOTENCY_KEY_REUSED</c>. The key is reserved before the command runs, so the
 /// same request sent twice at the same time runs once: the second one is told <c>IDEMPOTENCY_IN_PROGRESS</c> (409) and should retry shortly.
-/// A reservation whose request died is taken over after two minutes.
+/// A reservation whose request died is taken over after <c>Flowd:Idempotency:InProgressSeconds</c> (default 120, which must stay above the longest request, 60 s for a start that waits for its result).
 /// </summary>
-public sealed class IdempotencyMiddleware(RequestDelegate next, TimeProvider time)
+public sealed class IdempotencyMiddleware(RequestDelegate next, TimeProvider time, IConfiguration configuration)
 {
     public const string HeaderName = "Idempotency-Key";
     public static readonly TimeSpan Retention = TimeSpan.FromHours(24);
-    public static readonly TimeSpan InProgressTimeout = TimeSpan.FromMinutes(2);
+    private readonly TimeSpan _inProgressTimeout = TimeSpan.FromSeconds(Math.Max(configuration.GetValue("Flowd:Idempotency:InProgressSeconds", 120), 1));
     private const int MaxKeyLength = 255;
 
     public async Task InvokeAsync(HttpContext context, IIdempotencyStore store)
@@ -40,7 +41,7 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, TimeProvider tim
                 return;
             }
 
-            if (await store.TryReserveAsync(scopedKey, hash, now, now - Retention, now - InProgressTimeout, context.RequestAborted).ConfigureAwait(false))
+            if (await store.TryReserveAsync(scopedKey, hash, now, now - Retention, now - _inProgressTimeout, context.RequestAborted).ConfigureAwait(false))
             {
                 await RunAsync(context, store, scopedKey, hash).ConfigureAwait(false);
                 return;
@@ -50,8 +51,8 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, TimeProvider tim
         await WriteInProgressAsync(context).ConfigureAwait(false); // two lost races in a row: someone else is running it
     }
 
-    private static bool IsExpired(IdempotentResponse stored, DateTimeOffset now) =>
-        now - stored.CreatedAt >= (stored.IsInProgress ? InProgressTimeout : Retention);
+    private bool IsExpired(IdempotentResponse stored, DateTimeOffset now) =>
+        now - stored.CreatedAt >= (stored.IsInProgress ? _inProgressTimeout : Retention);
 
     private async Task RunAsync(HttpContext context, IIdempotencyStore store, string scopedKey, byte[] hash)
     {
