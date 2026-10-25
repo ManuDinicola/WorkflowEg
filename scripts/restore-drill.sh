@@ -9,10 +9,11 @@ set -euo pipefail
 
 : "${PGHOST:?set PGHOST}" "${PGUSER:?set PGUSER}" "${PGPASSWORD:?set PGPASSWORD}"
 PGPORT="${PGPORT:-5432}"
+PGBIN="${PGBIN:+$PGBIN/}"  # directory of psql, pg_dump and pg_restore when they are not on the PATH; use the version of your server
 FLOWD_DLL="${FLOWD_DLL:-src/Flowd.Host/bin/Release/net11.0/flowd.dll}"
 WORK="$(mktemp -d)"
 SERVER_PID=""
-trap 'if [ -n "$SERVER_PID" ]; then kill "$SERVER_PID" 2>/dev/null || true; fi; rm -rf "$WORK"; psql -q -d postgres -c "DROP DATABASE IF EXISTS flowd_drill_src" -c "DROP DATABASE IF EXISTS flowd_drill_restored" >/dev/null 2>&1 || true' EXIT
+trap 'if [ -n "$SERVER_PID" ]; then kill "$SERVER_PID" 2>/dev/null || true; fi; rm -rf "$WORK"; "${PGBIN}psql" -q -d postgres -c "DROP DATABASE IF EXISTS flowd_drill_src" -c "DROP DATABASE IF EXISTS flowd_drill_restored" >/dev/null 2>&1 || true' EXIT
 
 conn() { echo "Host=$PGHOST;Port=$PGPORT;Database=$1;Username=$PGUSER;Password=$PGPASSWORD;Maximum Pool Size=10"; }
 
@@ -41,7 +42,7 @@ cat >"$WORK/drill.bpmn" <<'EOF'
 </bpmn:definitions>
 EOF
 
-psql -q -d postgres -c "DROP DATABASE IF EXISTS flowd_drill_src" -c "DROP DATABASE IF EXISTS flowd_drill_restored" -c "CREATE DATABASE flowd_drill_src" -c "CREATE DATABASE flowd_drill_restored"
+"${PGBIN}psql" -q -d postgres -c "DROP DATABASE IF EXISTS flowd_drill_src" -c "DROP DATABASE IF EXISTS flowd_drill_restored" -c "CREATE DATABASE flowd_drill_src" -c "CREATE DATABASE flowd_drill_restored"
 
 echo "1. run Flowd on the source database and create some state"
 serve flowd_drill_src 18181
@@ -52,8 +53,8 @@ echo "   instance $KEY started"
 stop
 
 echo "2. back up and restore into an empty database"
-pg_dump -Fc -d flowd_drill_src -f "$WORK/flowd.dump"
-pg_restore --no-owner -d flowd_drill_restored "$WORK/flowd.dump"
+"${PGBIN}pg_dump" -Fc -d flowd_drill_src -f "$WORK/flowd.dump"
+"${PGBIN}pg_restore" --no-owner -d flowd_drill_restored "$WORK/flowd.dump"
 
 echo "3. the restored database needs no migration and holds the instance"
 APPLIED="$(Flowd__ConnectionString="$(conn flowd_drill_restored)" dotnet "$FLOWD_DLL" migrate)"
