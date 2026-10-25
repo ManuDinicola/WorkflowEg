@@ -132,5 +132,6 @@ public static class DeploymentEndpoints
         info.BpmnProcessId,
         info.Version,
         info.ResourceName,
-        info.DeployedAt);
+        info.DeployedAt,
+        info.VersionTag);
 }

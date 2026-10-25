@@ -23,7 +23,7 @@ public sealed class MigrationAndHealthTests(PostgresFixture postgres) : IClassFi
         var runner = new PostgresMigrationRunner(cs);
 
         runner.IsCurrent().ShouldBeFalse();
-        runner.Migrate().Count.ShouldBe(12);
+        runner.Migrate().Count.ShouldBe(13);
         runner.IsCurrent().ShouldBeTrue();
         runner.Migrate().ShouldBeEmpty();
 

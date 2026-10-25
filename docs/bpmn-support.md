@@ -23,3 +23,9 @@ An `adHocSubProcess` starts every inner activity that has no incoming flow, all 
 
 ## Compensation (simplified)
 Attach a `boundaryEvent` with `compensateEventDefinition` to an activity and point a `bpmn:association` from it to a task with `isForCompensation="true"` (the handler). A compensation throw event (intermediate or end, optionally with `activityRef`) starts the handler of every activity in its scope that has completed, latest first. Differences from the full BPMN rule: the handlers start together instead of one after the other, an intermediate throw event does not wait for them (an end event does, because the instance ends only when they are done), nested sub-process compensation and the compensation of an activity inside a loop are not supported, and an activity is compensated at most once per completion.
+
+## Signal end events, version tags, calling by version tag
+- A **signal end event** (`endEvent` with `signalEventDefinition`) broadcasts its signal when the path ends, like a signal throw event.
+- A process can carry a **version tag**: `<bpmn:process ...><bpmn:extensionElements><flowd:versionTag value="stable"/></bpmn:extensionElements>`. The tag is stored with the definition and shown in `GET /v1/process-definitions`.
+- A **call activity** can bind to a tag: `<flowd:calledElement bindingType="versionTag" versionTag="stable"/>` starts the newest version of the called process that was deployed with that tag; if there is none, the call activity raises an incident. Without a binding it calls the latest version, as before. The "deployment" binding of Camunda (the version deployed together with the caller) is not supported.
+- The called process id of a call activity may be an expression (`= target`).

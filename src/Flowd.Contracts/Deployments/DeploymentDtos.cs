@@ -6,7 +6,8 @@ public sealed record ProcessDefinitionDto(
     string BpmnProcessId,
     int Version,
     string ResourceName,
-    DateTimeOffset DeployedAt);
+    DateTimeOffset DeployedAt,
+    string? VersionTag = null);
 
 /// <summary>One deployed process: <see cref="IsNewVersion"/> is false when identical XML was already deployed (FR-DEP-002).</summary>
 public sealed record DeployedProcessDto(ProcessDefinitionDto Definition, bool IsNewVersion);

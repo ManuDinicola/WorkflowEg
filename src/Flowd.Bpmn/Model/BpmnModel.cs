@@ -9,7 +9,8 @@ public sealed record BpmnProcess(
     string? Name,
     bool IsExecutable,
     IReadOnlyList<FlowNode> Nodes,
-    IReadOnlyList<SequenceFlow> Flows)
+    IReadOnlyList<SequenceFlow> Flows,
+    string? VersionTag = null)
 {
     /// <summary>Every node of the process including those inside sub-processes, depth first.</summary>
     public IEnumerable<FlowNode> AllNodes() => Flatten(Nodes);

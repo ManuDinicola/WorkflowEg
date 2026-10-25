@@ -111,6 +111,9 @@ public sealed class DeployProcessesUseCaseTests
         public Task<ProcessDefinitionInfo?> GetAsync(string tenantId, long key, CancellationToken cancellationToken) =>
             Task.FromResult<ProcessDefinitionInfo?>(null);
 
+        public Task<ProcessDefinitionInfo?> FindByVersionTagAsync(string tenantId, string bpmnProcessId, string versionTag, CancellationToken cancellationToken) =>
+            Task.FromResult<ProcessDefinitionInfo?>(null);
+
         public Task<ProcessDefinitionInfo?> FindAsync(string tenantId, string bpmnProcessId, int? version, CancellationToken cancellationToken) =>
             Task.FromResult<ProcessDefinitionInfo?>(null);
 

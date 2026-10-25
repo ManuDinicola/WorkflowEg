@@ -32,6 +32,9 @@ public sealed class EndEvent : FlowNode
     /// <summary>Set for a compensation end event: starts the compensation handlers of the scope (FR-CMP-001).</summary>
     public CompensationEventDefinition? Compensation { get; init; }
 
+    /// <summary>Set for a signal end event: broadcasts this signal when the path ends (FR-SIG-002).</summary>
+    public SignalEventDefinition? Signal { get; init; }
+
     /// <summary>Set for an escalation end event: raises this escalation and the path ends normally (FR-ESC-001).</summary>
     public EscalationEventDefinition? Escalation { get; init; }
 
@@ -250,6 +253,11 @@ public sealed class CallActivity : FlowNode
 {
     /// <summary>The called <c>bpmnProcessId</c>; a literal or a <c>=</c> expression. The latest deployed version is used.</summary>
     public string? CalledElement { get; init; }
+
+    /// <summary>Which version of the called process to start: <c>latest</c> (default) or <c>versionTag</c>, the newest version deployed with <see cref="VersionTag"/> (FR-DEP-007).</summary>
+    public string BindingType { get; init; } = "latest";
+
+    public string? VersionTag { get; init; }
 
     public bool PropagateAllChildVariables { get; init; } = true;
 

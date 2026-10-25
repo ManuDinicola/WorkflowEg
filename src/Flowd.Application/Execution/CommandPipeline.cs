@@ -28,7 +28,8 @@ public sealed record StartInstanceRequest(
     long? DefinitionKey = null,
     long? CorrelatedMessageKey = null,
     long? ParentInstanceKey = null,
-    long? ParentElementInstanceKey = null);
+    long? ParentElementInstanceKey = null,
+    string? VersionTag = null);
 
 public sealed record StartedInstance(long InstanceKey, long DefinitionKey, int Version, string BpmnProcessId);
 
@@ -132,12 +133,22 @@ public sealed class StartInstanceUseCase(
     EngineServices engine,
     CommandProcessor processor)
 {
+    private async Task<ProcessDefinitionInfo?> ResolveDefinitionAsync(StartInstanceRequest request, CancellationToken cancellationToken)
+    {
+        if (request.DefinitionKey is { } key)
+        {
+            return await definitions.GetAsync(request.TenantId, key, cancellationToken).ConfigureAwait(false);
+        }
+
+        return request.VersionTag is { Length: > 0 } tag
+            ? await definitions.FindByVersionTagAsync(request.TenantId, request.BpmnProcessId, tag, cancellationToken).ConfigureAwait(false)
+            : await definitions.FindAsync(request.TenantId, request.BpmnProcessId, request.Version, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<Result<StartedInstance>> ExecuteAsync(StartInstanceRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var definition = request.DefinitionKey is { } key
-            ? await definitions.GetAsync(request.TenantId, key, cancellationToken).ConfigureAwait(false)
-            : await definitions.FindAsync(request.TenantId, request.BpmnProcessId, request.Version, cancellationToken).ConfigureAwait(false);
+        var definition = await ResolveDefinitionAsync(request, cancellationToken).ConfigureAwait(false);
         if (definition is null)
         {
             return new Failure(new NotFound($"No deployed process '{request.BpmnProcessId}'{(request.Version is { } v ? $" version {v}" : string.Empty)}."));

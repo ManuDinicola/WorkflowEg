@@ -170,10 +170,10 @@ The first list was too narrow: Flowd scored 98 % on it while there were still ma
 - [x] Script task with a FEEL expression and result variable
 - [x] Boundary events on call activities, and multi-instance call activities
 - [x] Job type, retries and headers given as expressions
-- [ ] Signal end event
-- [ ] Version tags on process definitions, and call activities that bind to a version tag
+- [x] Signal end event
+- [x] Version tags on process definitions, and call activities that bind to a version tag (not the "deployment" binding)
 - [ ] Process instance tags
-- [ ] Call activity with the called process id as an expression
+- [x] Call activity with the called process id as an expression
 
 ### FEEL
 - [x] `instance of` and type checks (dates and dates with a time are one kind of value here)

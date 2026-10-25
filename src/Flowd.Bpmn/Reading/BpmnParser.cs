@@ -95,7 +95,8 @@ public sealed class BpmnParser
         (string?)process.Attribute("name"),
         string.Equals((string?)process.Attribute("isExecutable"), "true", StringComparison.OrdinalIgnoreCase),
         ParseNodes(process),
-        ParseFlows(process));
+        ParseFlows(process),
+        (string?)process.Element(Bpmn + "extensionElements")?.Element(Flowd + "versionTag")?.Attribute("value"));
 
     private FlowNode[] ParseNodes(XElement scope) =>
         [.. scope.Elements().Where(IsNode).Select(ParseNode)];
@@ -137,6 +138,7 @@ public sealed class BpmnParser
             "startEvent" => ParseStartEvent(e, id, name),
             "endEvent" when !HasEventDefinition(e) => new EndEvent { Id = id, Name = name },
             "endEvent" when HasOnlyEventDefinition(e, "terminateEventDefinition") => new EndEvent { Id = id, Name = name, IsTerminate = true },
+            "endEvent" when HasOnlyEventDefinition(e, "signalEventDefinition") && ReadDefinition(e) is SignalEventDefinition endSignal => new EndEvent { Id = id, Name = name, Signal = endSignal },
             "endEvent" when HasOnlyEventDefinition(e, "compensateEventDefinition") => new EndEvent { Id = id, Name = name, Compensation = ReadCompensation(e) },
             "endEvent" when HasOnlyEventDefinition(e, "errorEventDefinition") => new EndEvent { Id = id, Name = name, Error = ReadError(e) },
             "endEvent" when HasOnlyEventDefinition(e, "escalationEventDefinition") => new EndEvent { Id = id, Name = name, Escalation = ReadEscalation(e) },
@@ -317,6 +319,8 @@ public sealed class BpmnParser
             Id = id,
             Name = name,
             CalledElement = (string?)call?.Attribute("processId") ?? (string?)e.Attribute("calledElement"),
+            BindingType = string.Equals((string?)call?.Attribute("bindingType"), "versionTag", StringComparison.OrdinalIgnoreCase) ? "versionTag" : "latest",
+            VersionTag = (string?)call?.Attribute("versionTag"),
             PropagateAllChildVariables = !string.Equals((string?)call?.Attribute("propagateAllChildVariables"), "false", StringComparison.OrdinalIgnoreCase),
             PropagateAllParentVariables = !string.Equals((string?)call?.Attribute("propagateAllParentVariables"), "false", StringComparison.OrdinalIgnoreCase),
             Inputs = ParseMappings(mapping, "input"),

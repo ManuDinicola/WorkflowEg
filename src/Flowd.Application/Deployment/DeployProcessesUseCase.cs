@@ -95,7 +95,7 @@ public sealed class DeployProcessesUseCase(IProcessDefinitionStore store, IStart
 
                 var checksum = SHA256.HashData(resource.Content);
                 drafts.AddRange(definitions.Processes.Select(p =>
-                    new DefinitionDraft(keys.NextKey(), tenantId, p.Id!, resource.Name, resource.Content, checksum, now)));
+                    new DefinitionDraft(keys.NextKey(), tenantId, p.Id!, resource.Name, resource.Content, checksum, now, p.VersionTag)));
                 break;
         }
     }

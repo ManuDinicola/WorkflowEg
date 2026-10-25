@@ -34,7 +34,7 @@ public sealed class CallActivityHandler : ElementHandler<CallActivity>
         }
 
         context.MarkActive(instance);
-        context.Emit(new ChildInstanceRequested(context.State.InstanceKey, instance.Key, processId, variables));
+        context.Emit(new ChildInstanceRequested(context.State.InstanceKey, instance.Key, processId, variables, element.BindingType == "versionTag" ? element.VersionTag : null));
         context.Record(HistoryEventTypes.ChildStarted, instance, new JsonObject { ["calledElement"] = processId });
     }
 

@@ -1,4 +1,6 @@
+using System.Text.Json.Nodes;
 using Flowd.Bpmn.Model;
+using Flowd.Engine.Effects;
 using Flowd.Engine.Execution;
 using Flowd.Engine.State;
 
@@ -41,6 +43,14 @@ public sealed class EndEventElementHandler : ElementHandler<EndEvent>
                 context.RaiseIncident(IncidentTypes.UnhandledErrorEvent, $"No error handler for code '{error.Code}'.", instance);
             }
 
+            return;
+        }
+
+        if (element.Signal is { } signal)
+        {
+            context.Emit(new SignalThrown(signal.Name, []));
+            context.Record(HistoryEventTypes.SignalThrownEvent, instance, new JsonObject { ["signal"] = signal.Name });
+            context.Complete(instance);
             return;
         }
 
