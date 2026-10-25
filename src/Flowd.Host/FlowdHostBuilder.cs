@@ -12,6 +12,7 @@ using Flowd.Application.Jobs;
 using Flowd.Application.Messaging;
 using Flowd.Application.Migration;
 using Flowd.Application.Observability;
+using Flowd.Application.Operations;
 using Flowd.Application.Queries;
 using Flowd.Application.Readiness;
 using Flowd.Application.Retention;
@@ -128,6 +129,7 @@ internal static class FlowdHostBuilder
         app.MapMessageEndpoints();
         app.MapApiKeyEndpoints();
         app.MapUserEndpoints();
+        app.MapTopologyEndpoint();
         app.MapGrpcService<Flowd.Api.Grpc.GatewayService>();
         app.MapMetricsEndpoint();
         app.MapSignalAndUserTaskEndpoints();
@@ -254,6 +256,7 @@ internal static class FlowdHostBuilder
         services.AddSingleton<IChildInstanceStore, PostgresChildInstanceStore>();
         services.AddSingleton<IApiKeyStore, PostgresApiKeyStore>();
         services.AddSingleton<IUserStore, PostgresUserStore>();
+        services.AddSingleton<INodeDirectory, PostgresNodeDirectory>();
         services.AddSingleton<IRetentionStore, PostgresRetentionStore>();
         services.AddOptions<RetentionOptions>().BindConfiguration(RetentionOptions.SectionName);
         services.AddSingleton<Janitor>();

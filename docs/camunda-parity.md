@@ -187,10 +187,10 @@ The first list was too narrow: Flowd scored 98 % on it while there were still ma
 ### API
 - [x] Search of instances, jobs, tasks, incidents, variables and element instances
 - [x] Process definition statistics per element
-- [ ] Validate a BPMN file through the API without deploying it
-- [ ] Topology: which nodes are running
+- [x] Validate a BPMN file through the API without deploying it
+- [x] Topology: which nodes are running
 - [ ] Decision instance history (which decision was evaluated with what)
-- [ ] Command line deploy and start (`flowd deploy`, `flowd start`)
+- [x] Command line deploy and start (`flowd deploy`, `flowd start`)
 
 ### Connectors
 - [x] Outbound HTTP, e-mail and RabbitMQ; inbound signed webhooks; secrets

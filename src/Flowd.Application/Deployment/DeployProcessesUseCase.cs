@@ -53,6 +53,23 @@ public sealed class DeployProcessesUseCase(IProcessDefinitionStore store, IStart
         return deployed;
     }
 
+    /// <summary>
+    /// Checks resources exactly as a deployment would (parsing, validation rules, expressions, start triggers) and returns every problem, without storing
+    /// anything (FR-DEP-008). An empty list means a deployment would be accepted.
+    /// </summary>
+    public IReadOnlyList<FailureDetail> Validate(IReadOnlyList<DeploymentResource> resources)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+        var now = time.GetUtcNow();
+        var details = new List<FailureDetail>();
+        foreach (var resource in resources)
+        {
+            CollectDrafts(resource, string.Empty, now, [], new Dictionary<string, StartTriggerPlan>(StringComparer.Ordinal), details);
+        }
+
+        return details;
+    }
+
     private static void RejectForbidden(string resourceName, List<DefinitionDraft> drafts, IReadOnlySet<string>? allowed, List<FailureDetail> details)
     {
         if (allowed is null)
