@@ -223,6 +223,23 @@ const views = {
       const fields = inputs.map(formField);
       const message = el("div");
       form.replaceChildren(el("div", { class: "card" }, el("h3", {}, `Task ${task.key} — ${task.elementId}`), ...fields.map((f) => f.row), message,
+      el("button", { onclick: async () => {
+        try {
+          const body = new FormData(); body.append("resources", new Blob([await save()], { type: "application/xml" }), "model.bpmn");
+          const report = (await api("/v1/deployments/validate", { method: "POST", body })).data;
+          message.replaceChildren(report.valid ? el("div", { class: "card" }, "No problems found: this diagram can be deployed.")
+            : el("div", { class: "card" }, el("h4", {}, report.problems.length + " problem(s)"), ...report.problems.map((p) => el("div", { class: "err", style: "cursor:pointer", onclick: () => { const id = String(p.target).split("#")[1]; const shape = id && modeler.get("elementRegistry").get(id); if (shape) { modeler.get("selection").select(shape); modeler.get("canvas").scrollToElement(shape); } } }, `${p.code}: ${p.message}`))));
+        } catch (e) { fail(message, e); }
+      } }, "Check"),
+      el("button", { onclick: async () => { try { const { svg } = await modeler.saveSVG(); const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" })); el("a", { href: url, download: "process.svg" }).click(); URL.revokeObjectURL(url); } catch (e) { fail(message, e); } } }, "Export SVG"),
+      el("button", { onclick: async () => {
+        try {
+          const { svg } = await modeler.saveSVG(); const image = new Image(); const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+          await new Promise((ok, no) => { image.onload = ok; image.onerror = () => no(new Error("The image could not be drawn.")); image.src = url; });
+          const sheet = document.createElement("canvas"); sheet.width = image.width * 2; sheet.height = image.height * 2; const g = sheet.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, sheet.width, sheet.height); g.drawImage(image, 0, 0, sheet.width, sheet.height);
+          URL.revokeObjectURL(url); sheet.toBlob((png) => { const link = URL.createObjectURL(png); el("a", { href: link, download: "process.png" }).click(); URL.revokeObjectURL(link); });
+        } catch (e) { fail(message, e); }
+      } }, "Export PNG"),
         el("button", { class: "primary", onclick: async () => {
           try {
             let variables = {};
@@ -438,6 +455,7 @@ ${model.rules.map((r) => `      <rule>${r.ins.map((t) => `<inputEntry><text>${es
       const values = empty ? kept : [...kept, factory().create(type, attrs)];
       modeling().updateProperties(element, { extensionElements: values.length === 0 ? undefined : factory().create("bpmn:ExtensionElements", { values }) });
     };
+    const panelContext = { el, field: (...a) => field(...a), factory, modeling, canvas: () => modeler.get("canvas"), newId: (prefix) => prefix + "_" + Math.random().toString(36).slice(2, 9) };
     const attrsOf = (node) => Object.fromEntries(Object.entries(node ?? {}).filter(([k, v]) => !k.startsWith("$") && typeof v === "string"));
     const showProps = (element) => {
       props.replaceChildren(el("h3", {}, "Properties"));
@@ -446,13 +464,13 @@ ${model.rules.map((r) => `      <rule>${r.ins.map((t) => `<inputEntry><text>${es
       props.append(el("p", { class: "muted" }, element.type + " · " + element.id), field("Name", bo.name, (v) => modeling().updateProperties(element, { name: v || undefined })));
       if (["bpmn:ServiceTask", "bpmn:SendTask", "bpmn:BusinessRuleTask"].includes(element.type)) {
         const connector = extOf(element, "flowd:Connector"), decision = extOf(element, "flowd:CalledDecision");
-        const kind = connector ? connector.type : decision ? "decision" : "job";
+        const kind = connector ? (Object.keys(ELEMENT_TEMPLATES).find((k) => (ELEMENT_TEMPLATES[k].connector ?? k) === connector.type) ?? connector.type) : decision ? "decision" : "job";
         const select = el("select", {}, ...Object.entries(ELEMENT_TEMPLATES).map(([key, t]) => el("option", { value: key, ...(key === kind ? { selected: "selected" } : {}) }, t.label)));
         select.addEventListener("change", () => {
           const template = ELEMENT_TEMPLATES[select.value];
           if (select.value === "job") setExt(element, "flowd:TaskDefinition", { type: "my-job" }, ["flowd:Connector", "flowd:CalledDecision"]);
           else if (select.value === "decision") setExt(element, "flowd:CalledDecision", { decisionId: "my-decision", resultVariable: "decisionResult" }, ["flowd:Connector", "flowd:TaskDefinition"]);
-          else setExt(element, "flowd:Connector", { type: select.value, ...template.defaults }, ["flowd:TaskDefinition", "flowd:CalledDecision"]);
+          else setExt(element, "flowd:Connector", { type: template.connector ?? select.value, ...template.defaults }, ["flowd:TaskDefinition", "flowd:CalledDecision"]);
           showProps(element);
         });
         props.append(el("label", {}, "Template"), select);
@@ -475,9 +493,20 @@ ${model.rules.map((r) => `      <rule>${r.ins.map((t) => `<inputEntry><text>${es
         props.append(field("Condition (FEEL, starts with =)", bo.conditionExpression?.body, (v) =>
           modeling().updateProperties(element, { conditionExpression: v ? factory().create("bpmn:FormalExpression", { body: v }) : undefined })));
       }
+      props.append(...window.FlowdPanels.sections(panelContext, element));
     };
     modeler.on("selection.changed", ({ newSelection }) => showProps(newSelection[0] ?? null));
     modeler.on("element.changed", ({ element }) => { if (modeler.get("selection").get()[0] === element) showProps(element); });
+    const templateFile = el("input", { type: "file", accept: ".json", title: "Import element templates (JSON)" });
+    templateFile.addEventListener("change", async () => {
+      if (!templateFile.files[0]) return;
+      try {
+        const imported = checkTemplates(JSON.parse(await templateFile.files[0].text()));
+        const known = JSON.parse(localStorage.getItem("flowd-templates") || "[]").filter((t) => !imported.some((i) => i.id === t.id));
+        localStorage.setItem("flowd-templates", JSON.stringify([...known, ...imported.map(({ id, label, connector, fields, defaults }) => ({ id, name: label.replace(" (imported)", ""), connector, fields, defaults }))]));
+        applyTemplates(imported); show("modeler");
+      } catch (e) { fail(message, e); }
+    });
     const file = el("input", { type: "file", accept: ".bpmn,.xml" });
     file.addEventListener("change", async () => { if (file.files[0]) { try { await open(await file.files[0].text()); } catch (e) { fail(message, e); } } });
     const defs = (await api("/v1/process-definitions?pageSize=200")).data.items;
@@ -487,7 +516,7 @@ ${model.rules.map((r) => `      <rule>${r.ins.map((t) => `<inputEntry><text>${es
       try { const latest = defs.filter((d) => d.bpmnProcessId === deployed.value).sort((a, b) => b.version - a.version)[0]; await open((await api(`/v1/process-definitions/${latest.key}/xml`)).text); } catch (e) { fail(message, e); }
     });
     const toolbar = el("div", { class: "row" },
-      el("button", { onclick: () => open(NEW_DIAGRAM).catch((e) => fail(message, e)) }, "New"), file, deployed,
+      el("button", { onclick: () => open(NEW_DIAGRAM).catch((e) => fail(message, e)) }, "New"), file, deployed, el("label", { class: "inline", title: "Import element templates" }, "Templates: ", templateFile),
       el("button", { onclick: async () => { try { const url = URL.createObjectURL(new Blob([await save()], { type: "application/xml" })); const a = el("a", { href: url, download: "process.bpmn" }); a.click(); URL.revokeObjectURL(url); } catch (e) { fail(message, e); } } }, "Download"),
       el("button", { class: "primary", onclick: async () => {
         try {
@@ -506,7 +535,7 @@ let modelerLoad;
 const loadModeler = () => modelerLoad ??= new Promise((resolve, reject) => {
   for (const css of ["diagram-js.css", "bpmn-js.css", "bpmn-embedded.css"]) document.head.append(el("link", { rel: "stylesheet", href: "/ui/vendor/" + css }));
   const script = el("script", { src: "/ui/vendor/bpmn-modeler.production.min.js" });
-  script.onload = () => resolve(window.BpmnJS);
+  script.onload = () => { const panels = el("script", { src: "/ui/vendor/flowd-panels.js" }); panels.onload = () => resolve(window.BpmnJS); panels.onerror = () => { modelerLoad = undefined; reject(new Error("The modeler panels could not be loaded.")); }; document.head.append(panels); };
   script.onerror = () => { modelerLoad = undefined; reject(new Error("The modeler could not be loaded.")); };
   document.head.append(script);
 });
@@ -527,9 +556,43 @@ const FLOWD_MODDLE = {
     { name: "TaskDefinition", superClass: ["Element"], properties: [{ name: "type", isAttr: true, type: "String" }, { name: "retries", isAttr: true, type: "String" }] },
     { name: "AssignmentDefinition", superClass: ["Element"], properties: [{ name: "assignee", isAttr: true, type: "String" }, { name: "candidateGroups", isAttr: true, type: "String" }] },
     { name: "Connector", superClass: ["Element"], properties: ["type", "url", "method", "body", "headers", "resultVariable", "failOnError", "to", "subject", "from", "html", "authType", "token", "username", "password", "tokenUrl", "clientId", "clientSecret", "scope", "clientAuthentication", "query", "variables", "operationName", "channel", "text", "exchange", "routingKey", "contentType", "connection", "mode", "parameters", "topic", "key"].map((name) => ({ name, isAttr: true, type: "String" })) },
+    { name: "Subscription", superClass: ["Element"], properties: [{ name: "correlationKey", isAttr: true, type: "String" }] },
+    { name: "LoopCharacteristics", superClass: ["Element"], properties: ["inputCollection", "inputElement", "outputCollection", "outputElement"].map((name) => ({ name, isAttr: true, type: "String" })) },
+    { name: "Input", superClass: ["Element"], properties: [{ name: "source", isAttr: true, type: "String" }, { name: "target", isAttr: true, type: "String" }] },
+    { name: "Output", superClass: ["Element"], properties: [{ name: "source", isAttr: true, type: "String" }, { name: "target", isAttr: true, type: "String" }] },
+    { name: "IoMapping", superClass: ["Element"], properties: [{ name: "propagateAll", isAttr: true, type: "String" }, { name: "inputs", type: "Input", isMany: true }, { name: "outputs", type: "Output", isMany: true }] },
+    { name: "Listener", superClass: ["Element"], properties: [{ name: "event", isAttr: true, type: "String" }, { name: "type", isAttr: true, type: "String" }] },
+    { name: "ExecutionListeners", superClass: ["Element"], properties: [{ name: "listeners", type: "Listener", isMany: true }] },
+    { name: "TaskListeners", superClass: ["Element"], properties: [{ name: "listeners", type: "Listener", isMany: true }] },
     { name: "CalledDecision", superClass: ["Element"], properties: ["decisionId", "resultVariable"].map((name) => ({ name, isAttr: true, type: "String" })) },
   ],
 };
+/* Custom element templates: a JSON file the user imports, kept in this browser (FR-UI-010).
+   [{ "id": "orders-api", "name": "Orders API", "connector": "http", "fields": ["url", "body"], "defaults": { "method": "POST", "url": "https://..." } }] */
+const KNOWN_CONNECTORS = ["http", "email", "rabbitmq", "graphql", "slack", "sql", "kafka"];
+function checkTemplates(list) {
+  if (!Array.isArray(list) || list.length === 0 || list.length > 100) throw new Error("A template file is a JSON list of 1 to 100 templates.");
+  return list.map((t, i) => {
+    const where = `Template ${i + 1}`;
+    if (typeof t !== "object" || t === null) throw new Error(`${where} is not an object.`);
+    if (typeof t.id !== "string" || !/^[A-Za-z][A-Za-z0-9-]{0,40}$/.test(t.id)) throw new Error(`${where}: id must be letters, digits and dashes.`);
+    if (ELEMENT_TEMPLATES[t.id] && !ELEMENT_TEMPLATES[t.id].custom) throw new Error(`${where}: the id "${t.id}" belongs to a built-in template.`);
+    if (typeof t.name !== "string" || !t.name.trim()) throw new Error(`${where}: name is missing.`);
+    if (!KNOWN_CONNECTORS.includes(t.connector)) throw new Error(`${where}: connector must be one of ${KNOWN_CONNECTORS.join(", ")}.`);
+    if (!Array.isArray(t.fields) || t.fields.some((f) => typeof f !== "string" || !/^[A-Za-z][A-Za-z0-9]{0,30}$/.test(f))) throw new Error(`${where}: fields must be a list of simple names.`);
+    const defaults = t.defaults ?? {};
+    if (typeof defaults !== "object" || Object.values(defaults).some((v) => typeof v !== "string")) throw new Error(`${where}: defaults must map names to text.`);
+    return { id: t.id, label: t.name.trim() + " (imported)", connector: t.connector, fields: t.fields, defaults, custom: true };
+  });
+}
+function applyTemplates(list) {
+  const connector = FLOWD_MODDLE.types.find((t) => t.name === "Connector");
+  for (const t of list) {
+    ELEMENT_TEMPLATES[t.id] = t;
+    for (const f of [...t.fields, ...Object.keys(t.defaults)]) if (!connector.properties.some((p) => p.name === f)) connector.properties.push({ name: f, isAttr: true, type: "String" });
+  }
+}
+try { applyTemplates(checkTemplates(JSON.parse(localStorage.getItem("flowd-templates") || "[]"))); } catch { /* a bad or missing saved list is ignored */ }
 const NEW_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:flowd="http://flowd.io/schema/1.0" id="Definitions_1" targetNamespace="http://flowd.io/model">
   <bpmn:process id="my-process" isExecutable="true">

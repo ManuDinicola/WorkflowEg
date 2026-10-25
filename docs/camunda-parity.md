@@ -204,10 +204,10 @@ The first list was too narrow: Flowd scored 98 % on it while there were still ma
 
 ### Modeler and tools
 - [x] BPMN modeler, decision table editor, form builder, element templates for HTTP, e-mail and decisions
-- [ ] Validation (lint) of the diagram inside the modeler
-- [ ] Export of the diagram as an image
-- [ ] Properties panel for timers, messages, signals, errors, multi-instance, input/output mappings and listeners
-- [ ] Import of custom element template files
+- [x] Validation (lint) of the diagram inside the modeler (the server-side check, on demand)
+- [x] Export of the diagram as an image (SVG and PNG)
+- [x] Properties panel for timers, messages, signals, errors, multi-instance, input/output mappings and listeners
+- [x] Import of custom element template files (kept in the browser, for the built-in connector types)
 - [ ] Model versions and milestones, comments, collaboration
 - [ ] Play mode (run a process inside the modeler)
 
