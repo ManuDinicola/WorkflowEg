@@ -143,11 +143,11 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Analytics (Optimize-like): durations, counts, heatmap
 - [x] Connectors: REST (outbound) and signed webhook (inbound)
 - [x] Connector: e-mail (SMTP)
-- [ ] Connector: message queue
+- [x] Connector: message queue (RabbitMQ only; no Kafka or cloud queues)
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-25): 121 of 125 = 96 %. Target: 95 % (119 of 125).
+Score (2026-10-25): 122 of 125 = 97 %. Target: 98 % (123 of 125).
 
 Not counted: complex gateway, transaction sub-process with cancel event, and multiple / parallel multiple events. Camunda 8 does not support them either (they are BPMN elements that Camunda 8 leaves out), so they are not Camunda 8 features. Flowd does not support them. Before 2026-10-25 these three lines were in the checklist as open items; moving them out raised the percentage by about three points without any new code, so compare scores before and after with that in mind.
 

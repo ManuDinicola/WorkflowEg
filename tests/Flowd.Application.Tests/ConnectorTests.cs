@@ -136,4 +136,41 @@ public sealed class ConnectorTests
         (await Mail(mail, domains: "example.com").ExecuteAsync(Job(new() { ["to"] = "a@example.com", ["subject"] = "hi\nBcc: x@y.z" }), CancellationToken.None)).Success.ShouldBeFalse();
         mail.Sent.ShouldBeEmpty();
     }
+
+    private sealed class FakeQueue : IQueuePublisher
+    {
+        public List<QueueMessage> Sent { get; } = [];
+
+        public Task PublishAsync(QueueMessage message, CancellationToken cancellationToken)
+        {
+            Sent.Add(message);
+            return Task.CompletedTask;
+        }
+    }
+
+    private static QueueConnectorHandler Queue(FakeQueue queue, string address = "amqp://localhost", params string[] exchanges) =>
+        new(queue, new Secrets(), new ConnectorOptions { Queue = new QueueSettings { Address = address, AllowedExchanges = exchanges } });
+
+    [Fact]
+    public async Task FR_CON_013_the_queue_connector_renders_templates_and_publishes_to_an_allowed_exchange()
+    {
+        var queue = new FakeQueue();
+        var job = Job(new() { ["exchange"] = "orders", ["routingKey"] = "new.{{region}}", ["body"] = """{"id":{{id}}}""" }, """{"id":3,"region":"eu"}""");
+
+        var result = await Queue(queue, exchanges: "orders").ExecuteAsync(job, CancellationToken.None);
+
+        result.Success.ShouldBeTrue();
+        queue.Sent.Single().ShouldBe(new QueueMessage("orders", "new.eu", "application/json", """{"id":3}"""));
+    }
+
+    [Fact]
+    public async Task FR_CON_013_other_exchanges_missing_broker_and_a_default_exchange_without_queue_are_refused()
+    {
+        var queue = new FakeQueue();
+
+        (await Queue(queue, exchanges: "orders").ExecuteAsync(Job(new() { ["exchange"] = "secret", ["routingKey"] = "x" }), CancellationToken.None)).Message!.ShouldContain("AllowedExchanges");
+        (await Queue(queue, address: string.Empty, exchanges: "*").ExecuteAsync(Job(new() { ["exchange"] = "orders", ["routingKey"] = "x" }), CancellationToken.None)).Message!.ShouldContain("Queue:Address");
+        (await Queue(queue, exchanges: "(default)").ExecuteAsync(Job(new() { ["exchange"] = string.Empty }), CancellationToken.None)).Message!.ShouldContain("routingKey");
+        queue.Sent.ShouldBeEmpty();
+    }
 }

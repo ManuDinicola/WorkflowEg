@@ -374,6 +374,7 @@ public sealed class BpmnParser
         {
             { } t when string.Equals(t, "http", StringComparison.OrdinalIgnoreCase) => ServiceTask.HttpConnectorTaskType,
             { } t when string.Equals(t, "email", StringComparison.OrdinalIgnoreCase) => ServiceTask.EmailConnectorTaskType,
+            { } t when string.Equals(t, "rabbitmq", StringComparison.OrdinalIgnoreCase) => ServiceTask.QueueConnectorTaskType,
             _ => null, // non-union
         };
     }

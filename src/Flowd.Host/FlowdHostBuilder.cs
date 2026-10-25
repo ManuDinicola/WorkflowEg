@@ -245,9 +245,11 @@ internal static class FlowdHostBuilder
         services.AddSingleton(sp => sp.GetRequiredService<IConfiguration>().GetSection(ConnectorOptions.SectionName).Get<ConnectorOptions>() ?? new ConnectorOptions());
         services.AddSingleton<ISecretProvider, ConfigSecretProvider>();
         services.AddSingleton<IHttpCallSender, HttpCallSender>();
-        services.AddSingleton<HttpConnectorHandler>();
+        services.AddSingleton<IConnectorHandler, HttpConnectorHandler>();
+        services.AddSingleton<IQueuePublisher, RabbitMqPublisher>();
+        services.AddSingleton<IConnectorHandler, QueueConnectorHandler>();
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
-        services.AddSingleton<EmailConnectorHandler>();
+        services.AddSingleton<IConnectorHandler, EmailConnectorHandler>();
         services.AddSingleton<ConnectorJobProcessor>();
         services.AddHostedService<ConnectorWorker>();
         services.AddHostedService<DecisionWorker>();

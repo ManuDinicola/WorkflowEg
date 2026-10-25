@@ -10,8 +10,10 @@ namespace Flowd.Application.Connectors;
 /// The result variable gets <c>{ status, body }</c>, the body parsed as JSON when it is JSON. A non-2xx answer fails the job (retries apply)
 /// unless <c>failOnError="false"</c>. Only hosts in <see cref="ConnectorOptions.AllowedHosts"/> can be called.
 /// </summary>
-public sealed class HttpConnectorHandler(IHttpCallSender sender, ISecretProvider secrets, ConnectorOptions options)
+public sealed class HttpConnectorHandler(IHttpCallSender sender, ISecretProvider secrets, ConnectorOptions options) : IConnectorHandler
 {
+    public string TaskType => Flowd.Bpmn.Model.ServiceTask.HttpConnectorTaskType;
+
     public async Task<ConnectorResult> ExecuteAsync(ActivatedJob job, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(job);

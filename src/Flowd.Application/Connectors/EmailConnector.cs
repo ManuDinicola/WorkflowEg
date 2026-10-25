@@ -36,8 +36,10 @@ public sealed class SmtpSettings
 /// The built-in e-mail connector (FR-CON-012): <c>&lt;flowd:connector type="email" to="a@x.com,b@x.com" subject="..." body="..." html="false"
 /// from="..." resultVariable="mail"/&gt;</c>. All text settings are templates (see <see cref="Template"/>). The result variable gets <c>{ sent: n }</c>.
 /// </summary>
-public sealed class EmailConnectorHandler(IEmailSender sender, ISecretProvider secrets, ConnectorOptions options)
+public sealed class EmailConnectorHandler(IEmailSender sender, ISecretProvider secrets, ConnectorOptions options) : IConnectorHandler
 {
+    public string TaskType => Flowd.Bpmn.Model.ServiceTask.EmailConnectorTaskType;
+
     public async Task<ConnectorResult> ExecuteAsync(ActivatedJob job, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(job);
