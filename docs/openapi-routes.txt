@@ -5,6 +5,7 @@ GET /healthz
 GET /metrics
 GET /readyz
 GET /ui
+GET /ui/config
 GET /ui/vendor/{file}
 GET /v1/analytics/processes/{bpmnProcessId}
 GET /v1/analytics/summary

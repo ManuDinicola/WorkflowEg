@@ -72,4 +72,19 @@ public sealed class UiAndAnalyticsTests(PostgresFixture postgres) : IClassFixtur
         (await app.Client.GetAsync(new Uri("/ui/vendor/..%2Fappsettings.json", UriKind.Relative))).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await (await app.Client.GetAsync(new Uri("/ui", UriKind.Relative))).Content.ReadAsStringAsync()).ShouldContain("Modeler");
     }
+
+    [Fact]
+    public async Task FR_SEC_007_the_ui_offers_sign_in_only_when_an_oidc_client_is_configured()
+    {
+        await using var plain = await TestApp.StartAsync(postgres, secure: true);
+        await using var configured = await TestApp.StartAsync(postgres, secure: true, "--Flowd:Auth:JwtAuthority=https://idp.example.com/", "--Flowd:Ui:Oidc:ClientId=flowd-ui");
+
+        var none = JsonNode.Parse(await plain.Client.GetStringAsync(new Uri("/ui/config", UriKind.Relative)))!;
+        var some = JsonNode.Parse(await configured.Client.GetStringAsync(new Uri("/ui/config", UriKind.Relative)))!;
+
+        none["oidc"].ShouldBeNull();
+        some["oidc"]!["authority"]!.GetValue<string>().ShouldBe("https://idp.example.com");
+        some["oidc"]!["clientId"]!.GetValue<string>().ShouldBe("flowd-ui");
+        some["oidc"]!["scopes"]!.GetValue<string>().ShouldBe("openid profile");
+    }
 }

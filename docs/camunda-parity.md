@@ -119,7 +119,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 ## Security and tenancy
 - [x] API keys and JWT, roles
 - [x] Multi-tenancy
-- [ ] OIDC login flows for UIs
+- [x] OIDC login flows for UIs (authorization code with PKCE in the browser; no refresh token; not yet run against a real provider)
 - [x] Fine-grained permissions: API keys limited to process ids (deploy, start, batch)
 - [x] Fine-grained permissions on instance routes and instance lists (jobs, incidents and tasks by key stay tenant-scoped)
 - [x] Audit log
@@ -147,7 +147,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-25): 119 of 125 = 95 %. Target: 95 % (119 of 125).
+Score (2026-10-25): 120 of 125 = 96 %. Target: 95 % (119 of 125).
 
 Not counted: complex gateway, transaction sub-process with cancel event, and multiple / parallel multiple events. Camunda 8 does not support them either (they are BPMN elements that Camunda 8 leaves out), so they are not Camunda 8 features. Flowd does not support them. Before 2026-10-25 these three lines were in the checklist as open items; moving them out raised the percentage by about three points without any new code, so compare scores before and after with that in mind.
 

@@ -24,7 +24,25 @@ internal static class UiEndpoint
         routes.MapGet("/ui", () => Results.Bytes(Page.Value, "text/html; charset=utf-8")).AllowAnonymous();
         routes.MapGet("/", () => Results.Redirect("/ui")).AllowAnonymous();
         routes.MapGet("/ui/vendor/{file}", Vendor).AllowAnonymous();
+        routes.MapGet("/ui/config", Config).AllowAnonymous();
         return routes;
+    }
+
+    /// <summary>
+    /// What the page needs to offer "Sign in" (FR-SEC-007): the OpenID Connect authority and the public client id of the UI. Nothing secret.
+    /// Set <c>Flowd:Ui:Oidc:ClientId</c> (and optionally <c>Authority</c>, which defaults to <c>Flowd:Auth:JwtAuthority</c>, and <c>Scopes</c>).
+    /// </summary>
+    private static IResult Config(IConfiguration configuration)
+    {
+        var section = configuration.GetSection("Flowd:Ui:Oidc");
+        var clientId = section["ClientId"];
+        var authority = section["Authority"] ?? configuration["Flowd:Auth:JwtAuthority"];
+        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(authority))
+        {
+            return Results.Ok(new { oidc = (object?)null });
+        }
+
+        return Results.Ok(new { oidc = new { authority = authority.TrimEnd('/'), clientId, scopes = section["Scopes"] ?? "openid profile" } });
     }
 
     private static IResult Vendor(string file)

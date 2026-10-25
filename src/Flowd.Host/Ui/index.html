@@ -46,7 +46,7 @@
 <header>
   <h1>Flowd</h1>
   <nav id="nav"></nav>
-  <div class="key"><label for="apikey" style="margin:0">API key</label><input id="apikey" type="password" placeholder="not needed in dev mode" size="18"><button id="savekey">Use</button></div>
+  <div class="key"><span id="signin"></span><label for="apikey" style="margin:0">API key</label><input id="apikey" type="password" placeholder="not needed in dev mode" size="18"><button id="savekey">Use</button></div>
 </header>
 <main id="view"></main>
 <script>
@@ -68,7 +68,8 @@ $("#savekey").addEventListener("click", () => { apiKey = $("#apikey").value; ses
 
 async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
-  if (apiKey) headers["X-Api-Key"] = apiKey;
+  const bearer = validToken();
+  if (bearer) headers["Authorization"] = "Bearer " + bearer; else if (apiKey) headers["X-Api-Key"] = apiKey;
   if (options.json !== undefined) { headers["Content-Type"] = "application/json"; options.body = JSON.stringify(options.json); }
   const response = await fetch(path, { method: options.method || "GET", headers, body: options.body });
   const text = await response.text();
@@ -521,7 +522,52 @@ async function show(name) {
   try { await views[name](box); } catch (e) { fail(box, e); }
   if (mine === showToken) $("#view").replaceChildren(box); // a newer click wins: never mix two tabs
 }
-show("overview");
+
+/* ---------- sign in with OpenID Connect (authorization code + PKCE, no client secret, no server session) ---------- */
+let oidc = null, token = JSON.parse(sessionStorage.getItem("flowd-token") || "null");
+const validToken = () => (token && token.expires > Date.now() ? token.access : null);
+const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const redirectUri = () => location.origin + "/ui";
+async function discover() { const r = await fetch(oidc.authority + "/.well-known/openid-configuration"); if (!r.ok) throw new Error("The identity provider did not answer."); return r.json(); }
+async function oidcLogin() {
+  const meta = await discover();
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48))), state = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  sessionStorage.setItem("flowd-pkce", JSON.stringify({ verifier, state }));
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  const q = new URLSearchParams({ response_type: "code", client_id: oidc.clientId, redirect_uri: redirectUri(), scope: oidc.scopes, state, code_challenge: challenge, code_challenge_method: "S256" });
+  location.assign(meta.authorization_endpoint + "?" + q);
+}
+async function oidcCallback(params) {
+  const saved = JSON.parse(sessionStorage.getItem("flowd-pkce") || "null");
+  sessionStorage.removeItem("flowd-pkce");
+  history.replaceState(null, "", "/ui");
+  if (!saved || saved.state !== params.get("state")) throw new Error("Sign-in was refused: the answer did not match the request.");
+  if (params.get("error")) throw new Error("Sign-in failed: " + params.get("error"));
+  const meta = await discover();
+  const response = await fetch(meta.token_endpoint, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "authorization_code", code: params.get("code"), redirect_uri: redirectUri(), client_id: oidc.clientId, code_verifier: saved.verifier }) });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.access_token) throw new Error("Sign-in failed: " + (body.error_description || body.error || response.status));
+  token = { access: body.access_token, expires: Date.now() + Math.max((body.expires_in ?? 300) - 10, 10) * 1000 };
+  sessionStorage.setItem("flowd-token", JSON.stringify(token));
+}
+function drawSignIn() {
+  const box = $("#signin"); box.replaceChildren();
+  if (!oidc) return;
+  box.append(validToken()
+    ? el("button", { onclick: () => { token = null; sessionStorage.removeItem("flowd-token"); drawSignIn(); show(current); } }, "Sign out")
+    : el("button", { class: "primary", onclick: () => oidcLogin().catch((e) => fail($("#view"), e)) }, "Sign in"));
+}
+async function start() {
+  try { oidc = (await (await fetch("/ui/config")).json()).oidc; } catch { oidc = null; }
+  const params = new URLSearchParams(location.search);
+  let problem = null;
+  if (oidc && params.has("state") && (params.has("code") || params.has("error"))) { try { await oidcCallback(params); } catch (e) { problem = e; } }
+  drawSignIn();
+  await show("overview");
+  if (problem) fail($("#view"), problem);
+}
+start();
 </script>
 </body>
 </html>
