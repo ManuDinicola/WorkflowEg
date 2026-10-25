@@ -34,3 +34,6 @@ What this shows, and what it does not:
 Operational lessons from the runs:
 - Connection pools: nodes x `Maximum Pool Size` must stay below PostgreSQL `max_connections` (default 100). 3 nodes with a pool of 60 failed with `too many clients already` (HTTP 500); with a pool of 30 it ran fine.
 - The default rate limit (500 requests/s, burst 1000 per node) answers 429 when a single node is driven harder than that; raise `Flowd:RateLimit:TokensPerSecond` and `Burst` for batch loads.
+
+## Load test with PostgreSQL in a container (measured 2026-10-25)
+The same tool and process, two engine nodes with node ids 1 and 2, PostgreSQL 16 in a Docker container on the same machine, 3000 instances: **362 instances/s**, start latency p50 57 ms / p95 90 ms / p99 161 ms, every job reported exactly once, no errors in the node logs. The first attempt of this run used two nodes with the same default node id: both created the same keys, requests failed with `500` and `duplicate key` errors. Flowd now refuses to start a second node with an id that a running node already holds on the same database, so this cannot happen silently any more.
