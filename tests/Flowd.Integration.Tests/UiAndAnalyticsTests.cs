@@ -87,4 +87,19 @@ public sealed class UiAndAnalyticsTests(PostgresFixture postgres) : IClassFixtur
         some["oidc"]!["clientId"]!.GetValue<string>().ShouldBe("flowd-ui");
         some["oidc"]!["scopes"]!.GetValue<string>().ShouldBe("openid profile");
     }
+
+    [Fact]
+    public async Task FR_SEC_010_the_page_is_served_with_a_strict_content_security_policy_that_allows_the_identity_provider()
+    {
+        await using var app = await TestApp.StartAsync(postgres, secure: true, "--Flowd:Auth:JwtAuthority=https://idp.example.com/realms/x");
+
+        var page = await app.Client.GetAsync(new Uri("/ui", UriKind.Relative));
+
+        var policy = page.Headers.GetValues("Content-Security-Policy").Single();
+        policy.ShouldContain("frame-ancestors 'none'");
+        policy.ShouldContain("connect-src 'self' https://idp.example.com;");
+        policy.ShouldNotContain("unsafe-eval");
+        page.Headers.GetValues("X-Frame-Options").Single().ShouldBe("DENY");
+        page.Headers.GetValues("X-Content-Type-Options").Single().ShouldBe("nosniff");
+    }
 }

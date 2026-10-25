@@ -70,3 +70,27 @@ jobs:
           java-version: "21"
       - run: mkdir out && javac -encoding UTF-8 -Xlint:all -d out $(find src -name '*.java')
       - run: java -cp out io.flowd.client.FlowdClientTest
+
+  restore-drill:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build src/Flowd.Host -c Release -v:q
+      - name: Backup and restore drill
+        run: PG_DOCKER_IMAGE=postgres:16 ./scripts/restore-drill.sh

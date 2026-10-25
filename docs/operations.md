@@ -23,6 +23,8 @@ User tasks carry `dueDate`, `followUpDate` and `priority` (0-100, default 50) in
 | `Flowd__Retention__InstanceDays`, `HistoryDays`, `OutboxDays`, `BatchSize`, `IntervalSeconds` | janitor retention (defaults 30/30/7/500/60) |
 
 ## Health and monitoring
+Going live? Read `docs/production.md` first.
+
 - `/healthz` liveness, `/readyz` database reachable and migrations current.
 - `/metrics` Prometheus text. Alert on rising incident count, job activation latency and 5xx rate.
 - Logs are JSON on stdout; variable values are never logged at Info.
@@ -105,3 +107,8 @@ Besides `flowd apikey create`, administrators (role `admin`) manage keys through
 
 ## Users that only see their own tasks
 An API key (set `groups` when you create it through the API or the Access tab) or a signed-in user (token claim `groups`, changeable with `Flowd:Auth:GroupsClaim`) that has groups is restricted to its own user tasks: it sees and works only on tasks it is the assignee of, a candidate user of, or whose candidate groups include one of its groups. Other tasks answer `404` as if they did not exist, task lists leave them out (a page can therefore have fewer items than asked for), claiming is always done as the caller whatever user the request names, completing records the caller, and assigning a task to someone else is refused with `403`. Callers without groups are not restricted. This applies to the user task endpoints and the task form only; process instances, jobs and incidents are limited by the process limits of the key, not by groups.
+
+## Idempotency keys
+Send `Idempotency-Key: <unique per logical request>` on POST, PUT, PATCH and DELETE calls you may need to repeat. The first request reserves the key and runs; a repeat with the same body within 24 hours gets the stored response (header `Idempotent-Replayed: true`). A repeat that arrives while the first is still running gets `409` with code `IDEMPOTENCY_IN_PROGRESS` and `Retry-After: 1`: retry and you receive the stored response. The same key with a different body gets `422 IDEMPOTENCY_KEY_REUSED`. Server errors (5xx) are not remembered, so a retry runs. A reservation left by a node that died is taken over after two minutes.
+
+The reservation timeout is `Flowd__Idempotency__InProgressSeconds` (default 120). Keep it above your longest request (a start that waits for its result can take 60 seconds); lower values let a retry run sooner after a crash but risk running a slow request twice.

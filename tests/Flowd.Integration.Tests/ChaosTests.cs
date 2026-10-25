@@ -134,6 +134,7 @@ public sealed class ChaosTests(PostgresFixture postgres) : IClassFixture<Postgre
             var info = new ProcessStartInfo("dotnet") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
             info.Environment["Flowd__ConnectionString"] = connectionString;
             info.Environment["Flowd__Auth__Insecure"] = "true";
+            info.Environment["Flowd__Idempotency__InProgressSeconds"] = "3"; // requests here take milliseconds: a retry after a kill must not wait two minutes
             info.Environment["ASPNETCORE_URLS"] = $"http://127.0.0.1:{port}";
             foreach (var arg in new[] { dll, "serve", "--auto-migrate" })
             {
