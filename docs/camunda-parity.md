@@ -213,7 +213,7 @@ The first list was too narrow: Flowd scored 98 % on it while there were still ma
 
 ### Operate, Tasklist, Optimize
 - [x] Instance list and detail with diagram and tokens, incidents, batch operations, task list with forms, analytics heat map
-- [ ] Modify an instance (move tokens) and migrate instances from the UI
+- [x] Modify an instance (move tokens), set variables and migrate instances from the UI
 - [ ] Reports and dashboards over history (Optimize)
 
 ### Clients and developer experience

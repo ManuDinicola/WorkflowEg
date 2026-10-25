@@ -193,9 +193,10 @@ const views = {
       try {
         const [inst, vars, elements, history, incidents] = await Promise.all([api("/v1/process-instances/" + key), api(`/v1/process-instances/${key}/variables`), api(`/v1/process-instances/${key}/elements`), api(`/v1/process-instances/${key}/history?pageSize=200`), api(`/v1/incidents?processInstanceKey=${key}`)]);
         const xml = (await api(`/v1/process-definitions/${inst.data.processDefinitionKey}/xml`)).text;
+        const operate = inst.data.state === "ACTIVE" ? await operateCards(key, inst.data, xml, elements.data.items, () => detail(key)) : null;
         const actions = el("div", { class: "row" },
           inst.data.state === "ACTIVE" ? el("button", { class: "danger", onclick: async () => { await api(`/v1/process-instances/${key}/cancel`, { method: "POST" }); detail(key); load(); } }, "Cancel instance") : el("button", { class: "danger", onclick: async () => { await api(`/v1/process-instances/${key}`, { method: "DELETE" }); detailBox.replaceChildren(); load(); } }, "Delete instance"));
-        detailBox.replaceChildren(el("div", { class: "card" }, el("h3", {}, `Instance ${key}`), actions, drawDiagram(xml, { tokens: elements.data.items.map((e) => e.elementId) }),
+        detailBox.replaceChildren(el("div", { class: "card" }, el("h3", {}, `Instance ${key}`), actions, drawDiagram(xml, { tokens: elements.data.items.map((e) => e.elementId) }), operate ?? "",
           el("h4", {}, "Variables"), el("pre", {}, JSON.stringify(vars.data, null, 2)),
           el("h4", {}, "Incidents"), incidents.data.items.length ? el("pre", {}, incidents.data.items.map((i) => `${i.state} ${i.errorType}: ${i.errorMessage}`).join("\n")) : el("span", { class: "muted" }, "none"),
           el("h4", {}, "History"), el("table", {}, ...history.data.items.map((h) => el("tr", {}, el("td", {}, fmt(h.occurredAt)), el("td", {}, h.eventType), el("td", {}, h.elementId || ""))))));
@@ -374,15 +375,6 @@ ${model.rules.map((r) => `      <rule>${r.ins.map((t) => `<inputEntry><text>${es
     const open = el("select", {}, el("option", { value: "" }, "Open a deployed decision…"), ...known.map((d) => el("option", { value: d }, d)));
     open.addEventListener("change", async () => { if (open.value) { try { fromXml((await api(`/v1/decisions/${encodeURIComponent(open.value)}/xml`)).text); draw(); } catch (e) { fail(message, e); } } });
     const variables = el("textarea", { rows: "3", placeholder: '{"amount": 150}' });
-    box.append(el("p", { class: "muted" }, "Edit a decision table: inputs with their FEEL expressions, outputs, and one row per rule. Use - for any value. Text results need quotes, for example \"high\"."),
-      el("div", { class: "row" }, el("button", { onclick: () => { model = blank(); message.replaceChildren(); draw(); } }, "New"), file, open,
-        el("button", { onclick: () => { const url = URL.createObjectURL(new Blob([toXml()], { type: "application/xml" })); el("a", { href: url, download: model.id + ".dmn" }).click(); URL.revokeObjectURL(url); } }, "Download"),
-        el("button", { class: "primary", onclick: async () => {
-          try {
-            const body = new FormData(); body.append("resources", new Blob([toXml()], { type: "application/xml" }), model.id + ".dmn");
-            message.replaceChildren(el("pre", {}, JSON.stringify((await api("/v1/decisions", { method: "POST", body })).data, null, 2)));
-          } catch (e) { fail(message, e); }
-        } }, "Deploy")),
     const historyBox = el("div");
     const loadHistory = async () => {
       try {
@@ -392,6 +384,15 @@ ${model.rules.map((r) => `      <rule>${r.ins.map((t) => `<inputEntry><text>${es
       } catch (e) { fail(historyBox, e); }
     };
       grid, message,
+    box.append(el("p", { class: "muted" }, "Edit a decision table: inputs with their FEEL expressions, outputs, and one row per rule. Use - for any value. Text results need quotes, for example \"high\"."),
+      el("div", { class: "row" }, el("button", { onclick: () => { model = blank(); message.replaceChildren(); draw(); } }, "New"), file, open,
+        el("button", { onclick: () => { const url = URL.createObjectURL(new Blob([toXml()], { type: "application/xml" })); el("a", { href: url, download: model.id + ".dmn" }).click(); URL.revokeObjectURL(url); } }, "Download"),
+        el("button", { class: "primary", onclick: async () => {
+          try {
+            const body = new FormData(); body.append("resources", new Blob([toXml()], { type: "application/xml" }), model.id + ".dmn");
+            message.replaceChildren(el("pre", {}, JSON.stringify((await api("/v1/decisions", { method: "POST", body })).data, null, 2)));
+          } catch (e) { fail(message, e); }
+        } }, "Deploy")),
       el("div", { class: "card" }, el("h4", {}, "Try it (the deployed version)"), variables,
         el("button", { onclick: async () => {
           try { result.replaceChildren(el("pre", {}, JSON.stringify((await api(`/v1/decisions/${encodeURIComponent(model.id)}/evaluate`, { method: "POST", json: { variables: variables.value ? JSON.parse(variables.value) : {} } })).data, null, 2))); } catch (e) { fail(result, e); }
@@ -621,6 +622,34 @@ async function show(name) {
   if (mine === showToken) $("#view").replaceChildren(box); // a newer click wins: never mix two tabs
 }
 
+
+/* ---------- Operate-style actions on a running instance: set variables, move tokens, migrate (FR-UI-011) ---------- */
+async function operateCards(key, instance, xml, liveElements, refresh) {
+  const message = el("div");
+  const run = async (action) => { try { await action(); message.replaceChildren(); await refresh(); } catch (e) { fail(message, e); } };
+  const ids = [...new DOMParser().parseFromString(xml, "application/xml").querySelectorAll("*")]
+    .filter((n) => /Task$|Event$|^subProcess$|^callActivity$|^adHocSubProcess$/.test(n.localName) && n.getAttribute("id") && !/^(boundaryEvent|startEvent)$/.test(n.localName)).map((n) => n.getAttribute("id"));
+
+  const variables = el("textarea", { rows: "3", placeholder: '{"orderStatus": "checked"}' });
+  const setVariables = el("div", {}, el("h4", {}, "Set variables"), variables,
+    el("button", { onclick: () => run(async () => { await api(`/v1/process-instances/${key}/variables`, { method: "PUT", json: { variables: JSON.parse(variables.value || "{}"), local: false } }); }) }, "Set"));
+
+  const target = el("input", { list: "ids-" + key, placeholder: "element id to start a token on", size: "28" });
+  const moveVariables = el("input", { placeholder: 'variables for the new token (JSON, optional)', size: "34" });
+  const modify = el("div", {}, el("h4", {}, "Move tokens"), el("datalist", { id: "ids-" + key }, ...ids.map((i) => el("option", { value: i }))),
+    liveElements.length ? el("table", {}, el("tr", {}, ...["Element", "Type", "State", ""].map((h) => el("th", {}, h))),
+      ...liveElements.map((e) => el("tr", {}, el("td", {}, e.elementId), el("td", {}, e.elementType), el("td", {}, e.state),
+        el("td", {}, el("button", { class: "danger", onclick: () => run(() => api(`/v1/process-instances/${key}/modify`, { method: "POST", json: { terminateElementInstanceKeys: [String(e.key)] } })) }, "Terminate"))))) : el("span", { class: "muted" }, "no live elements"),
+    el("div", { class: "row" }, target, moveVariables, el("button", { onclick: () => run(() => api(`/v1/process-instances/${key}/modify`, { method: "POST", json: { activateElementIds: [target.value.trim()], variables: moveVariables.value ? JSON.parse(moveVariables.value) : undefined } })) }, "Start a token here")));
+
+  const definitions = (await api("/v1/process-definitions?pageSize=200")).data.items.filter((d) => d.bpmnProcessId === instance.bpmnProcessId && String(d.key) !== String(instance.processDefinitionKey));
+  const version = el("select", {}, ...definitions.sort((a, b) => b.version - a.version).map((d) => el("option", { value: d.key }, "version " + d.version)));
+  const mapping = el("textarea", { rows: "2", placeholder: '{"oldElementId": "newElementId"}  (elements that were renamed or moved)' });
+  const migrate = el("div", {}, el("h4", {}, "Migrate to another version"),
+    definitions.length ? el("div", {}, version, mapping, el("button", { onclick: () => run(() => api(`/v1/process-instances/${key}/migrate`, { method: "POST", json: { targetDefinitionKey: version.value, mapping: mapping.value ? JSON.parse(mapping.value) : undefined } })) }, "Migrate")) : el("span", { class: "muted" }, "no other version of this process is deployed"));
+
+  return el("div", { class: "card" }, el("h3", {}, "Operate"), el("p", { class: "muted" }, "These change a running instance. They are recorded in the audit log."), setVariables, modify, migrate, message);
+}
 /* ---------- sign in with OpenID Connect (authorization code + PKCE, no client secret, no server session) ---------- */
 let localLogin = false, oidc = null, token = JSON.parse(sessionStorage.getItem("flowd-token") || "null");
 const validToken = () => (token && token.expires > Date.now() ? token.access : null);
