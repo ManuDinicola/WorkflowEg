@@ -214,11 +214,11 @@ The first list was too narrow: Flowd scored 98 % on it while there were still ma
 ### Operate, Tasklist, Optimize
 - [x] Instance list and detail with diagram and tokens, incidents, batch operations, task list with forms, analytics heat map
 - [x] Modify an instance (move tokens), set variables and migrate instances from the UI
-- [ ] Reports and dashboards over history (Optimize)
+- [x] Reports over history (Optimize-like, fixed reports only: no custom reports or saved dashboards)
 
 ### Clients and developer experience
 - [x] Worker SDKs for .NET, TypeScript, Python and Java; OpenAPI document
-- [ ] Go client
+- [x] Go client (worker SDK, standard library only)
 - [ ] Spring Boot starter
 - [ ] Process test library for users (assertions on instances in unit tests)
 

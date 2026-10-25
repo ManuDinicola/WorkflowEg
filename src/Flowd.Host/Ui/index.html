@@ -80,6 +80,35 @@ async function api(path, options = {}) {
   return { data, text };
 }
 
+
+/* ---------- charts (plain SVG, follow the page colours, work in light and dark) ---------- */
+function barChart(buckets, unit) {
+  const series = [["started", "Started", "var(--accent)"], ["completed", "Completed", "var(--ok)"], ["terminated", "Terminated", "var(--warn)"]];
+  const total = buckets.reduce((sum, b) => sum + b.started + b.completed + b.terminated, 0);
+  if (total === 0) return el("p", { class: "muted" }, "No instances in this period.");
+  const ns = "http://www.w3.org/2000/svg", W = 720, H = 220, left = 36, bottom = 24, top = 8;
+  const peak = Math.max(1, ...buckets.map((b) => Math.max(b.started, b.completed, b.terminated)));
+  const nice = Math.max(4, Math.ceil(peak / 4) * 4); // a multiple of 4, so the four axis steps are whole numbers
+  const node = (name, attrs, text) => { const n = document.createElementNS(ns, name); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (text !== undefined) n.textContent = text; return n; };
+  const svg = node("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img", "aria-label": "Instances started, completed and terminated per " + unit });
+  for (let i = 0; i <= 4; i++) {
+    const value = (nice * i) / 4, y = H - bottom - ((H - bottom - top) * i) / 4;
+    svg.append(node("line", { x1: left, x2: W, y1: y, y2: y, stroke: "var(--line)" }), node("text", { x: left - 6, y: y + 4, "text-anchor": "end" }, String(Math.round(value))));
+  }
+  const slot = (W - left) / buckets.length, bar = Math.max(1, Math.min(14, (slot - 2) / 3));
+  buckets.forEach((b, i) => {
+    series.forEach(([key, label, color], s) => {
+      const h = ((H - bottom - top) * b[key]) / nice;
+      const rect = node("rect", { x: left + i * slot + (slot - bar * 3) / 2 + s * bar, y: H - bottom - h, width: bar, height: Math.max(h, b[key] > 0 ? 1 : 0), fill: color });
+      rect.append(node("title", {}, `${new Date(b.start).toLocaleString()}: ${label} ${b[key]}`));
+      svg.append(rect);
+    });
+  });
+  const fmtTick = (iso) => (unit === "hour" ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" }));
+  svg.append(node("text", { x: left, y: H - 6 }, fmtTick(buckets[0].start)), node("text", { x: W, y: H - 6, "text-anchor": "end" }, fmtTick(buckets[buckets.length - 1].start)));
+  const legend = el("div", { class: "row" }, ...series.map(([, label, color]) => el("span", {}, el("span", { style: `display:inline-block;width:10px;height:10px;background:${color};margin-right:4px` }), label)));
+  return el("div", {}, legend, svg);
+}
 /* ---------- form fields (shared by the Tasks tab and the form builder) ---------- */
 function formField(c) {
   const options = (c.values || []).map((o) => el("option", { value: o.value }, o.label ?? o.value));
@@ -420,6 +449,30 @@ ${model.rules.map((r) => `      <rule>${r.ins.map((t) => `<inputEntry><text>${es
         } }, "Create key"))), message, out);
     await load();
   },
+  async reports(box) {
+    const defs = (await api("/v1/process-definitions?pageSize=200")).data.items;
+    const process = el("select", {}, el("option", { value: "" }, "All processes"), ...[...new Set(defs.map((d) => d.bpmnProcessId))].map((i) => el("option", { value: i }, i)));
+    const range = el("select", {}, ...[["1", "Last 24 hours (per hour)"], ["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"]].map(([v, l]) => el("option", { value: v, ...(v === "30" ? { selected: "selected" } : {}) }, l)));
+    const out = el("div");
+    const seconds = (v) => (v == null ? "–" : v < 1 ? (v * 1000).toFixed(0) + " ms" : v < 120 ? v.toFixed(1) + " s" : (v / 60).toFixed(1) + " min");
+    const load = async () => {
+      const days = Number(range.value), to = new Date(), from = new Date(to.getTime() - days * 86_400_000);
+      const q = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() }); if (process.value) q.set("bpmnProcessId", process.value);
+      const qi = new URLSearchParams(q); if (days === 1) qi.set("bucket", "hour");
+      try {
+        const [inst, dur, inc, dec] = await Promise.all([api("/v1/reports/instances?" + qi), api("/v1/reports/durations?" + q), api("/v1/reports/incidents?" + new URLSearchParams({ from: q.get("from"), to: q.get("to") })), api("/v1/reports/decisions?" + new URLSearchParams({ from: q.get("from"), to: q.get("to") }))]);
+        out.replaceChildren(
+          el("div", { class: "card" }, el("h3", {}, "Instances over time"), barChart(inst.data.buckets, inst.data.bucket)),
+          el("div", { class: "card" }, el("h3", {}, "How long completed instances took"),
+            dur.data.completedInstances === 0 ? el("p", { class: "muted" }, "No instance completed in this period.") : el("table", {}, ...[["Completed", String(dur.data.completedInstances)], ["Average", seconds(dur.data.averageSeconds)], ["Median", seconds(dur.data.medianSeconds)], ["90th percentile", seconds(dur.data.p90Seconds)], ["99th percentile", seconds(dur.data.p99Seconds)], ["Longest", seconds(dur.data.maxSeconds)]].map(([k, v]) => el("tr", {}, el("td", {}, k), el("td", {}, v))))),
+          el("div", { class: "card" }, el("h3", {}, "Incidents"), inc.data.types.length === 0 ? el("p", { class: "muted" }, "No incidents in this period.") : el("table", {}, el("tr", {}, ...["Type", "Raised", "Still open"].map((h) => el("th", {}, h))), ...inc.data.types.map((t) => el("tr", {}, el("td", {}, t.errorType), el("td", {}, String(t.raised)), el("td", {}, String(t.stillOpen)))))),
+          el("div", { class: "card" }, el("h3", {}, "Decisions"), dec.data.decisions.length === 0 ? el("p", { class: "muted" }, "No decision was evaluated in this period.") : el("table", {}, el("tr", {}, ...["Decision", "Evaluations", "Failures", "Average"].map((h) => el("th", {}, h))), ...dec.data.decisions.map((d) => el("tr", {}, el("td", {}, d.decisionId), el("td", {}, String(d.evaluations)), el("td", {}, String(d.failures)), el("td", {}, d.averageMs.toFixed(1) + " ms"))))));
+      } catch (e) { fail(out, e); }
+    };
+    process.addEventListener("change", load); range.addEventListener("change", load);
+    box.append(el("div", { class: "row" }, process, range, el("button", { onclick: load }, "Refresh")), out);
+    await load();
+  },
   async analytics(box) {
     const defs = (await api("/v1/process-definitions?pageSize=200")).data.items;
     const ids = [...new Set(defs.map((d) => d.bpmnProcessId))];
@@ -611,7 +664,7 @@ const NEW_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
     <bpmndi:BPMNShape id="Start_di" bpmnElement="Start"><dc:Bounds x="160" y="120" width="36" height="36"/></bpmndi:BPMNShape>
   </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
-const tabs = [["overview", "Overview"], ["instances", "Instances"], ["incidents", "Incidents"], ["tasks", "Tasks"], ["deploy", "Deploy"], ["modeler", "Modeler"], ["forms", "Forms"], ["decisions", "Decisions"], ["access", "Access"], ["analytics", "Analytics"]];
+const tabs = [["overview", "Overview"], ["instances", "Instances"], ["incidents", "Incidents"], ["tasks", "Tasks"], ["deploy", "Deploy"], ["modeler", "Modeler"], ["forms", "Forms"], ["decisions", "Decisions"], ["access", "Access"], ["reports", "Reports"], ["analytics", "Analytics"]];
 let current = "overview", showToken = 0;
 async function show(name) {
   current = name;

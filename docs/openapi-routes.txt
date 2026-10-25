@@ -31,6 +31,10 @@ GET /v1/process-instances/{key}
 GET /v1/process-instances/{key}/elements
 GET /v1/process-instances/{key}/history
 GET /v1/process-instances/{key}/variables
+GET /v1/reports/decisions
+GET /v1/reports/durations
+GET /v1/reports/incidents
+GET /v1/reports/instances
 GET /v1/topology
 GET /v1/user-tasks
 GET /v1/user-tasks/{key}/form

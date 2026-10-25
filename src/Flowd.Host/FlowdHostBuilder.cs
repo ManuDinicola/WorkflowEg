@@ -131,6 +131,7 @@ internal static class FlowdHostBuilder
         app.MapUserEndpoints();
         app.MapTopologyEndpoint();
         app.MapDecisionHistoryEndpoints();
+        app.MapReportEndpoints();
         app.MapGrpcService<Flowd.Api.Grpc.GatewayService>();
         app.MapMetricsEndpoint();
         app.MapSignalAndUserTaskEndpoints();
@@ -240,6 +241,7 @@ internal static class FlowdHostBuilder
         services.AddSingleton<IDecisionStore, PostgresDecisionStore>();
         services.AddSingleton<IDecisionHistory, PostgresDecisionHistory>();
         services.AddSingleton<IAnalyticsQueries, PostgresAnalyticsQueries>();
+        services.AddSingleton<IReportQueries, PostgresReportQueries>();
         services.AddSingleton<IJobQueries, PostgresJobQueries>();
         services.AddSingleton<IFormStore, PostgresFormStore>();
         services.AddSingleton<IInstanceMigrationStore, PostgresMigrationStore>();
