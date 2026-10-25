@@ -25,7 +25,8 @@ public sealed class TestApp : IAsyncDisposable
 
     public HttpClient Client { get; }
 
-    public IReadOnlyList<string> Urls => _app.Urls.ToList();
+    /// <summary>Address of the HTTP/2-only gRPC endpoint when started with <see cref="StartWithGrpcAsync"/>.</summary>
+    public Uri? GrpcAddress { get; private set; }
 
     public string ConnectionString { get; }
 
@@ -37,6 +38,31 @@ public sealed class TestApp : IAsyncDisposable
         var app = FlowdHostBuilder.Build(args);
         await app.StartAsync();
         return new TestApp(app, new HttpClient { BaseAddress = new Uri(app.Urls.First()), Timeout = TimeSpan.FromSeconds(60) }, cs);
+    }
+
+    /// <summary>Starts the host with an HTTP/1.1 REST endpoint and a separate HTTP/2 endpoint (cleartext gRPC needs its own), both on free ports.</summary>
+    public static async Task<TestApp> StartWithGrpcAsync(PostgresFixture postgres)
+    {
+        var rest = FreePort();
+        var grpc = FreePort();
+        var cs = await postgres.CreateDatabaseAsync();
+        new PostgresMigrationRunner(cs).Migrate();
+        string[] args =
+        [
+            $"--Flowd:ConnectionString={cs}", "--Flowd:Auth:Insecure=true",
+            $"--Kestrel:Endpoints:Rest:Url=http://127.0.0.1:{rest}", "--Kestrel:Endpoints:Rest:Protocols=Http1",
+            $"--Kestrel:Endpoints:Grpc:Url=http://127.0.0.1:{grpc}", "--Kestrel:Endpoints:Grpc:Protocols=Http2",
+        ];
+        var app = FlowdHostBuilder.Build(args);
+        await app.StartAsync();
+        return new TestApp(app, new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{rest}"), Timeout = TimeSpan.FromSeconds(60) }, cs) { GrpcAddress = new Uri($"http://127.0.0.1:{grpc}") };
+    }
+
+    private static int FreePort()
+    {
+        using var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        return ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
     }
 
     public async Task<string> DeployAsync(string xml)

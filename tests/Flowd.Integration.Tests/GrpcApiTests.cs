@@ -19,18 +19,13 @@ public sealed class GrpcApiTests(PostgresFixture postgres) : IClassFixture<Postg
         </bpmn:definitions>
         """;
 
-    private static readonly string[] Endpoints =
-    [
-        "--Kestrel:Endpoints:Rest:Url=http://127.0.0.1:0", "--Kestrel:Endpoints:Rest:Protocols=Http1",
-        "--Kestrel:Endpoints:Grpc:Url=http://127.0.0.1:0", "--Kestrel:Endpoints:Grpc:Protocols=Http2",
-    ];
 
     [Fact]
     public async Task FR_API_020_a_client_starts_an_instance_and_a_worker_completes_its_job_over_grpc()
     {
-        await using var app = await TestApp.StartAsync(postgres, secure: false, Endpoints);
+        await using var app = await TestApp.StartWithGrpcAsync(postgres);
         await app.DeployAsync(Process);
-        using var channel = GrpcChannel.ForAddress(app.Urls.Last());
+        using var channel = GrpcChannel.ForAddress(app.GrpcAddress!);
         var gateway = new Gateway.GatewayClient(channel);
 
         var started = await gateway.StartInstanceAsync(new StartInstanceRequest { BpmnProcessId = "g", VariablesJson = """{"n":1}""" });
@@ -44,8 +39,8 @@ public sealed class GrpcApiTests(PostgresFixture postgres) : IClassFixture<Postg
     [Fact]
     public async Task FR_API_020_failures_become_grpc_status_codes()
     {
-        await using var app = await TestApp.StartAsync(postgres, secure: false, Endpoints);
-        using var channel = GrpcChannel.ForAddress(app.Urls.Last());
+        await using var app = await TestApp.StartWithGrpcAsync(postgres);
+        using var channel = GrpcChannel.ForAddress(app.GrpcAddress!);
         var gateway = new Gateway.GatewayClient(channel);
 
         var unknown = await Should.ThrowAsync<Grpc.Core.RpcException>(() => gateway.StartInstanceAsync(new StartInstanceRequest { BpmnProcessId = "nope" }).ResponseAsync);
