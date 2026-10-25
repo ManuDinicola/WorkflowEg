@@ -44,6 +44,13 @@ public sealed class EndEventElementHandler : ElementHandler<EndEvent>
             return;
         }
 
+        if (element.Compensation is { } compensation)
+        {
+            Compensation.Throw(context, instance, compensation.ActivityRef);
+            context.Complete(instance);
+            return;
+        }
+
         if (element.Escalation is { } escalation)
         {
             ErrorPropagation.Escalate(context, instance, escalation.Code ?? string.Empty, null);
@@ -53,6 +60,16 @@ public sealed class EndEventElementHandler : ElementHandler<EndEvent>
             }
 
             context.Complete(instance);
+            return;
+        }
+
+        if (element.Message is { } publication)
+        {
+            if (MessageThrowing.Publish(context, publication, instance))
+            {
+                context.Complete(instance);
+            }
+
             return;
         }
 

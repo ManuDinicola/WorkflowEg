@@ -34,7 +34,7 @@ internal static class JobFactory
     }
 
     public static bool HasOpenJob(StepContext context, ElementInstance instance) =>
-        context.State.Jobs.Values.Any(j => j.ElementInstanceKey == instance.Key && j.State is JobState.Activatable or JobState.Activated);
+        context.State.Jobs.Values.Any(j => j.ElementInstanceKey == instance.Key && !j.CustomHeaders.ContainsKey("_flowdListener") && j.State is JobState.Activatable or JobState.Activated);
 }
 
 /// <summary>Intermediate throw events: none, message (creates a job) or signal (broadcast after the commit).</summary>
@@ -67,6 +67,14 @@ public sealed class IntermediateThrowEventElementHandler : ElementHandler<Interm
             return;
         }
 
+        if (element.Definition is CompensationEventDefinition compensation)
+        {
+            context.MarkActive(instance);
+            Compensation.Throw(context, instance, compensation.ActivityRef);
+            Complete(context, element, instance);
+            return;
+        }
+
         if (element.Definition is EscalationEventDefinition escalation)
         {
             context.MarkActive(instance);
@@ -79,6 +87,18 @@ public sealed class IntermediateThrowEventElementHandler : ElementHandler<Interm
             return;
         }
 
+        if (element.Definition is MessageEventDefinition message)
+        {
+            context.MarkActive(instance);
+            if (!MessageThrowing.Publish(context, message, instance))
+            {
+                return;
+            }
+
+            Complete(context, element, instance);
+            return;
+        }
+
         if (element.Definition is SignalEventDefinition signal)
         {
             context.Emit(new SignalThrown(signal.Name, []));
@@ -87,6 +107,29 @@ public sealed class IntermediateThrowEventElementHandler : ElementHandler<Interm
 
         context.MarkActive(instance);
         Complete(context, element, instance);
+    }
+}
+
+/// <summary>Helper of the throw event handler: evaluates the correlation key and emits the publication (FR-MSG-006).</summary>
+internal static class MessageThrowing
+{
+    public static bool Publish(StepContext context, MessageEventDefinition message, ElementInstance instance)
+    {
+        var key = string.Empty;
+        if (message.CorrelationKey is { Length: > 0 } expression)
+        {
+            if (context.Evaluate(expression, instance.ScopeKey) is not EvaluationSuccess { Value: string text })
+            {
+                context.RaiseIncident(IncidentTypes.ExtractValueError, $"Correlation key of message '{message.Name}' on '{instance.ElementId}' did not evaluate to a string.", instance);
+                return false;
+            }
+
+            key = text;
+        }
+
+        context.Emit(new MessageThrown(message.Name, key, []));
+        context.Record(HistoryEventTypes.MessageThrownEvent, instance, new JsonObject { ["message"] = message.Name });
+        return true;
     }
 }
 
@@ -132,6 +175,7 @@ public sealed class UserTaskElementHandler : ElementHandler<UserTask>
         context.Emit(new UserTaskChanged(task.Copy()));
         context.Record(HistoryEventTypes.UserTaskCreated, instance, new JsonObject { ["userTaskKey"] = task.Key.ToString(CultureInfo.InvariantCulture) });
         context.MarkActive(instance);
+        ListenerJobs.Fire(context, element, instance, "created");
     }
 
     public override void Complete(StepContext context, UserTask element, ElementInstance instance)

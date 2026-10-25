@@ -224,12 +224,12 @@ public sealed class PostgresApiKeyStore(NpgsqlDataSource dataSource) : Flowd.App
     public async Task<Flowd.Application.Security.ApiKeyInfo?> FindAsync(byte[] keyHash, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var row = await connection.QuerySingleOrDefaultAsync<(string Name, string Roles, string TenantId)?>(new CommandDefinition(
-            "SELECT name, roles, tenant_id FROM api_key WHERE key_hash = @keyHash AND revoked_at IS NULL",
+        var row = await connection.QuerySingleOrDefaultAsync<(string Name, string Roles, string TenantId, string Processes)?>(new CommandDefinition(
+            "SELECT name, roles, tenant_id, processes FROM api_key WHERE key_hash = @keyHash AND revoked_at IS NULL",
             new { keyHash },
             cancellationToken: cancellationToken)).ConfigureAwait(false);
         return row is { } r
-            ? new Flowd.Application.Security.ApiKeyInfo(r.Name, r.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), r.TenantId)
+            ? new Flowd.Application.Security.ApiKeyInfo(r.Name, r.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), r.TenantId, r.Processes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             : null;
     }
 
@@ -238,8 +238,8 @@ public sealed class PostgresApiKeyStore(NpgsqlDataSource dataSource) : Flowd.App
         ArgumentNullException.ThrowIfNull(info);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await connection.ExecuteAsync(new CommandDefinition(
-            "INSERT INTO api_key (key_hash, name, roles, tenant_id, created_at) VALUES (@keyHash, @name, @roles, @tenant, @created)",
-            new { keyHash, name = info.Name, roles = string.Join(',', info.Roles), tenant = info.TenantId, created = createdAt.UtcDateTime },
+            "INSERT INTO api_key (key_hash, name, roles, tenant_id, processes, created_at) VALUES (@keyHash, @name, @roles, @tenant, @processes, @created)",
+            new { keyHash, name = info.Name, roles = string.Join(',', info.Roles), tenant = info.TenantId, processes = string.Join(',', info.Processes ?? []), created = createdAt.UtcDateTime },
             cancellationToken: cancellationToken)).ConfigureAwait(false);
     }
 }

@@ -3,6 +3,7 @@ using Flowd.Api.Endpoints;
 using Flowd.Api.Security;
 using Flowd.Application.Audit;
 using Flowd.Application.Batch;
+using Flowd.Application.Connectors;
 using Flowd.Application.Decisions;
 using Flowd.Application.Deployment;
 using Flowd.Application.Execution;
@@ -21,6 +22,7 @@ using Flowd.Engine.Execution;
 using Flowd.Engine.Handlers;
 using Flowd.Engine.Keys;
 using Flowd.Infrastructure.Background;
+using Flowd.Infrastructure.Connectors;
 using Flowd.Infrastructure.Keys;
 using Flowd.Infrastructure.Postgres;
 using Flowd.Infrastructure.Postgres.Execution;
@@ -50,11 +52,11 @@ internal static class FlowdHostBuilder
         return options;
     }
 
-    public static async Task<string> CreateApiKeyAsync(FlowdOptions options, string name, IReadOnlyList<string> roles, string tenant, CancellationToken cancellationToken)
+    public static async Task<string> CreateApiKeyAsync(FlowdOptions options, string name, IReadOnlyList<string> roles, string tenant, IReadOnlyList<string> processes, CancellationToken cancellationToken)
     {
         await using var dataSource = NpgsqlDataSource.Create(options.ConnectionString);
         var key = ApiKeyHasher.NewKey();
-        await new PostgresApiKeyStore(dataSource).CreateAsync(ApiKeyHasher.Hash(key), new ApiKeyInfo(name, roles, tenant), DateTimeOffset.UtcNow, cancellationToken).ConfigureAwait(false);
+        await new PostgresApiKeyStore(dataSource).CreateAsync(ApiKeyHasher.Hash(key), new ApiKeyInfo(name, roles, tenant, processes), DateTimeOffset.UtcNow, cancellationToken).ConfigureAwait(false);
         return key;
     }
 
@@ -83,18 +85,25 @@ internal static class FlowdHostBuilder
         app.UseAuthentication();
         app.UseAuthorization();
         app.UseRateLimiter();
+        app.UseMiddleware<ProcessScopeMiddleware>();
         app.UseMiddleware<AuditMiddleware>();
         app.UseMiddleware<IdempotencyMiddleware>();
         app.MapOpenApi().AllowAnonymous();
         app.MapOperationalEndpoints();
+        app.MapUi();
         app.MapDeploymentEndpoints();
         app.MapDecisionEndpoints();
+        app.MapJobStreamEndpoints();
+        app.MapWebhookEndpoints();
+        app.MapAnalyticsEndpoints();
+        app.MapJobSearchEndpoints();
         app.MapFormEndpoints();
         app.MapBatchEndpoints();
         app.MapAuditAndEventEndpoints();
         app.MapInstanceEndpoints();
         app.MapJobEndpoints();
         app.MapMessageEndpoints();
+        app.MapGrpcService<Flowd.Api.Grpc.GatewayService>();
         app.MapMetricsEndpoint();
         app.MapSignalAndUserTaskEndpoints();
         return app;
@@ -190,6 +199,7 @@ internal static class FlowdHostBuilder
 
         services.AddSingleton<IClaimsTransformation, FlowdClaimsTransformation>();
         services.AddAuthorizationPolicies(auth.Insecure);
+        services.AddGrpc();
     }
 
     private static void AddInfrastructure(IServiceCollection services)
@@ -200,6 +210,8 @@ internal static class FlowdHostBuilder
             new SnowflakeKeyGenerator(sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IOptions<FlowdOptions>>().Value.NodeId));
         services.AddSingleton<IProcessDefinitionStore, PostgresProcessDefinitionStore>();
         services.AddSingleton<IDecisionStore, PostgresDecisionStore>();
+        services.AddSingleton<IAnalyticsQueries, PostgresAnalyticsQueries>();
+        services.AddSingleton<IJobQueries, PostgresJobQueries>();
         services.AddSingleton<IFormStore, PostgresFormStore>();
         services.AddSingleton<IInstanceMigrationStore, PostgresMigrationStore>();
         services.AddSingleton<IAuditLog, PostgresAuditLog>();
@@ -229,6 +241,14 @@ internal static class FlowdHostBuilder
                 sp.GetRequiredService<IMigrationRunner>()));
         services.AddHostedService<JobTimeoutSweeper>();
         services.AddSingleton<DecisionJobProcessor>();
+        services.AddSingleton(sp => sp.GetRequiredService<IConfiguration>().GetSection(ConnectorOptions.SectionName).Get<ConnectorOptions>() ?? new ConnectorOptions());
+        services.AddSingleton<ISecretProvider, ConfigSecretProvider>();
+        services.AddSingleton<IHttpCallSender, HttpCallSender>();
+        services.AddSingleton<HttpConnectorHandler>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        services.AddSingleton<EmailConnectorHandler>();
+        services.AddSingleton<ConnectorJobProcessor>();
+        services.AddHostedService<ConnectorWorker>();
         services.AddHostedService<DecisionWorker>();
         services.AddHttpClient<OutboxPublisher>();
         services.AddHostedService(sp => sp.GetRequiredService<OutboxPublisher>());
@@ -252,6 +272,7 @@ internal static class FlowdHostBuilder
         services.AddSingleton<JobActivationService>();
         services.AddSingleton<TimerService>();
         services.AddSingleton<MessageService>();
+        services.AddSingleton<IMessagePublisher>(sp => sp.GetRequiredService<MessageService>());
         services.AddSingleton<SignalService>();
         services.AddSingleton<ISignalBroadcaster>(sp => sp.GetRequiredService<SignalService>());
         services.AddSingleton<EngineTelemetry>();

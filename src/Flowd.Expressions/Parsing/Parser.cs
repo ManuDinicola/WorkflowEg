@@ -266,6 +266,11 @@ internal sealed class Parser
                 return new LiteralExpr(NullValue.Instance);
         }
 
+        if (name == "function" && IsSymbol("("))
+        {
+            return ParseFunction();
+        }
+
         if (Keywords.Contains(name))
         {
             throw new SyntaxException($"Unexpected keyword '{name}'.");
@@ -289,6 +294,23 @@ internal sealed class Parser
 
         Advance();
         return new CallExpr(name, arguments);
+    }
+
+    private FunctionExpr ParseFunction()
+    {
+        Advance();
+        var parameters = new List<string>();
+        while (!IsSymbol(")"))
+        {
+            parameters.Add(Advance().Text);
+            if (!IsSymbol(")"))
+            {
+                ExpectSymbol(",");
+            }
+        }
+
+        Advance();
+        return new FunctionExpr(parameters, ParseExpression());
     }
 
     private ListExpr ParseList()

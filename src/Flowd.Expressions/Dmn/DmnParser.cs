@@ -36,18 +36,22 @@ public static class DmnParser
         var name = (string?)decision.Attribute("name");
         if (Child(decision, "decisionTable") is { } table)
         {
-            return ParseTable(table, id, name);
+            return ParseTable(table, id, name, Requirements(decision));
         }
 
         return Child(decision, "literalExpression") is { } literal
-            ? new LiteralExpressionDecision { Id = id, Name = name, Expression = Text(literal) }
+            ? new LiteralExpressionDecision { Id = id, Name = name, Expression = Text(literal), Requires = Requirements(decision) }
             : null;
     }
 
-    private static DecisionTable ParseTable(XElement table, string id, string? name) => new()
+    private static IReadOnlyList<string> Requirements(XElement decision) =>
+        [.. Children(decision, "informationRequirement").SelectMany(r => Children(r, "requiredDecision")).Select(d => ((string?)d.Attribute("href") ?? string.Empty).TrimStart('#')).Where(id => id.Length > 0)];
+
+    private static DecisionTable ParseTable(XElement table, string id, string? name, IReadOnlyList<string> requires) => new()
     {
         Id = id,
         Name = name,
+        Requires = requires,
         HitPolicy = ParseHitPolicy((string?)table.Attribute("hitPolicy")),
         Aggregation = ParseAggregation((string?)table.Attribute("aggregation")),
         Inputs = [.. Children(table, "input").Select(i => new InputClause((string?)i.Attribute("label") ?? string.Empty, Text(Child(i, "inputExpression"))))],

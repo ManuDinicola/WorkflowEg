@@ -27,6 +27,14 @@ internal static class JobCommands
             return Rejections.Invalid($"Variable names must not start with '{StepContext.ReservedPrefix}'.");
         }
 
+        if (ListenerJobs.IsListener(job))
+        {
+            job.State = JobState.Completed;
+            context.Emit(new JobChanged(job.Copy()));
+            context.Record(HistoryEventTypes.JobCompleted, context.State.Elements[job.ElementInstanceKey]);
+            return null; // a listener job ends here: the flow is not affected
+        }
+
         job.State = JobState.Completed;
         job.ResultVariables = Rejections.CloneOrNull(command.Variables) ?? [];
         context.Emit(new JobChanged(job.Copy()));
@@ -58,6 +66,14 @@ internal static class JobCommands
         job.ErrorMessage = command.ErrorMessage;
         job.Worker = null;
         job.Deadline = null;
+        if (command.Retries == 0 && ListenerJobs.IsListener(job))
+        {
+            job.State = JobState.Failed;
+            context.Record(HistoryEventTypes.JobFailed, element);
+            context.Emit(new JobChanged(job.Copy()));
+            return null; // listeners are best effort: no incident
+        }
+
         if (command.Retries == 0)
         {
             job.State = JobState.Failed;

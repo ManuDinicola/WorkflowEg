@@ -27,6 +27,46 @@ public static class DecisionEvaluator
         };
     }
 
+    /// <summary>Evaluates a decision of a file: the decisions it requires are evaluated first (recursively) and their results are visible under their names and ids (FR-DMN-005).</summary>
+    public static DecisionOutcome Evaluate(Decision decision, IReadOnlyList<Decision> graph, IReadOnlyDictionary<string, ExpressionValue> variables, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(decision);
+        ArgumentNullException.ThrowIfNull(graph);
+        return EvaluateWithRequirements(decision, graph, new Dictionary<string, ExpressionValue>(variables, StringComparer.Ordinal), now, new HashSet<string>(StringComparer.Ordinal));
+    }
+
+    private static DecisionOutcome EvaluateWithRequirements(Decision decision, IReadOnlyList<Decision> graph, Dictionary<string, ExpressionValue> variables, DateTimeOffset now, HashSet<string> path)
+    {
+        if (!path.Add(decision.Id))
+        {
+            return new DecisionFailure("DMN_CYCLE", $"Decision '{decision.Id}' requires itself through a cycle.");
+        }
+
+        foreach (var requiredId in decision.Requires)
+        {
+            var required = graph.FirstOrDefault(d => string.Equals(d.Id, requiredId, StringComparison.Ordinal));
+            if (required is null)
+            {
+                return new DecisionFailure("DMN_REQUIREMENT_MISSING", $"Decision '{decision.Id}' requires '{requiredId}', which is not in the file.");
+            }
+
+            var outcome = EvaluateWithRequirements(required, graph, variables, now, path);
+            if (outcome is not DecisionResult result)
+            {
+                return outcome;
+            }
+
+            variables[required.Id] = result.Value;
+            if (!string.IsNullOrEmpty(required.Name))
+            {
+                variables[required.Name] = result.Value;
+            }
+        }
+
+        path.Remove(decision.Id);
+        return Evaluate(decision, variables, now);
+    }
+
     private static DecisionOutcome EvaluateTable(DecisionTable table, ExpressionContext context)
     {
         var matched = new List<Rule>();

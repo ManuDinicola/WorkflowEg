@@ -73,4 +73,21 @@ public sealed class DecisionApiTests(PostgresFixture postgres) : IClassFixture<P
         missing.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         bad.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
+
+    [Fact]
+    public async Task FR_DMN_005_a_decision_that_requires_others_is_evaluated_through_the_api()
+    {
+        await using var app = await TestApp.StartAsync(postgres);
+        const string graph = """
+            <definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/">
+              <decision id="base" name="Base"><literalExpression><text>weight * 2</text></literalExpression></decision>
+              <decision id="shipping" name="Shipping"><informationRequirement><requiredDecision href="#base"/></informationRequirement><literalExpression><text>Base + 1</text></literalExpression></decision>
+            </definitions>
+            """;
+        (await DeployAsync(app, graph)).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var response = await app.Client.PostAsync(new Uri("/v1/decisions/shipping/evaluate", UriKind.Relative), new StringContent("""{"variables":{"weight":4}}""", Encoding.UTF8, "application/json"));
+
+        JsonNode.Parse(await response.Content.ReadAsStringAsync())!["result"]!.GetValue<decimal>().ShouldBe(9m);
+    }
 }

@@ -187,4 +187,58 @@ public sealed class DmnTests
         (DmnParser.Read(new MemoryStream(Encoding.UTF8.GetBytes("<definitions><decision id=\"x\"/></definitions>"))) is DmnInvalid).ShouldBeTrue();
         (DmnParser.Read(new MemoryStream(Encoding.UTF8.GetBytes("<definitions"))) is DmnInvalid).ShouldBeTrue();
     }
+
+    private static string RunGraph(string xml, string decisionId, string json)
+    {
+        var read = DmnParser.Read(new MemoryStream(Encoding.UTF8.GetBytes(xml)));
+        var definitions = read is DmnDefinitions parsed ? parsed : throw new InvalidOperationException("DMN did not parse.");
+        var variables = ExpressionJson.ToVariables(JsonNode.Parse(json)!.AsObject());
+        return DecisionEvaluator.Evaluate(definitions.Decisions.Single(d => d.Id == decisionId), definitions.Decisions, variables, Now) switch
+        {
+            DecisionResult result => Text(result.Value),
+            DecisionFailure failure => $"ERR:{failure.Code}",
+        };
+    }
+
+    private const string Graph = """
+        <definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/">
+          <decision id="rate" name="Base rate"><literalExpression><text>if tier = "gold" then 10 else 5</text></literalExpression></decision>
+          <decision id="discount" name="Discount">
+            <informationRequirement><requiredDecision href="#rate"/></informationRequirement>
+            <decisionTable hitPolicy="FIRST">
+              <input><inputExpression><text>amount</text></inputExpression></input>
+              <output name="d"/>
+              <rule><inputEntry><text>&gt;= 100</text></inputEntry><outputEntry><text>rate * 2</text></outputEntry></rule>
+              <rule><inputEntry><text>-</text></inputEntry><outputEntry><text>rate</text></outputEntry></rule>
+            </decisionTable>
+          </decision>
+          <decision id="price" name="Price">
+            <informationRequirement><requiredDecision href="#discount"/></informationRequirement>
+            <literalExpression><text>amount - amount * discount / 100</text></literalExpression>
+          </decision>
+        </definitions>
+        """;
+
+    [Fact]
+    public void FR_DMN_005_required_decisions_are_evaluated_first_and_visible_by_name_and_id_through_several_levels()
+    {
+        RunGraph(Graph, "price", """{"tier":"gold","amount":200}""").ShouldBe("160");
+        RunGraph(Graph, "price", """{"tier":"basic","amount":50}""").ShouldBe("47.5");
+        RunGraph(Graph, "discount", """{"tier":"gold","amount":10}""").ShouldBe("10");
+    }
+
+    [Fact]
+    public void FR_DMN_005_missing_requirements_and_cycles_are_errors_not_hangs()
+    {
+        var missing = Graph.Replace("#rate", "#nope", StringComparison.Ordinal);
+        const string Cycle = """
+            <definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/">
+              <decision id="a"><informationRequirement><requiredDecision href="#b"/></informationRequirement><literalExpression><text>1</text></literalExpression></decision>
+              <decision id="b"><informationRequirement><requiredDecision href="#a"/></informationRequirement><literalExpression><text>2</text></literalExpression></decision>
+            </definitions>
+            """;
+
+        RunGraph(missing, "discount", """{"amount":1}""").ShouldBe("ERR:DMN_REQUIREMENT_MISSING");
+        RunGraph(Cycle, "a", "{}").ShouldBe("ERR:DMN_CYCLE");
+    }
 }

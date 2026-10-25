@@ -50,6 +50,25 @@ public static class ClaimsExtensions
 {
     public const string TenantClaimType = "flowd:tenant";
 
+    /// <summary>Process ids the caller may deploy, start and batch-operate on; no such claim means all (FR-SEC-006).</summary>
+    public const string ProcessClaimType = "flowd:processes";
+
+    /// <summary>True when the caller may use the process id: no restriction claim, or the id is listed.</summary>
+    public static bool MayUseProcess(this ClaimsPrincipal user, string? bpmnProcessId)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        var allowed = user.FindAll(ProcessClaimType).Select(c => c.Value).ToList();
+        return allowed.Count == 0 || (bpmnProcessId is not null && allowed.Contains(bpmnProcessId, StringComparer.Ordinal));
+    }
+
+    /// <summary>The process ids the caller is limited to, or null when unrestricted.</summary>
+    public static IReadOnlySet<string>? AllowedProcesses(this ClaimsPrincipal user)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        var allowed = user.FindAll(ProcessClaimType).Select(c => c.Value).ToHashSet(StringComparer.Ordinal);
+        return allowed.Count == 0 ? null : allowed;
+    }
+
     /// <summary>The caller's tenant; the empty string in single-tenant or insecure mode (FR-SEC-003).</summary>
     public static string TenantId(this ClaimsPrincipal user)
     {
@@ -83,6 +102,7 @@ public sealed class ApiKeyAuthenticationHandler(
 
         var claims = new List<Claim> { new(ClaimTypes.Name, info.Name), new(ClaimsExtensions.TenantClaimType, info.TenantId) };
         claims.AddRange(info.Roles.Select(r => new Claim(ClaimTypes.Role, r)));
+        claims.AddRange((info.Processes ?? []).Select(p => new Claim(ClaimsExtensions.ProcessClaimType, p)));
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName));
         return AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName));
     }

@@ -50,7 +50,7 @@ public static class DeploymentEndpoints
             resources.Add(new DeploymentResource(file.FileName, buffer.ToArray()));
         }
 
-        var result = await useCase.ExecuteAsync(resources, user.TenantId(), cancellationToken).ConfigureAwait(false);
+        var result = await useCase.ExecuteAsync(resources, user.TenantId(), user.AllowedProcesses(), cancellationToken).ConfigureAwait(false);
         return result switch
         {
             IReadOnlyList<DeployedDefinition> deployed => Results.Ok(ToResponse(deployed)),

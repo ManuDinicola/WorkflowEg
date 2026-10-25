@@ -31,15 +31,29 @@ public static class BatchEndpoints
     }
 
     private static async Task<IResult> CancelAsync(ClaimsPrincipal user, BatchCancelRequest? request, BatchService batch, CancellationToken cancellationToken) =>
+        user.AllowedProcesses() is not null && !user.MayUseProcess(request?.BpmnProcessId)
+            ? Results.Json(new { code = "PERMISSION_DENIED", detail = "This API key is limited to certain processes; name one of them in bpmnProcessId." }, statusCode: StatusCodes.Status403Forbidden)
+            :
         Results.Ok(ToResponse(await batch.CancelInstancesAsync(user.TenantId(), request?.BpmnProcessId, request?.MaxItems, cancellationToken).ConfigureAwait(false)));
 
     private static async Task<IResult> ResolveAsync(ClaimsPrincipal user, BatchResolveRequest? request, BatchService batch, CancellationToken cancellationToken) =>
         Results.Ok(ToResponse(await batch.ResolveIncidentsAsync(user.TenantId(), InstanceEndpoints.TryKey(request?.ProcessInstanceKey), request?.MaxItems, cancellationToken).ConfigureAwait(false)));
 
-    private static async Task<IResult> MigrateAsync(ClaimsPrincipal user, BatchMigrateRequest request, BatchService batch, CancellationToken cancellationToken) =>
-        InstanceEndpoints.TryKey(request.TargetDefinitionKey) is not { } target || string.IsNullOrWhiteSpace(request.BpmnProcessId)
-            ? Results.BadRequest(new { code = "VALIDATION_ERROR", detail = "bpmnProcessId and a numeric targetDefinitionKey are required." })
-            : Results.Ok(ToResponse(await batch.MigrateInstancesAsync(user.TenantId(), request.BpmnProcessId, target, request.Mapping, request.MaxItems, cancellationToken).ConfigureAwait(false)));
+
+    private static async Task<IResult> MigrateAsync(ClaimsPrincipal user, BatchMigrateRequest request, BatchService batch, CancellationToken cancellationToken)
+    {
+        if (!user.MayUseProcess(request.BpmnProcessId))
+        {
+            return Results.Json(new { code = "PERMISSION_DENIED", detail = "This API key may not use that process." }, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        if (InstanceEndpoints.TryKey(request.TargetDefinitionKey) is not { } target || string.IsNullOrWhiteSpace(request.BpmnProcessId))
+        {
+            return Results.BadRequest(new { code = "VALIDATION_ERROR", detail = "bpmnProcessId and a numeric targetDefinitionKey are required." });
+        }
+
+        return Results.Ok(ToResponse(await batch.MigrateInstancesAsync(user.TenantId(), request.BpmnProcessId, target, request.Mapping, request.MaxItems, cancellationToken).ConfigureAwait(false)));
+    }
 
     private static object ToResponse(BatchResult result) => new
     {

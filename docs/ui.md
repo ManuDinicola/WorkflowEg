@@ -1,0 +1,18 @@
+# Web UI
+
+Open `http://localhost:8080/ui` (the root `/` redirects there). The page is built into the engine (one embedded file, no extra install) and works in the Windows service and the single-file release.
+
+- **API key**: enter it in the top right; it is kept in the browser session only and sent as `X-Api-Key` with every call. With `--insecure-no-auth` (development) leave it empty. The page itself is public; everything it shows comes from the authenticated API, so a key with fewer roles sees less.
+- **Overview**: instances by state, open incidents, open tasks, jobs by state.
+- **Instances**: newest first, filter by state and process id. Click one for the diagram with a red marker on every running element (number = tokens), its variables, incidents and history; cancel a running instance or delete a finished one.
+- **Incidents**: open incidents with a Resolve button.
+- **Tasks**: open user tasks. Open one to fill its form (drawn from the deployed form schema; without a form you enter the variables as JSON) and complete it; validation errors from the form are shown.
+- **Deploy**: upload a `.bpmn`, `.dmn` or `.form` file, or edit BPMN XML in the text box, preview the diagram and deploy it.
+- **Analytics**: pick a process to see instance counts, average and longest duration, and the diagram as a heat map (count and average seconds per element).
+
+Diagrams use the BPMN diagram information (`bpmndi`) when the file has it; otherwise the page lays the elements out left to right.
+
+## Limits
+- The editor is a text editor with preview, not a graphical modeler (you cannot drag shapes).
+- There is no login page: access is by API key. OIDC single sign-on for the UI is not built.
+- Verified by loading the page in a headless DOM against a live engine (all tabs, diagram, token marker, heat map); it has not been checked in every browser.

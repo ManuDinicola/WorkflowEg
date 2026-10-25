@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flowd</title>
+<style>
+  :root { --bg:#f6f7f9; --fg:#1b1f24; --muted:#667085; --line:#d9dde3; --card:#fff; --accent:#2457d6; --bad:#c62828; --ok:#2e7d32; --warn:#b26a00; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaed; --muted:#9aa3af; --line:#2c313a; --card:#1c1f25; --accent:#6d97ff; --bad:#ff6b6b; --ok:#6fcf97; --warn:#f2b64d; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; padding:10px 16px; background:var(--card); border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0 12px 0 0; }
+  nav button { background:none; border:0; padding:6px 10px; color:var(--muted); cursor:pointer; font:inherit; border-radius:6px; }
+  nav button.on { color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent); }
+  header .key { margin-left:auto; display:flex; gap:6px; align-items:center; }
+  main { padding:16px; max-width:1200px; margin:0 auto; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-bottom:14px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
+  .stat b { display:block; font-size:22px; }
+  .stat span, .muted { color:var(--muted); }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  tr.click { cursor:pointer; } tr.click:hover { background:color-mix(in srgb, var(--accent) 8%, transparent); }
+  input, select, textarea, button { font:inherit; color:inherit; background:var(--card); border:1px solid var(--line); border-radius:6px; padding:5px 8px; }
+  button { cursor:pointer; } button.primary { background:var(--accent); border-color:var(--accent); color:#fff; } button.danger { color:var(--bad); }
+  textarea { width:100%; min-height:200px; font-family:ui-monospace, monospace; font-size:12px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; border:1px solid var(--line); }
+  .ACTIVE, .OPEN, .CREATED { color:var(--accent); } .COMPLETED { color:var(--ok); } .TERMINATED { color:var(--muted); } .bad { color:var(--bad); }
+  .diagram { overflow:auto; border:1px solid var(--line); border-radius:8px; background:var(--card); }
+  svg text { fill:var(--fg); font:11px system-ui, sans-serif; }
+  .shape { fill:var(--card); stroke:var(--fg); stroke-width:1.2; }
+  pre { margin:0; white-space:pre-wrap; word-break:break-word; font-size:12px; }
+  .err { color:var(--bad); margin:8px 0; }
+  label { display:block; margin:8px 0 2px; color:var(--muted); }
+  @media (max-width:600px) { main { padding:10px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Flowd</h1>
+  <nav id="nav"></nav>
+  <div class="key"><label for="apikey" style="margin:0">API key</label><input id="apikey" type="password" placeholder="not needed in dev mode" size="18"><button id="savekey">Use</button></div>
+</header>
+<main id="view"></main>
+<script>
+"use strict";
+const $ = (sel, root = document) => root.querySelector(sel);
+const el = (tag, attrs = {}, ...kids) => {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v; else if (k.startsWith("on")) node.addEventListener(k.slice(2), v); else node.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) node.append(kid instanceof Node ? kid : document.createTextNode(kid ?? ""));
+  return node;
+};
+const NS_DI = "http://www.omg.org/spec/BPMN/20100524/DI", NS_DC = "http://www.omg.org/spec/DD/20100524/DC", NS_DI2 = "http://www.omg.org/spec/DD/20100524/DI";
+
+let apiKey = sessionStorage.getItem("flowd-key") || "";
+$("#apikey").value = apiKey;
+$("#savekey").addEventListener("click", () => { apiKey = $("#apikey").value; sessionStorage.setItem("flowd-key", apiKey); show(current); });
+
+async function api(path, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  if (apiKey) headers["X-Api-Key"] = apiKey;
+  if (options.json !== undefined) { headers["Content-Type"] = "application/json"; options.body = JSON.stringify(options.json); }
+  const response = await fetch(path, { method: options.method || "GET", headers, body: options.body });
+  const text = await response.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!response.ok) { const detail = data && (data.detail || data.title || JSON.stringify(data)) || response.statusText; throw new Error(response.status + " " + detail); }
+  return { data, text };
+}
+const fmt = (iso) => iso ? new Date(iso).toLocaleString() : "";
+const fail = (box, error) => { box.replaceChildren(el("div", { class: "err" }, String(error.message || error))); };
+
+/* ---------- diagram ---------- */
+const SHAPES = { startEvent: "event", endEvent: "event", intermediateCatchEvent: "event", intermediateThrowEvent: "event", boundaryEvent: "event", exclusiveGateway: "gateway", parallelGateway: "gateway", inclusiveGateway: "gateway", eventBasedGateway: "gateway" };
+function parseDiagram(xml) {
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("The XML is not valid.");
+  const nodes = new Map(), flows = [];
+  for (const e of doc.getElementsByTagName("*")) {
+    const name = e.localName;
+    const id = e.getAttribute("id");
+    if (!id) continue;
+    if (name === "sequenceFlow") flows.push({ id, from: e.getAttribute("sourceRef"), to: e.getAttribute("targetRef") });
+    else if (/Task$|Event$|Gateway$|^subProcess$|^callActivity$/.test(name)) nodes.set(id, { id, type: name, name: e.getAttribute("name") || id, attached: e.getAttribute("attachedToRef") });
+  }
+  const boxes = new Map();
+  for (const s of doc.getElementsByTagNameNS(NS_DI, "BPMNShape")) {
+    const b = s.getElementsByTagNameNS(NS_DC, "Bounds")[0];
+    if (b) boxes.set(s.getAttribute("bpmnElement"), { x: +b.getAttribute("x"), y: +b.getAttribute("y"), w: +b.getAttribute("width"), h: +b.getAttribute("height") });
+  }
+  const waypoints = new Map();
+  for (const edge of doc.getElementsByTagNameNS(NS_DI, "BPMNEdge")) {
+    waypoints.set(edge.getAttribute("bpmnElement"), [...edge.getElementsByTagNameNS(NS_DI2, "waypoint")].map((p) => [+p.getAttribute("x"), +p.getAttribute("y")]));
+  }
+  if (boxes.size === 0) autoLayout(nodes, flows, boxes);
+  return { nodes, flows, boxes, waypoints };
+}
+function autoLayout(nodes, flows, boxes) { /* no diagram information: place elements left to right by distance from the start */
+  const level = new Map();
+  const queue = [...nodes.values()].filter((n) => /startEvent/.test(n.type) || !flows.some((f) => f.to === n.id)).map((n) => n.id);
+  queue.forEach((id) => level.set(id, 0));
+  while (queue.length) {
+    const id = queue.shift();
+    for (const f of flows.filter((x) => x.from === id)) if (!level.has(f.to)) { level.set(f.to, level.get(id) + 1); queue.push(f.to); }
+  }
+  const rows = new Map();
+  for (const n of nodes.values()) {
+    const l = level.get(n.id) ?? 0, row = rows.get(l) || 0; rows.set(l, row + 1);
+    const kind = SHAPES[n.type], w = kind ? 36 : 110, h = kind ? 36 : 60;
+    boxes.set(n.id, { x: 30 + l * 160 + (110 - w) / 2, y: 30 + row * 100 + (60 - h) / 2, w, h });
+  }
+  for (const n of nodes.values()) if (n.attached && boxes.has(n.attached)) { const host = boxes.get(n.attached); boxes.set(n.id, { x: host.x + host.w - 30, y: host.y + host.h - 18, w: 36, h: 36 }); }
+}
+const svg = (tag, attrs = {}, ...kids) => { const n = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); for (const k of kids.flat()) n.append(k instanceof Node ? k : document.createTextNode(k)); return n; };
+const heat = (ratio) => `hsl(${Math.round(55 - 55 * ratio)} 85% ${Math.round(88 - 28 * ratio)}%)`;
+function drawDiagram(xml, overlay = {}) {
+  const d = parseDiagram(xml);
+  const all = [...d.boxes.values()];
+  const width = Math.max(300, ...all.map((b) => b.x + b.w + 30)), height = Math.max(160, ...all.map((b) => b.y + b.h + 30));
+  const root = svg("svg", { width, height, viewBox: `0 0 ${width} ${height}` });
+  root.append(svg("defs", {}, svg("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, svg("path", { d: "M0 0L10 5L0 10z", fill: "currentColor" }))));
+  const centre = (id) => { const b = d.boxes.get(id); return b ? [b.x + b.w / 2, b.y + b.h / 2] : null; };
+  for (const f of d.flows) {
+    const pts = d.waypoints.get(f.id) || [centre(f.from), centre(f.to)].filter(Boolean);
+    if (pts.length > 1) root.append(svg("polyline", { points: pts.map((p) => p.join(",")).join(" "), fill: "none", stroke: "currentColor", "stroke-width": 1.2, "marker-end": "url(#arrow)" }));
+  }
+  const max = Math.max(1, ...Object.values(overlay.heat || {}).map((h) => h.activations));
+  for (const n of d.nodes.values()) {
+    const b = d.boxes.get(n.id); if (!b) continue;
+    const kind = SHAPES[n.type], stat = (overlay.heat || {})[n.id];
+    const attrs = { class: "shape", ...(stat ? { style: `fill:${heat(stat.activations / max)}` } : {}) };
+    if (kind === "event") root.append(svg("ellipse", { ...attrs, cx: b.x + b.w / 2, cy: b.y + b.h / 2, rx: b.w / 2, ry: b.h / 2 }));
+    else if (kind === "gateway") root.append(svg("polygon", { ...attrs, points: `${b.x + b.w / 2},${b.y} ${b.x + b.w},${b.y + b.h / 2} ${b.x + b.w / 2},${b.y + b.h} ${b.x},${b.y + b.h / 2}` }));
+    else root.append(svg("rect", { ...attrs, x: b.x, y: b.y, width: b.w, height: b.h, rx: 8 }));
+    const label = svg("text", { x: b.x + b.w / 2, y: kind ? b.y + b.h + 13 : b.y + b.h / 2 + 4, "text-anchor": "middle" }, n.name.length > 18 ? n.name.slice(0, 17) + "…" : n.name);
+    root.append(label);
+    if (stat) root.append(svg("text", { x: b.x + b.w / 2, y: b.y - 4, "text-anchor": "middle" }, `${stat.activations}×${stat.averageSeconds != null ? " · " + stat.averageSeconds.toFixed(1) + "s" : ""}`));
+    const tokens = (overlay.tokens || []).filter((t) => t === n.id).length;
+    if (tokens) { root.append(svg("circle", { cx: b.x + b.w - 4, cy: b.y + 4, r: 9, fill: "#c62828" })); root.append(svg("text", { x: b.x + b.w - 4, y: b.y + 8, "text-anchor": "middle", style: "fill:#fff" }, String(tokens))); }
+  }
+  return el("div", { class: "diagram" }, root);
+}
+
+/* ---------- views ---------- */
+const views = {
+  async overview(box) {
+    const { data } = await api("/v1/analytics/summary");
+    const stat = (label, value) => el("div", { class: "card stat" }, el("b", {}, String(value)), el("span", {}, label));
+    box.append(el("div", { class: "grid" },
+      ...Object.entries(data.instancesByState).map(([s, n]) => stat("instances " + s.toLowerCase(), n)),
+      stat("open incidents", data.openIncidents), stat("open user tasks", data.openUserTasks),
+      ...Object.entries(data.jobsByState).map(([s, n]) => stat("jobs " + s.toLowerCase(), n))));
+  },
+  async instances(box) {
+    const state = el("select", {}, ...["", "ACTIVE", "COMPLETED", "TERMINATED"].map((s) => el("option", { value: s }, s || "any state")));
+    const process = el("input", { placeholder: "process id" });
+    const list = el("div");
+    const load = async () => {
+      try {
+        const q = new URLSearchParams({ order: "desc", pageSize: "50" }); if (state.value) q.set("state", state.value); if (process.value) q.set("bpmnProcessId", process.value);
+        const { data } = await api("/v1/process-instances?" + q);
+        list.replaceChildren(el("table", {}, el("tr", {}, ...["Key", "Process", "Version", "State", "Started"].map((h) => el("th", {}, h))),
+          ...data.items.map((i) => el("tr", { class: "click", onclick: () => detail(i.key) }, el("td", {}, i.key), el("td", {}, i.bpmnProcessId), el("td", {}, String(i.version)), el("td", {}, el("span", { class: "badge " + i.state }, i.state)), el("td", {}, fmt(i.startedAt))))));
+      } catch (e) { fail(list, e); }
+    };
+    const detailBox = el("div");
+    const detail = async (key) => {
+      detailBox.replaceChildren("Loading…");
+      try {
+        const [inst, vars, elements, history, incidents] = await Promise.all([api("/v1/process-instances/" + key), api(`/v1/process-instances/${key}/variables`), api(`/v1/process-instances/${key}/elements`), api(`/v1/process-instances/${key}/history?pageSize=200`), api(`/v1/incidents?processInstanceKey=${key}`)]);
+        const xml = (await api(`/v1/process-definitions/${inst.data.processDefinitionKey}/xml`)).text;
+        const actions = el("div", { class: "row" },
+          inst.data.state === "ACTIVE" ? el("button", { class: "danger", onclick: async () => { await api(`/v1/process-instances/${key}/cancel`, { method: "POST" }); detail(key); load(); } }, "Cancel instance") : el("button", { class: "danger", onclick: async () => { await api(`/v1/process-instances/${key}`, { method: "DELETE" }); detailBox.replaceChildren(); load(); } }, "Delete instance"));
+        detailBox.replaceChildren(el("div", { class: "card" }, el("h3", {}, `Instance ${key}`), actions, drawDiagram(xml, { tokens: elements.data.items.map((e) => e.elementId) }),
+          el("h4", {}, "Variables"), el("pre", {}, JSON.stringify(vars.data, null, 2)),
+          el("h4", {}, "Incidents"), incidents.data.items.length ? el("pre", {}, incidents.data.items.map((i) => `${i.state} ${i.errorType}: ${i.errorMessage}`).join("\n")) : el("span", { class: "muted" }, "none"),
+          el("h4", {}, "History"), el("table", {}, ...history.data.items.map((h) => el("tr", {}, el("td", {}, fmt(h.occurredAt)), el("td", {}, h.eventType), el("td", {}, h.elementId || ""))))));
+      } catch (e) { fail(detailBox, e); }
+    };
+    box.append(el("div", { class: "row" }, state, process, el("button", { onclick: load }, "Search")), list, detailBox);
+    state.addEventListener("change", load); await load();
+  },
+  async incidents(box) {
+    const { data } = await api("/v1/incidents?state=OPEN&pageSize=100");
+    box.append(el("div", { class: "card" }, data.items.length ? el("table", {}, el("tr", {}, ...["Instance", "Type", "Message", "Created", ""].map((h) => el("th", {}, h))),
+      ...data.items.map((i) => el("tr", {}, el("td", {}, i.processInstanceKey), el("td", {}, i.errorType), el("td", {}, i.errorMessage), el("td", {}, fmt(i.createdAt)),
+        el("td", {}, el("button", { onclick: async (ev) => { try { await api(`/v1/incidents/${i.key}/resolve`, { method: "POST" }); show("incidents"); } catch (e) { ev.target.textContent = String(e.message).slice(0, 60); } } }, "Resolve"))))) : el("span", { class: "muted" }, "No open incidents.")));
+  },
+  async tasks(box) {
+    const { data } = await api("/v1/user-tasks?state=CREATED&pageSize=100");
+    const form = el("div");
+    const open = async (task) => {
+      form.replaceChildren("Loading…");
+      let schema = { components: [{ type: "textarea", key: "_json", label: "Variables as JSON" }] }, formId = null;
+      try { schema = (await api(`/v1/user-tasks/${task.key}/form`)).data.schema; formId = true; } catch { /* no deployed form: free JSON */ }
+      const inputs = [];
+      const walk = (components) => { for (const c of components || []) { if (c.key) inputs.push(c); walk(c.components); } };
+      walk(schema.components);
+      const fields = inputs.map((c) => {
+        const input = c.type === "checkbox" ? el("input", { type: "checkbox" }) : c.type === "textarea" ? el("textarea", {}) : el("input", { type: c.type === "number" ? "number" : "text" });
+        return { c, input, row: el("div", {}, el("label", {}, (c.label || c.key) + (c.validate && c.validate.required ? " *" : "")), input) };
+      });
+      const message = el("div");
+      form.replaceChildren(el("div", { class: "card" }, el("h3", {}, `Task ${task.key} — ${task.elementId}`), ...fields.map((f) => f.row), message,
+        el("button", { class: "primary", onclick: async () => {
+          try {
+            let variables = {};
+            for (const f of fields) {
+              if (f.c.key === "_json" && !formId) { variables = f.input.value ? JSON.parse(f.input.value) : {}; continue; }
+              if (f.c.type === "checkbox") variables[f.c.key] = f.input.checked; else if (f.input.value !== "") variables[f.c.key] = f.c.type === "number" ? Number(f.input.value) : f.input.value;
+            }
+            await api(`/v1/user-tasks/${task.key}/complete`, { method: "POST", json: { variables, user: "ui" } });
+            show("tasks");
+          } catch (e) { fail(message, e); }
+        } }, "Complete")));
+    };
+    box.append(el("div", { class: "card" }, data.items.length ? el("table", {}, el("tr", {}, ...["Task", "Element", "Assignee", "Priority", "Due", ""].map((h) => el("th", {}, h))),
+      ...data.items.map((t) => el("tr", {}, el("td", {}, t.key), el("td", {}, t.elementId), el("td", {}, t.assignee || ""), el("td", {}, String(t.priority)), el("td", {}, fmt(t.dueDate)), el("td", {}, el("button", { onclick: () => open(t) }, "Open"))))) : el("span", { class: "muted" }, "No open tasks.")), form);
+  },
+  async deploy(box) {
+    const editor = el("textarea", { placeholder: "Paste BPMN XML here to preview and deploy" });
+    const preview = el("div"), message = el("div");
+    const upload = async (blob, name) => {
+      const path = /\.dmn$/i.test(name) ? "/v1/decisions" : /\.(form|json)$/i.test(name) ? "/v1/forms" : "/v1/deployments";
+      const body = new FormData(); body.append("resources", blob, name);
+      const { data } = await api(path, { method: "POST", body });
+      message.replaceChildren(el("pre", {}, JSON.stringify(data, null, 2)));
+    };
+    const file = el("input", { type: "file", accept: ".bpmn,.xml,.dmn,.form,.json" });
+    file.addEventListener("change", async () => { if (file.files[0]) { try { if (/\.(bpmn|xml)$/i.test(file.files[0].name)) editor.value = await file.files[0].text(); await upload(file.files[0], file.files[0].name); } catch (e) { fail(message, e); } } });
+    box.append(el("div", { class: "card" }, el("h3", {}, "Deploy"), el("p", { class: "muted" }, "Upload a .bpmn, .dmn or .form file, or edit BPMN XML below with a live preview."), file,
+      el("h4", {}, "XML editor"), editor,
+      el("div", { class: "row" }, el("button", { onclick: () => { try { preview.replaceChildren(drawDiagram(editor.value)); } catch (e) { fail(preview, e); } } }, "Preview"),
+        el("button", { class: "primary", onclick: async () => { try { await upload(new Blob([editor.value], { type: "application/xml" }), "editor.bpmn"); } catch (e) { fail(message, e); } } }, "Deploy")), preview, message));
+  },
+  async analytics(box) {
+    const defs = (await api("/v1/process-definitions?pageSize=200")).data.items;
+    const ids = [...new Set(defs.map((d) => d.bpmnProcessId))];
+    const select = el("select", {}, ...ids.map((i) => el("option", { value: i }, i)));
+    const out = el("div");
+    const load = async () => {
+      if (!select.value) return;
+      try {
+        const stats = (await api("/v1/analytics/processes/" + encodeURIComponent(select.value))).data;
+        const latest = defs.filter((d) => d.bpmnProcessId === select.value).sort((a, b) => b.version - a.version)[0];
+        const xml = (await api(`/v1/process-definitions/${latest.key}/xml`)).text;
+        const heatMap = Object.fromEntries(stats.elements.map((e) => [e.elementId, e]));
+        out.replaceChildren(el("div", { class: "card" },
+          el("p", {}, "Instances: " + Object.entries(stats.instancesByState).map(([s, n]) => `${s.toLowerCase()} ${n}`).join(", ")),
+          el("p", {}, `Duration of completed instances: average ${stats.averageDurationSeconds?.toFixed(2) ?? "–"} s, longest ${stats.maxDurationSeconds?.toFixed(2) ?? "–"} s`),
+          el("p", { class: "muted" }, "Heat map: warmer elements ran more often (count × average seconds)."), drawDiagram(xml, { heat: heatMap })));
+      } catch (e) { fail(out, e); }
+    };
+    select.addEventListener("change", load);
+    box.append(el("div", { class: "row" }, select), out); await load();
+  },
+};
+
+const tabs = [["overview", "Overview"], ["instances", "Instances"], ["incidents", "Incidents"], ["tasks", "Tasks"], ["deploy", "Deploy"], ["analytics", "Analytics"]];
+let current = "overview", showToken = 0;
+async function show(name) {
+  current = name;
+  const mine = ++showToken;
+  $("#nav").replaceChildren(...tabs.map(([id, label]) => el("button", { class: id === name ? "on" : "", onclick: () => show(id) }, label)));
+  const box = el("div");
+  try { await views[name](box); } catch (e) { fail(box, e); }
+  if (mine === showToken) $("#view").replaceChildren(box); // a newer click wins: never mix two tabs
+}
+show("overview");
+</script>
+</body>
+</html>

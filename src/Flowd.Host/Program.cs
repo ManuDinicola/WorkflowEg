@@ -8,6 +8,7 @@ var insecure = new Option<bool>("--insecure-no-auth") { Description = "DEVELOPME
 var keyName = new Option<string>("--name") { Description = "Name of the API key.", Required = true };
 var keyRoles = new Option<string>("--roles") { Description = "Comma separated roles: admin, operator, developer, worker, reader.", Required = true };
 var keyTenant = new Option<string>("--tenant") { Description = "Tenant of the key (empty for single-tenant mode).", DefaultValueFactory = _ => string.Empty };
+var keyProcesses = new Option<string>("--processes") { Description = "Comma separated process ids the key is limited to (default: all).", DefaultValueFactory = _ => string.Empty };
 var fileArgument = new Argument<FileInfo>("file") { Description = "BPMN file to validate." };
 
 var serve = new Command("serve", "Run the API, engine and schedulers.") { autoMigrate, insecure };
@@ -75,7 +76,7 @@ validate.SetAction(async (parseResult, cancellationToken) =>
 });
 
 var apiKey = new Command("apikey", "Manage API keys.");
-var createKey = new Command("create", "Create an API key; the key is printed once and only its hash is stored.") { keyName, keyRoles, keyTenant };
+var createKey = new Command("create", "Create an API key; the key is printed once and only its hash is stored.") { keyName, keyRoles, keyTenant, keyProcesses };
 createKey.SetAction(async (parseResult, cancellationToken) =>
 {
     var roles = parseResult.GetRequiredValue(keyRoles).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -87,7 +88,7 @@ createKey.SetAction(async (parseResult, cancellationToken) =>
     }
 
     var options = FlowdHostBuilder.LoadOptions(Environment.GetCommandLineArgs().Skip(3).ToArray());
-    var key = await FlowdHostBuilder.CreateApiKeyAsync(options, parseResult.GetRequiredValue(keyName), roles, parseResult.GetValue(keyTenant) ?? string.Empty, cancellationToken).ConfigureAwait(false);
+    var key = await FlowdHostBuilder.CreateApiKeyAsync(options, parseResult.GetRequiredValue(keyName), roles, parseResult.GetValue(keyTenant) ?? string.Empty, (parseResult.GetValue(keyProcesses) ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), cancellationToken).ConfigureAwait(false);
     await Console.Out.WriteLineAsync(key.AsMemory(), cancellationToken).ConfigureAwait(false);
     return 0;
 });

@@ -35,6 +35,9 @@ public closed class Decision
     public required string Id { get; init; }
 
     public string? Name { get; init; }
+
+    /// <summary>Ids of the decisions this one requires (the decision requirements graph): their results are available under their names (FR-DMN-005).</summary>
+    public IReadOnlyList<string> Requires { get; init; } = [];
 }
 
 public sealed class DecisionTable : Decision

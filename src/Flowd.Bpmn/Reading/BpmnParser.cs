@@ -116,6 +116,20 @@ public sealed class BpmnParser
 
     private FlowNode ParseNode(XElement e)
     {
+        var node = ParseNodeCore(e);
+        node.Listeners = ReadListeners(e);
+        return node;
+    }
+
+    private static ListenerDefinition[] ReadListeners(XElement e) =>
+        [.. (e.Element(Bpmn + "extensionElements")?.Elements() ?? [])
+            .Where(x => x.Name == Flowd + "executionListeners" || x.Name == Flowd + "taskListeners")
+            .SelectMany(x => x.Elements(Flowd + "listener"))
+            .Where(l => l.Attribute("event") is not null && l.Attribute("type") is not null)
+            .Select(l => new ListenerDefinition(((string)l.Attribute("event")!).ToLowerInvariant(), (string)l.Attribute("type")!))];
+
+    private FlowNode ParseNodeCore(XElement e)
+    {
         var id = (string?)e.Attribute("id") ?? string.Empty;
         var name = (string?)e.Attribute("name");
         return e.Name.LocalName switch
@@ -123,24 +137,29 @@ public sealed class BpmnParser
             "startEvent" => ParseStartEvent(e, id, name),
             "endEvent" when !HasEventDefinition(e) => new EndEvent { Id = id, Name = name },
             "endEvent" when HasOnlyEventDefinition(e, "terminateEventDefinition") => new EndEvent { Id = id, Name = name, IsTerminate = true },
+            "endEvent" when HasOnlyEventDefinition(e, "compensateEventDefinition") => new EndEvent { Id = id, Name = name, Compensation = ReadCompensation(e) },
             "endEvent" when HasOnlyEventDefinition(e, "errorEventDefinition") => new EndEvent { Id = id, Name = name, Error = ReadError(e) },
             "endEvent" when HasOnlyEventDefinition(e, "escalationEventDefinition") => new EndEvent { Id = id, Name = name, Escalation = ReadEscalation(e) },
             "endEvent" when HasOnlyEventDefinition(e, "messageEventDefinition") && TaskType(e) is { } endJob => new EndEvent { Id = id, Name = name, MessageJobType = endJob },
+            "endEvent" when HasOnlyEventDefinition(e, "messageEventDefinition") && ReadDefinition(e) is MessageEventDefinition endMessage => new EndEvent { Id = id, Name = name, Message = endMessage },
             "intermediateThrowEvent" when !HasEventDefinition(e) => new IntermediateThrowEvent { Id = id, Name = name },
             "intermediateThrowEvent" when HasOnlyEventDefinition(e, "messageEventDefinition") && TaskType(e) is { } throwJob => new IntermediateThrowEvent { Id = id, Name = name, JobType = throwJob },
+            "intermediateThrowEvent" when HasOnlyEventDefinition(e, "compensateEventDefinition") => new IntermediateThrowEvent { Id = id, Name = name, Definition = ReadCompensation(e) },
             "intermediateThrowEvent" when HasOnlyEventDefinition(e, "linkEventDefinition") => new IntermediateThrowEvent { Id = id, Name = name, Definition = ReadLink(e) },
             "intermediateThrowEvent" when HasOnlyEventDefinition(e, "escalationEventDefinition") => new IntermediateThrowEvent { Id = id, Name = name, Definition = ReadEscalation(e) },
+            "intermediateThrowEvent" when ReadDefinition(e) is MessageEventDefinition publishing => new IntermediateThrowEvent { Id = id, Name = name, Definition = publishing },
             "intermediateThrowEvent" when ReadDefinition(e) is SignalEventDefinition signal => new IntermediateThrowEvent { Id = id, Name = name, Definition = signal },
             "userTask" => ParseUserTask(e, id, name),
             "intermediateCatchEvent" when ReadDefinition(e) is { } definition => new IntermediateCatchEvent { Id = id, Name = name, Definition = definition },
             "boundaryEvent" when ReadDefinition(e) is { } definition && (string?)e.Attribute("attachedToRef") is { } attached =>
-                new BoundaryEvent { Id = id, Name = name, AttachedToRef = attached, CancelActivity = !string.Equals((string?)e.Attribute("cancelActivity"), "false", StringComparison.OrdinalIgnoreCase), Definition = definition },
+                new BoundaryEvent { Id = id, Name = name, AttachedToRef = attached, CancelActivity = !string.Equals((string?)e.Attribute("cancelActivity"), "false", StringComparison.OrdinalIgnoreCase), Definition = definition, CompensationHandlerId = HandlerOf(e) },
             "receiveTask" when ReadDefinition(e, fromMessageRef: true) is MessageEventDefinition message => new ReceiveTask { Id = id, Name = name, Message = message },
             "eventBasedGateway" => new EventBasedGateway { Id = id, Name = name },
             "serviceTask" or "sendTask" or "businessRuleTask" => ParseJobTask(e, id, name),
             "scriptTask" => ParseScriptTask(e, id, name),
             "manualTask" => new ManualTask { Id = id, Name = name },
             "subProcess" => ParseSubProcess(e, id, name),
+            "adHocSubProcess" => ParseSubProcess(e, id, name),
             "callActivity" => ParseCallActivity(e, id, name),
             "exclusiveGateway" => new ExclusiveGateway { Id = id, Name = name, DefaultFlowId = (string?)e.Attribute("default") },
             "inclusiveGateway" => new InclusiveGateway { Id = id, Name = name, DefaultFlowId = (string?)e.Attribute("default") },
@@ -177,6 +196,16 @@ public sealed class BpmnParser
         if (e.Element(Bpmn + "signalEventDefinition") is { } signal)
         {
             return _signals.TryGetValue((string?)signal.Attribute("signalRef") ?? string.Empty, out var name) ? new SignalEventDefinition { Name = name } : null;
+        }
+
+        if (e.Element(Bpmn + "compensateEventDefinition") is not null)
+        {
+            return ReadCompensation(e);
+        }
+
+        if (e.Element(Bpmn + "conditionalEventDefinition") is { } conditional)
+        {
+            return new ConditionalEventDefinition { Condition = (string?)conditional.Element(Bpmn + "condition") ?? string.Empty };
         }
 
         if (e.Element(Bpmn + "linkEventDefinition") is not null)
@@ -306,6 +335,7 @@ public sealed class BpmnParser
             Nodes = ParseNodes(e),
             Flows = ParseFlows(e),
             IsEventSubProcess = IsTrue(e, "triggeredByEvent"),
+            IsAdHoc = e.Name.LocalName == "adHocSubProcess",
             Loop = ReadLoop(e),
             Inputs = ParseMappings(mapping, "input"),
             Outputs = ParseMappings(mapping, "output"),
@@ -324,6 +354,36 @@ public sealed class BpmnParser
         };
     }
 
+    private static CompensationEventDefinition ReadCompensation(XElement e) =>
+        new() { ActivityRef = (string?)e.Element(Bpmn + "compensateEventDefinition")?.Attribute("activityRef") };
+
+    /// <summary>The compensation handler of a boundary event: the target of the association that starts at it.</summary>
+    private static string? HandlerOf(XElement boundary) =>
+        boundary.Element(Bpmn + "compensateEventDefinition") is null
+            ? null
+            : (string?)boundary.Parent?.Elements(Bpmn + "association").FirstOrDefault(a => (string?)a.Attribute("sourceRef") == (string?)boundary.Attribute("id"))?.Attribute("targetRef");
+
+    private static string? InternalTaskType(XElement? decision, XElement? connector)
+    {
+        if (decision is not null)
+        {
+            return ServiceTask.DecisionTaskType;
+        }
+
+        return (string?)connector?.Attribute("type") switch
+        {
+            { } t when string.Equals(t, "http", StringComparison.OrdinalIgnoreCase) => ServiceTask.HttpConnectorTaskType,
+            { } t when string.Equals(t, "email", StringComparison.OrdinalIgnoreCase) => ServiceTask.EmailConnectorTaskType,
+            _ => null, // non-union
+        };
+    }
+
+    /// <summary>The settings of a <c>flowd:connector</c> element become task headers the built-in connector worker reads (url, method, body, headers, resultVariable, failOnError).</summary>
+    private static IEnumerable<KeyValuePair<string, string>> ConnectorHeaders(XElement? connector) =>
+        connector is null
+            ? []
+            : connector.Attributes().Where(a => a.Name.LocalName != "type").Select(a => new KeyValuePair<string, string>(a.Name.LocalName, a.Value));
+
     /// <summary>A business rule task with <c>flowd:calledDecision</c> becomes an internal decision job carrying the decision id and result variable.</summary>
     private static IEnumerable<KeyValuePair<string, string>> DecisionHeaders(XElement? decision) =>
         decision is null
@@ -336,13 +396,14 @@ public sealed class BpmnParser
         var definition = extensions?.Element(Flowd + "taskDefinition");
         var mapping = extensions?.Element(Flowd + "ioMapping");
         var decision = extensions?.Element(Flowd + "calledDecision");
+        var connector = extensions?.Element(Flowd + "connector");
         return new ServiceTask
         {
             Id = id,
             Name = name,
             BpmnType = e.Name.LocalName,
             Loop = ReadLoop(e),
-            TaskType = decision is null ? (string?)definition?.Attribute("type") : ServiceTask.DecisionTaskType,
+            TaskType = InternalTaskType(decision, connector) ?? (string?)definition?.Attribute("type"),
             Retries = (string?)definition?.Attribute("retries"),
             Inputs = ParseMappings(mapping, "input"),
             Outputs = ParseMappings(mapping, "output"),
@@ -352,6 +413,7 @@ public sealed class BpmnParser
                 .GroupBy(h => (string)h.Attribute("key")!, StringComparer.Ordinal)
                 .ToDictionary(g => g.Key, g => (string?)g.Last().Attribute("value") ?? string.Empty, StringComparer.Ordinal)
                 .Concat(DecisionHeaders(decision))
+                .Concat(ConnectorHeaders(connector))
                 .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal),
         };
     }

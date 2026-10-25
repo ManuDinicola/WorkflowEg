@@ -348,7 +348,7 @@ internal static class EffectWriter
                 case UserTaskChanged userTask:
                     UserTaskRows.Write(batch, userTask.Snapshot);
                     break;
-                case SignalThrown or ChildInstanceRequested or ChildInstanceEnded or ChildErrorThrown or ChildCancelRequested:
+                case SignalThrown or MessageThrown or ChildInstanceRequested or ChildInstanceEnded or ChildErrorThrown or ChildCancelRequested:
                     break; // handled after the commit, nothing to store
                 case TimerChanged or SubscriptionChanged or SubscriptionClosed or MessageCorrelated:
                     TriggerRows.Write(batch, effects[i]);

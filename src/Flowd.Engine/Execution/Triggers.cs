@@ -14,7 +14,7 @@ internal static class Triggers
     /// <summary>Opens the boundary triggers of an activity that are not open yet. Idempotent so a re-activation after an incident is safe.</summary>
     public static bool OpenBoundaries(StepContext context, FlowNode activity, ElementInstance instance)
     {
-        foreach (var boundary in context.State.Graph.BoundaryEventsOf(activity.Id).Where(b => b.Definition is not (ErrorEventDefinition or EscalationEventDefinition)))
+        foreach (var boundary in context.State.Graph.BoundaryEventsOf(activity.Id).Where(b => b.Definition is not (ErrorEventDefinition or EscalationEventDefinition or CompensationEventDefinition)))
         {
             if (!IsOpen(context, instance, boundary.Id) && !Open(context, instance, boundary.Id, boundary.Definition, TriggerKind.Boundary))
             {
@@ -58,6 +58,9 @@ internal static class Triggers
                 return OpenTimer(context, owner, elementId, timer, kind);
             case SignalEventDefinition signal:
                 context.OpenSubscription(owner, elementId, kind, signal.Name, string.Empty, isSignal: true);
+                return true;
+            case ConditionalEventDefinition:
+                context.OpenSubscription(owner, elementId, kind, Conditions.Marker, string.Empty);
                 return true;
             case MessageEventDefinition message:
                 return OpenMessage(context, owner, elementId, message, kind);
@@ -140,6 +143,9 @@ internal static class TriggerCommands
 
         return Fire(context, timer.ElementInstanceKey, timer.Kind, timer.ElementId, null);
     }
+
+    public static CommandRejected? FireWaiting(StepContext context, SubscriptionRecord subscription) =>
+        Fire(context, subscription.ElementInstanceKey, subscription.Kind, subscription.ElementId, null);
 
     public static CommandRejected? FireSignal(StepContext context, TriggerSignal command)
     {

@@ -17,6 +17,8 @@ internal static class Operators
         (string x, string y) => string.Equals(x, y, StringComparison.Ordinal),
         (DateTimeOffset x, DateTimeOffset y) => x == y,
         (TimeSpan x, TimeSpan y) => x == y,
+        (TimeOnly x, TimeOnly y) => x == y,
+        (YearsMonthsDuration x, YearsMonthsDuration y) => x == y,
         (ListValue x, ListValue y) => x.Items.Count == y.Items.Count && x.Items.Zip(y.Items).All(p => ValuesEqual(p.First, p.Second)),
         (ContextValue x, ContextValue y) => x.Entries.Count == y.Entries.Count
             && x.Entries.All(e => y.Entries.TryGetValue(e.Key, out var other) && ValuesEqual(e.Value, other)),
@@ -30,6 +32,8 @@ internal static class Operators
         (string x, string y) => string.CompareOrdinal(x, y),
         (DateTimeOffset x, DateTimeOffset y) => x.CompareTo(y),
         (TimeSpan x, TimeSpan y) => x.CompareTo(y),
+        (TimeOnly x, TimeOnly y) => x.CompareTo(y),
+        (YearsMonthsDuration x, YearsMonthsDuration y) => x.Months.CompareTo(y.Months),
         _ => null, // non-union: tuple switch
     };
 
@@ -93,8 +97,22 @@ internal static class Operators
         ("+", TimeSpan x, DateTimeOffset y) => y + x,
         ("-", DateTimeOffset x, TimeSpan y) => x - y,
         ("-", DateTimeOffset x, DateTimeOffset y) => x - y,
+        ("+", TimeOnly x, TimeSpan y) => x.Add(y),
+        ("-", TimeOnly x, TimeSpan y) => x.Add(-y),
+        ("-", TimeOnly x, TimeOnly y) => x.ToTimeSpan() - y.ToTimeSpan(),
+        ("+", YearsMonthsDuration x, YearsMonthsDuration y) => Months(() => checked(x.Months + y.Months)),
+        ("-", YearsMonthsDuration x, YearsMonthsDuration y) => Months(() => checked(x.Months - y.Months)),
+        ("*", YearsMonthsDuration x, decimal y) => Months(() => (int)(x.Months * y)),
+        ("*", decimal x, YearsMonthsDuration y) => Months(() => (int)(y.Months * x)),
+        ("+", DateTimeOffset x, YearsMonthsDuration y) => AddMonths(x, y.Months),
+        ("+", YearsMonthsDuration x, DateTimeOffset y) => AddMonths(y, x.Months),
+        ("-", DateTimeOffset x, YearsMonthsDuration y) => AddMonths(x, -y.Months),
         ("+", TimeSpan x, TimeSpan y) => x + y,
         ("-", TimeSpan x, TimeSpan y) => x - y,
+        ("*", TimeSpan x, decimal y) => Duration(() => TimeSpan.FromTicks((long)(x.Ticks * y))),
+        ("*", decimal x, TimeSpan y) => Duration(() => TimeSpan.FromTicks((long)(y.Ticks * x))),
+        ("/", TimeSpan x, decimal y) => y == 0 ? Null : Duration(() => TimeSpan.FromTicks((long)(x.Ticks / y))),
+        ("/", TimeSpan x, TimeSpan y) => y == TimeSpan.Zero ? Null : (decimal)x.Ticks / y.Ticks,
         _ => Null, // non-union: tuple switch; mismatched operand types yield null as in FEEL
     };
 
@@ -102,13 +120,50 @@ internal static class Operators
     {
         decimal d => -d,
         TimeSpan t => -t,
-        NullValue or bool or string or DateTimeOffset or ListValue or ContextValue => Null,
+        YearsMonthsDuration m => new YearsMonthsDuration(-m.Months),
+        NullValue or bool or string or DateTimeOffset or ListValue or ContextValue or FunctionValue or TimeOnly => Null,
     };
+
+    private static ExpressionValue Months(Func<int> compute)
+    {
+        try
+        {
+            return new YearsMonthsDuration(compute());
+        }
+        catch (OverflowException)
+        {
+            return Null;
+        }
+    }
+
+    private static ExpressionValue AddMonths(DateTimeOffset instant, int months)
+    {
+        try
+        {
+            return instant.AddMonths(months);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return Null;
+        }
+    }
 
     private static ExpressionValue Power(decimal x, decimal y)
     {
         var result = Math.Pow((double)x, (double)y);
         return double.IsFinite(result) && Math.Abs(result) < 7.9e27 ? (decimal)result : Null;
+    }
+
+    private static ExpressionValue Duration(Func<TimeSpan> compute)
+    {
+        try
+        {
+            return compute();
+        }
+        catch (OverflowException)
+        {
+            return Null;
+        }
     }
 
     private static ExpressionValue Guard(Func<decimal> compute)

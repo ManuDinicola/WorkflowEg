@@ -6,6 +6,9 @@ public closed class FlowNode
     public required string Id { get; init; }
 
     public string? Name { get; init; }
+
+    /// <summary>Listener jobs declared on this element: execution listeners (<c>start</c>, <c>end</c>) and, on user tasks, task listeners (<c>created</c>, <c>assigned</c>, <c>completed</c>) (FR-LST-001).</summary>
+    public IReadOnlyList<ListenerDefinition> Listeners { get; internal set; } = [];
 }
 
 /// <summary>None start event (message, timer and signal variants arrive in M4/M5).</summary>
@@ -26,11 +29,17 @@ public sealed class EndEvent : FlowNode
     /// <summary>Set for an error end event: throws this BPMN error (FR-EXEC-008).</summary>
     public ErrorEventDefinition? Error { get; init; }
 
+    /// <summary>Set for a compensation end event: starts the compensation handlers of the scope (FR-CMP-001).</summary>
+    public CompensationEventDefinition? Compensation { get; init; }
+
     /// <summary>Set for an escalation end event: raises this escalation and the path ends normally (FR-ESC-001).</summary>
     public EscalationEventDefinition? Escalation { get; init; }
 
     /// <summary>Job type of a message end event (<c>flowd:taskDefinition</c>); the event completes when the job does.</summary>
     public string? MessageJobType { get; init; }
+
+    /// <summary>Set for a message end event without a worker job: the message is published when the path ends (FR-MSG-006).</summary>
+    public MessageEventDefinition? Message { get; init; }
 }
 
 /// <summary>Job-worker service task (FR-EXEC-006).</summary>
@@ -44,6 +53,11 @@ public sealed class ServiceTask : FlowNode
 
     /// <summary>Job type of the internal worker that evaluates a called decision (business rule task with DMN).</summary>
     public const string DecisionTaskType = "flowd.decision";
+
+    /// <summary>Job type of the built-in HTTP connector (a service task with <c>flowd:connector type="http"</c>).</summary>
+    public const string HttpConnectorTaskType = "io.flowd:http";
+
+    public const string EmailConnectorTaskType = "io.flowd:email";
 
     /// <summary>Raw <c>retries</c> attribute: a literal or an expression starting with <c>=</c>.</summary>
     public string? Retries { get; init; }
@@ -93,6 +107,9 @@ public sealed class SubProcess : FlowNode
 
     /// <summary>True for an event sub-process: triggered by its start event instead of by sequence flow (section 6.1).</summary>
     public bool IsEventSubProcess { get; init; }
+
+    /// <summary>True for an ad-hoc sub-process: every activity without an incoming flow starts at once and the scope ends when all are done (FR-ADH-001).</summary>
+    public bool IsAdHoc { get; init; }
 
     public LoopCharacteristics? Loop { get; init; }
 
@@ -153,6 +170,9 @@ public sealed class BoundaryEvent : FlowNode
     public required string AttachedToRef { get; init; }
 
     public bool CancelActivity { get; init; } = true;
+
+    /// <summary>For a compensation boundary event: the task its association points to (<c>isForCompensation</c>).</summary>
+    public string? CompensationHandlerId { get; init; }
 
     public required EventDefinition Definition { get; init; }
 }
@@ -250,4 +270,20 @@ public sealed class EscalationEventDefinition : EventDefinition
 public sealed class LinkEventDefinition : EventDefinition
 {
     public required string Name { get; init; }
+}
+
+/// <summary>A listener: when <see cref="Event"/> happens on the element, a job of type <see cref="JobType"/> is created. It never delays or changes the flow.</summary>
+public sealed record ListenerDefinition(string Event, string JobType);
+
+/// <summary>Conditional event: fires once, as soon as the boolean <see cref="Condition"/> is true in the scope of the waiting element (FR-CND-001).</summary>
+public sealed class ConditionalEventDefinition : EventDefinition
+{
+    public required string Condition { get; init; }
+}
+
+/// <summary>Compensation event: on a boundary event it marks the handler of its activity, on a throw event it starts compensation of completed activities (FR-CMP-001).</summary>
+public sealed class CompensationEventDefinition : EventDefinition
+{
+    /// <summary>Compensate only this activity; null compensates every completed activity of the scope.</summary>
+    public string? ActivityRef { get; init; }
 }

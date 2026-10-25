@@ -63,9 +63,9 @@ public static class BpmnValidator
     }
 
     /// <summary>Validates one scope (the process itself or one embedded sub-process) and recurses into nested scopes.</summary>
-    private static void ValidateScope(string? scopeId, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues, bool inEventSubProcess = false)
+    private static void ValidateScope(string? scopeId, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues, bool inEventSubProcess = false, bool adHoc = false)
     {
-        if (!nodes.Any(n => n is StartEvent))
+        if (!adHoc && !nodes.Any(n => n is StartEvent))
         {
             issues.Add(new BpmnIssue(scopeId, BpmnIssueCodes.NoStartEvent, $"'{scopeId}' has no (supported) start event."));
         }
@@ -74,10 +74,11 @@ public static class BpmnValidator
         var knownIds = nodes.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var node in nodes)
         {
+            ValidateListeners(node, issues);
             ValidateNode(node, nodes, flows, issues, inEventSubProcess);
             if (node is SubProcess sub)
             {
-                ValidateScope(sub.Id, sub.Nodes, sub.Flows, issues, sub.IsEventSubProcess);
+                ValidateScope(sub.Id, sub.Nodes, sub.Flows, issues, sub.IsEventSubProcess, sub.IsAdHoc);
             }
         }
 
@@ -159,12 +160,24 @@ public static class BpmnValidator
                 ValidateThrowEvent(throwEvent, issues);
                 RejectConditions(node, outgoing, issues);
                 break;
-            case EndEvent { Error: not null } or EndEvent { Escalation: not null } or EndEvent { MessageJobType: not null }:
+            case EndEvent { Error: not null } or EndEvent { Escalation: not null } or EndEvent { MessageJobType: not null } or EndEvent { Message: not null }:
                 RejectConditions(node, outgoing, issues);
                 break;
             case ParallelGateway or StartEvent or EndEvent or ManualTask:
                 RejectConditions(node, outgoing, issues);
                 break;
+        }
+    }
+
+    private static void ValidateListeners(FlowNode node, List<BpmnIssue> issues)
+    {
+        foreach (var listener in node.Listeners)
+        {
+            var allowed = listener.Event is "start" or "end" || (node is UserTask && listener.Event is "created" or "assigned" or "completed");
+            if (!allowed || string.IsNullOrWhiteSpace(listener.JobType))
+            {
+                issues.Add(new BpmnIssue(node.Id, BpmnIssueCodes.InvalidEventDefinition, $"Listener event '{listener.Event}' of '{node.Id}' is not supported (use start and end; created, assigned and completed on user tasks) or has no type."));
+            }
         }
     }
 
@@ -197,6 +210,11 @@ public static class BpmnValidator
         if (flows.Any(f => string.Equals(f.TargetRef, boundary.Id, StringComparison.Ordinal)))
         {
             issues.Add(new BpmnIssue(boundary.Id, BpmnIssueCodes.InvalidBoundary, $"Boundary event '{boundary.Id}' must not have incoming flows."));
+        }
+
+        if (boundary.Definition is CompensationEventDefinition && (boundary.CompensationHandlerId is not { } handler || !nodes.Any(n => string.Equals(n.Id, handler, StringComparison.Ordinal))))
+        {
+            issues.Add(new BpmnIssue(boundary.Id, BpmnIssueCodes.InvalidBoundary, $"Compensation boundary event '{boundary.Id}' needs an association to its handler task."));
         }
 
         ValidateDefinition(boundary.Id, boundary.Definition, allowCycle: !boundary.CancelActivity, requireCorrelation: true, issues, allowError: boundary.CancelActivity, allowEscalation: true);
@@ -242,6 +260,9 @@ public static class BpmnValidator
                 break;
             case EscalationEventDefinition when !allowEscalation:
                 issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"'{ownerId}' cannot use an escalation definition (only boundary events, event sub-process start events, escalation throw and end events can)."));
+                break;
+            case ConditionalEventDefinition { Condition: var condition } when !condition.TrimStart().StartsWith('=') || condition.Trim().Length < 2:
+                issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"The condition of '{ownerId}' must be an expression starting with '='."));
                 break;
             case SignalEventDefinition { Name: var signalName } when string.IsNullOrWhiteSpace(signalName):
                 issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"The signal of '{ownerId}' has no name."));

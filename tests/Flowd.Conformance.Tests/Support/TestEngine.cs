@@ -48,10 +48,10 @@ public sealed class TestEngine
         _deployer = new DeployProcessesUseCase(Store, Store, Keys, Time);
         _starter = new StartInstanceUseCase(Store, Store, new ProcessModelProvider(Store), engine, processor);
         _signals = new SignalService(Store, processor, _starter);
-        _postCommit = new PostCommitEffects(_signals, _starter, processor, Store);
+        _messages = new MessageService(Store, processor, _starter, Keys, Time);
+        _postCommit = new PostCommitEffects(_signals, _starter, processor, Store, _messages);
         _userTasks = new UserTaskService(Store, processor, new InMemoryFormStore());
         _timers = new TimerService(Store, processor, _starter, Time, telemetry);
-        _messages = new MessageService(Store, processor, _starter, Keys, Time);
         _commands = new InstanceCommandService(processor, Store);
         _activation = new JobActivationService(Store, Time, telemetry);
         Queue = Store;

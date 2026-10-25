@@ -16,8 +16,14 @@ public sealed record PublishedMessage(long Key, int Correlations);
 /// Publishes messages: buffers them for their TTL, delivers them to waiting subscriptions (at most one instance per definition)
 /// and starts instances for message start events (FR-MSG-001..004, FR-CON-002).
 /// </summary>
-public sealed class MessageService(IMessageStore store, CommandProcessor processor, StartInstanceUseCase starter, IKeyGenerator keys, TimeProvider time)
+public sealed class MessageService(IMessageStore store, CommandProcessor processor, StartInstanceUseCase starter, IKeyGenerator keys, TimeProvider time) : IMessagePublisher
 {
+    /// <summary>Publishes a message thrown by a process; it is buffered for a minute so a receiver that starts waiting a moment later still gets it.</summary>
+    public async Task PublishThrownAsync(string tenantId, string name, string correlationKey, JsonObject variables, CancellationToken cancellationToken) =>
+        _ = await PublishAsync(new PublishMessageRequest(tenantId, name, correlationKey, variables, ThrownMessageTtl, null), cancellationToken).ConfigureAwait(false);
+
+    private static readonly TimeSpan ThrownMessageTtl = TimeSpan.FromMinutes(1);
+
     public async Task<Result<PublishedMessage>> PublishAsync(PublishMessageRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);

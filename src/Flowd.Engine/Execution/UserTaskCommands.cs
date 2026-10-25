@@ -72,6 +72,7 @@ internal static class UserTaskCommands
         task.ResultVariables = Rejections.CloneOrNull(command.Variables) ?? [];
         context.Emit(new UserTaskChanged(task.Copy()));
         context.Record(HistoryEventTypes.UserTaskCompleted, context.State.Elements.GetValueOrDefault(task.ElementInstanceKey));
+        ListenerJobs.Fire(context, context.State.Elements[task.ElementInstanceKey], "completed");
         context.Enqueue(new CompleteElement(task.ElementInstanceKey));
         return null;
     }
@@ -98,5 +99,6 @@ internal static class UserTaskCommands
         task.Assignee = user;
         context.Emit(new UserTaskChanged(task.Copy()));
         context.Record(HistoryEventTypes.UserTaskClaimed, context.State.Elements.GetValueOrDefault(task.ElementInstanceKey), new JsonObject { ["assignee"] = user });
+        ListenerJobs.Fire(context, context.State.Elements[task.ElementInstanceKey], "assigned");
     }
 }

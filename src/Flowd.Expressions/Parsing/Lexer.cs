@@ -23,8 +23,9 @@ internal static class Lexer
     private static readonly string[] MultiWordNames =
     [
         "starts with", "ends with", "upper case", "lower case", "string length", "is defined", "date and time",
-        "substring before", "substring after", "string join", "index of", "distinct values", "list contains", "insert before",
+        "day of week", "month of year", "last day of month", "substring before", "substring after", "string join", "index of", "distinct values", "list contains", "insert before",
         "round half up", "round half down", "round up", "round down", "get value", "context put", "context merge",
+        "years and months duration", "is blank", "is empty", "list replace", "get entries", "week of year", "to json", "from json", "to base64",
     ];
 
     private static readonly string[] TwoCharSymbols = ["<=", ">=", "!=", "**", ".."];

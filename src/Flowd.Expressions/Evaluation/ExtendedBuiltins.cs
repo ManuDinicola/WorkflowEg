@@ -47,6 +47,10 @@ internal static class ExtendedBuiltins
         ["round half up"] = (a, _) => Math.Round(Builtins.Number(a, 0), Scale(a), MidpointRounding.AwayFromZero),
         ["round half down"] = (a, _) => RoundHalfDown(Builtins.Number(a, 0), Scale(a)),
         ["today"] = (_, now) => new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero),
+        ["date"] = (a, _) => ToDate(a),
+        ["day of week"] = (a, _) => Instant(a).DayOfWeek.ToString(),
+        ["month of year"] = (a, _) => System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(Instant(a).Month),
+        ["last day of month"] = (a, _) => DateTime.DaysInMonth(Instant(a).Year, Instant(a).Month),
         ["year"] = (a, _) => Instant(a).Year,
         ["month"] = (a, _) => Instant(a).Month,
         ["day"] = (a, _) => Instant(a).Day,
@@ -209,6 +213,19 @@ internal static class ExtendedBuiltins
         var fraction = Math.Abs(scaled) - floor;
         var rounded = fraction > 0.5m ? floor + 1 : floor;
         return Math.Sign(scaled) * rounded / factor;
+    }
+
+    /// <summary><c>date("2026-10-24")</c> gives midnight UTC of that day; <c>date(date and time)</c> cuts the time off.</summary>
+    private static ExpressionValue ToDate(IReadOnlyList<ExpressionValue> args)
+    {
+        if (Builtins.Arg(args, 0) is DateTimeOffset instant)
+        {
+            return new DateTimeOffset(instant.UtcDateTime.Date, TimeSpan.Zero);
+        }
+
+        return DateTime.TryParseExact(Builtins.Text(args, 0), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out var day)
+            ? new DateTimeOffset(day, TimeSpan.Zero)
+            : Operators.Null;
     }
 
     private static DateTimeOffset Instant(IReadOnlyList<ExpressionValue> args) =>

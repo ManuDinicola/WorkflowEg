@@ -16,7 +16,8 @@ public static class Roles
 }
 
 /// <summary>An API key as stored: only its hash is kept (FR-SEC-001).</summary>
-public sealed record ApiKeyInfo(string Name, IReadOnlyList<string> Roles, string TenantId);
+/// <summary>An API key: <c>Processes</c> limits deploy, start and batch operations to these process ids (null or empty: all).</summary>
+public sealed record ApiKeyInfo(string Name, IReadOnlyList<string> Roles, string TenantId, IReadOnlyList<string>? Processes = null);
 
 /// <summary>Port: static API keys for workers and automation (FR-SEC-001).</summary>
 public interface IApiKeyStore
