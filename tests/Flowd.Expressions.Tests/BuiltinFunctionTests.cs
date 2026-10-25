@@ -136,4 +136,18 @@ public sealed class BuiltinFunctionTests
     [InlineData("last day of month(date and time(\"2028-02-10T12:00:00Z\"))", "29")]
     [InlineData("today() + duration(\"P7D\") > now()", "true")]
     public void FR_EXPR_012_date_and_duration_arithmetic_properties_and_functions(string expression, string expected) => Run(expression).ShouldBe(expected);
+
+    [Theory]
+    [InlineData("mode([1, 2, 2, 3])", "[2]")]
+    [InlineData("variance([1, 2, 3, 4])", "1.67")]
+    [InlineData("trim(\"  hi \")", "hi")]
+    [InlineData("is blank(\"  \")", "true")]
+    [InlineData("is empty([])", "true")]
+    [InlineData("decimal(1.2345, 2)", "1.23")]
+    [InlineData("list replace([1, 2, 3], 2, 9)", "[1,9,3]")]
+    [InlineData("week of year(date and time(\"2028-01-10T12:00:00Z\"))", "2")]
+    [InlineData("from json(\"{\\\"a\\\":[1,2]}\").a[2]", "2")]
+    [InlineData("to json({a: 1})", "{\"a\":1}")]
+    [InlineData("get entries({a: 1})[1].key", "a")]
+    public void FR_EXPR_013_more_standard_and_camunda_functions(string expression, string expected) => Run(expression).ShouldBe(expected);
 }

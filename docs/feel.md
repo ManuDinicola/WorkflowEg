@@ -17,3 +17,6 @@ Regular expressions have a 100 ms match timeout; a pattern that runs longer fail
 
 ## Not supported yet
 User-defined functions, the time-of-day (`time`) type, years-and-months durations, `instance of`, and the less common standard functions (`stddev`, `mode`, `list replace`, ...). Check `docs/camunda-parity.md`.
+
+## More functions
+`stddev`, `variance`, `mode`, `trim`, `is blank`, `is empty`, `decimal(n, scale)`, `list replace(list, position, value)`, `get entries(context)` (list of `{key, value}`), `week of year(date)`, `to json(value)`, `from json(text)` (null when the text is not JSON) and `to base64(text)`. There is still no time-of-day type, no years-and-months duration and no user defined functions.

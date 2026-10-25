@@ -58,7 +58,8 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] FEEL: ranges and unary tests
 - [x] FEEL: common built-in functions (strings, lists, numbers, dates, contexts)
 - [x] FEEL: date and time arithmetic, properties (.year .hour .days ...) and date functions
-- [ ] FEEL: time-of-day type, years-and-months durations and the rarer standard functions
+- [ ] FEEL: time-of-day type and years-and-months durations
+- [x] FEEL: the rarer standard functions (stddev, variance, mode, trim, is blank, is empty, decimal, list replace, get entries, week of year, to json, from json, to base64)
 - [ ] FEEL: user defined functions
 - [x] Variable and message payload size limits and truncation rules
 - [x] Execution listeners (non-blocking jobs: start and end; Camunda 8.6 listeners can block, Flowd's cannot)
@@ -149,4 +150,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 108 of 120 = 90 %. Target: 95 % (114 of 120).
+Score (2026-10-24): 109 of 121 = 90 %. Target: 95 % (115 of 121).

@@ -38,7 +38,7 @@ internal static class Builtins
         ["is defined"] = (a, _) => Arg(a, 0) is not NullValue,
     };
 
-    private static readonly Dictionary<string, BuiltinFunction> Table = CoreTable.Concat(ExtendedBuiltins.All).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
+    private static readonly Dictionary<string, BuiltinFunction> Table = CoreTable.Concat(ExtendedBuiltins.All).Concat(MoreBuiltins.All).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
 
     public static bool Exists(string name) => Table.ContainsKey(name);
 
