@@ -159,4 +159,4 @@ Features of Camunda 8 that were not in the checklist above. They count in the sc
 - [x] Form builder (graphical) in the UI (six field types; no groups or conditional fields)
 - [x] DMN decision table editor in the UI (one table per file)
 - [ ] Resource-based authorizations (who may read or change which resource)
-- [ ] Users, groups and role management (identity)
+- [ ] Users, groups and role management (identity): API keys are managed in Flowd (done); people and groups stay in your identity provider

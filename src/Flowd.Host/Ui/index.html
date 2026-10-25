@@ -38,6 +38,7 @@
   .shape { fill:var(--card); stroke:var(--fg); stroke-width:1.2; }
   pre { margin:0; white-space:pre-wrap; word-break:break-word; font-size:12px; }
   .err { color:var(--bad); margin:8px 0; }
+  label.inline { display:inline-block; margin:0 8px 0 0; }
   label { display:block; margin:8px 0 2px; color:var(--muted); }
   @media (max-width:600px) { main { padding:10px; } }
 </style>
@@ -372,6 +373,27 @@ ${model.rules.map((r) => `      <rule>${r.ins.map((t) => `<inputEntry><text>${es
         } }, "Evaluate"), result));
     draw();
   },
+  async access(box) {
+    const out = el("div"), message = el("div");
+    const name = el("input", { placeholder: "name, for example ci-pipeline", size: "24" }), tenant = el("input", { placeholder: "tenant (optional)", size: "14" }), processes = el("input", { placeholder: "limit to process ids, comma separated (optional)", size: "34" });
+    const roles = ["admin", "operator", "developer", "worker", "reader"].map((r) => { const box = el("input", { type: "checkbox", value: r }); return { r, box, label: el("label", { class: "inline" }, box, " " + r) }; });
+    const load = async () => {
+      const items = (await api("/v1/api-keys")).data.items;
+      out.replaceChildren(el("table", {}, el("tr", {}, ...["Id", "Name", "Roles", "Tenant", "Processes", "Created", "State", ""].map((h) => el("th", {}, h))),
+        ...items.map((k) => el("tr", {}, el("td", {}, k.id), el("td", {}, k.name), el("td", {}, k.roles.join(", ")), el("td", {}, k.tenant), el("td", {}, k.processes.join(", ")), el("td", {}, fmt(k.createdAt)), el("td", {}, k.revokedAt ? "revoked " + fmt(k.revokedAt) : "active"),
+          el("td", {}, k.revokedAt ? "" : el("button", { onclick: async () => { try { await api("/v1/api-keys/" + k.id, { method: "DELETE" }); message.replaceChildren(); await load(); } catch (e) { fail(message, e); } } }, "Revoke"))))));
+    };
+    box.append(el("p", { class: "muted" }, "API keys for workers and automation. The key is shown once, when you create it; only a hash is stored. Needs the admin role."),
+      el("div", { class: "card" }, el("h3", {}, "New key"), el("div", { class: "row" }, name, tenant, processes), el("div", { class: "row" }, ...roles.map((r) => r.label),
+        el("button", { class: "primary", onclick: async () => {
+          try {
+            const created = (await api("/v1/api-keys", { method: "POST", json: { name: name.value, roles: roles.filter((r) => r.box.checked).map((r) => r.r), tenant: tenant.value || undefined, processes: processes.value.split(",").map((s) => s.trim()).filter(Boolean) } })).data;
+            message.replaceChildren(el("div", { class: "card" }, el("p", {}, "Copy this key now. It cannot be shown again:"), el("pre", { class: "newkey" }, created.key)));
+            name.value = ""; await load();
+          } catch (e) { fail(message, e); }
+        } }, "Create key"))), message, out);
+    await load();
+  },
   async analytics(box) {
     const defs = (await api("/v1/process-definitions?pageSize=200")).data.items;
     const ids = [...new Set(defs.map((d) => d.bpmnProcessId))];
@@ -512,7 +534,7 @@ const NEW_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
     <bpmndi:BPMNShape id="Start_di" bpmnElement="Start"><dc:Bounds x="160" y="120" width="36" height="36"/></bpmndi:BPMNShape>
   </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
-const tabs = [["overview", "Overview"], ["instances", "Instances"], ["incidents", "Incidents"], ["tasks", "Tasks"], ["deploy", "Deploy"], ["modeler", "Modeler"], ["forms", "Forms"], ["decisions", "Decisions"], ["analytics", "Analytics"]];
+const tabs = [["overview", "Overview"], ["instances", "Instances"], ["incidents", "Incidents"], ["tasks", "Tasks"], ["deploy", "Deploy"], ["modeler", "Modeler"], ["forms", "Forms"], ["decisions", "Decisions"], ["access", "Access"], ["analytics", "Analytics"]];
 let current = "overview", showToken = 0;
 async function show(name) {
   current = name;

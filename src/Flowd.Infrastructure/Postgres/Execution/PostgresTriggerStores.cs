@@ -242,4 +242,30 @@ public sealed class PostgresApiKeyStore(NpgsqlDataSource dataSource) : Flowd.App
             new { keyHash, name = info.Name, roles = string.Join(',', info.Roles), tenant = info.TenantId, processes = string.Join(',', info.Processes ?? []), created = createdAt.UtcDateTime },
             cancellationToken: cancellationToken)).ConfigureAwait(false);
     }
+
+    public async Task<IReadOnlyList<Flowd.Application.Security.ApiKeyRecord>> ListAsync(string? tenantId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var rows = await connection.QueryAsync<(string Id, string Name, string Roles, string TenantId, string Processes, DateTime CreatedAt, DateTime? RevokedAt)>(new CommandDefinition(
+            "SELECT substr(encode(key_hash, 'hex'), 1, 12) AS id, name, roles, tenant_id, processes, created_at, revoked_at FROM api_key WHERE (@tenant::text IS NULL OR tenant_id = @tenant) ORDER BY created_at DESC",
+            new { tenant = tenantId },
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+        return [.. rows.Select(r => new Flowd.Application.Security.ApiKeyRecord(
+            r.Id,
+            new Flowd.Application.Security.ApiKeyInfo(r.Name, Split(r.Roles), r.TenantId, Split(r.Processes)),
+            new DateTimeOffset(DateTime.SpecifyKind(r.CreatedAt, DateTimeKind.Utc)),
+            r.RevokedAt is { } revoked ? new DateTimeOffset(DateTime.SpecifyKind(revoked, DateTimeKind.Utc)) : null))];
+    }
+
+    public async Task<bool> RevokeAsync(string id, string? tenantId, DateTimeOffset revokedAt, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var changed = await connection.ExecuteAsync(new CommandDefinition(
+            "UPDATE api_key SET revoked_at = @revoked WHERE substr(encode(key_hash, 'hex'), 1, 12) = @id AND revoked_at IS NULL AND (@tenant::text IS NULL OR tenant_id = @tenant)",
+            new { id, tenant = tenantId, revoked = revokedAt.UtcDateTime },
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+        return changed > 0;
+    }
+
+    private static string[] Split(string text) => text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }

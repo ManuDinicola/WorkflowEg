@@ -21,6 +21,7 @@ public static class Policies
     public const string Publish = "flowd.publish";
     public const string UserTask = "flowd.usertask";
     public const string Audit = "flowd.audit";
+    public const string Admin = "flowd.admin";
 }
 
 /// <summary>Settings of the authentication stack, bound from <c>Flowd:Auth</c>.</summary>
@@ -142,6 +143,7 @@ public static class SecurityRegistration
         [Policies.Publish] = [Roles.Admin, Roles.Operator, Roles.Worker],
         [Policies.UserTask] = [Roles.Admin, Roles.Operator, Roles.Worker],
         [Policies.Audit] = [Roles.Admin],
+        [Policies.Admin] = [Roles.Admin],
     };
 
     public static void AddAuthorizationPolicies(this IServiceCollection services, bool insecure)
