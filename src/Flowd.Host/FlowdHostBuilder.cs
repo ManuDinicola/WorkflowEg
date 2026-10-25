@@ -278,6 +278,10 @@ internal static class FlowdHostBuilder
         services.AddSingleton<IConnectorHandler>(sp => sp.GetRequiredService<HttpConnectorHandler>());
         services.AddSingleton<IConnectorHandler, GraphQlConnectorHandler>();
         services.AddSingleton<IConnectorHandler, SlackConnectorHandler>();
+        services.AddSingleton<ISqlExecutor, PostgresSqlExecutor>();
+        services.AddSingleton<IConnectorHandler, SqlConnectorHandler>();
+        services.AddSingleton<IKafkaProducer, KafkaProducer>();
+        services.AddSingleton<IConnectorHandler, KafkaConnectorHandler>();
         services.AddSingleton<IQueuePublisher, RabbitMqPublisher>();
         services.AddSingleton<IConnectorHandler, QueueConnectorHandler>();
         services.AddSingleton<IEmailSender, SmtpEmailSender>();

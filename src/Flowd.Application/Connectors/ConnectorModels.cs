@@ -28,6 +28,12 @@ public sealed class ConnectorOptions
 
     /// <summary>Message broker of the queue connector (FR-CON-013).</summary>
     public QueueSettings Queue { get; init; } = new();
+
+    /// <summary>Databases the SQL connector may query (FR-CON-017).</summary>
+    public SqlSettings Sql { get; init; } = new();
+
+    /// <summary>Kafka brokers of the Kafka connector (FR-CON-018).</summary>
+    public KafkaSettings Kafka { get; init; } = new();
 }
 
 /// <summary>Port: named secrets for connector templates (<c>{{secrets.NAME}}</c>). Secrets never appear in process variables or history.</summary>

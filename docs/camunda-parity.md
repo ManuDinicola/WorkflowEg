@@ -197,8 +197,8 @@ The first list was too narrow: Flowd scored 98 % on it while there were still ma
 - [x] REST connector with OAuth 2.0 client credentials and basic/bearer helpers
 - [x] GraphQL connector
 - [x] Slack connector (posting messages only)
-- [ ] Kafka connector
-- [ ] SQL connector
+- [x] Kafka connector (producing only)
+- [x] SQL connector (PostgreSQL only)
 - [ ] AWS (SQS, SNS, Lambda) connectors
 - [ ] Azure and Google connectors
 

@@ -381,6 +381,8 @@ public sealed class BpmnParser
             { } t when string.Equals(t, "rabbitmq", StringComparison.OrdinalIgnoreCase) => ServiceTask.QueueConnectorTaskType,
             { } t when string.Equals(t, "graphql", StringComparison.OrdinalIgnoreCase) => ServiceTask.GraphQlConnectorTaskType,
             { } t when string.Equals(t, "slack", StringComparison.OrdinalIgnoreCase) => ServiceTask.SlackConnectorTaskType,
+            { } t when string.Equals(t, "sql", StringComparison.OrdinalIgnoreCase) => ServiceTask.SqlConnectorTaskType,
+            { } t when string.Equals(t, "kafka", StringComparison.OrdinalIgnoreCase) => ServiceTask.KafkaConnectorTaskType,
             _ => null, // non-union
         };
     }

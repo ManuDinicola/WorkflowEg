@@ -68,6 +68,10 @@ public sealed class ServiceTask : FlowNode
 
     public const string SlackConnectorTaskType = "io.flowd:slack";
 
+    public const string SqlConnectorTaskType = "io.flowd:sql";
+
+    public const string KafkaConnectorTaskType = "io.flowd:kafka";
+
     /// <summary>Raw <c>retries</c> attribute: a literal or an expression starting with <c>=</c>.</summary>
     public string? Retries { get; init; }
 
