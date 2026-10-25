@@ -76,6 +76,18 @@ async function api(path, options = {}) {
   if (!response.ok) { const detail = data && (data.detail || data.title || JSON.stringify(data)) || response.statusText; throw new Error(response.status + " " + detail); }
   return { data, text };
 }
+
+/* ---------- form fields (shared by the Tasks tab and the form builder) ---------- */
+function formField(c) {
+  const options = (c.values || []).map((o) => el("option", { value: o.value }, o.label ?? o.value));
+  let input;
+  if (c.type === "checkbox") input = el("input", { type: "checkbox" });
+  else if (c.type === "textarea") input = el("textarea", {});
+  else if (c.type === "select") input = el("select", {}, el("option", { value: "" }, ""), ...options);
+  else if (c.type === "radio") input = el("select", {}, el("option", { value: "" }, ""), ...options); // one choice: shown as a list
+  else input = el("input", { type: c.type === "number" ? "number" : "text" });
+  return { c, input, row: el("div", {}, el("label", {}, (c.label || c.key) + (c.validate && c.validate.required ? " *" : "")), input) };
+}
 const fmt = (iso) => iso ? new Date(iso).toLocaleString() : "";
 const fail = (box, error) => { box.replaceChildren(el("div", { class: "err" }, String(error.message || error))); };
 
@@ -205,10 +217,7 @@ const views = {
       const inputs = [];
       const walk = (components) => { for (const c of components || []) { if (c.key) inputs.push(c); walk(c.components); } };
       walk(schema.components);
-      const fields = inputs.map((c) => {
-        const input = c.type === "checkbox" ? el("input", { type: "checkbox" }) : c.type === "textarea" ? el("textarea", {}) : el("input", { type: c.type === "number" ? "number" : "text" });
-        return { c, input, row: el("div", {}, el("label", {}, (c.label || c.key) + (c.validate && c.validate.required ? " *" : "")), input) };
-      });
+      const fields = inputs.map(formField);
       const message = el("div");
       form.replaceChildren(el("div", { class: "card" }, el("h3", {}, `Task ${task.key} — ${task.elementId}`), ...fields.map((f) => f.row), message,
         el("button", { class: "primary", onclick: async () => {
@@ -241,6 +250,52 @@ const views = {
       el("h4", {}, "XML editor"), editor,
       el("div", { class: "row" }, el("button", { onclick: () => { try { preview.replaceChildren(drawDiagram(editor.value)); } catch (e) { fail(preview, e); } } }, "Preview"),
         el("button", { class: "primary", onclick: async () => { try { await upload(new Blob([editor.value], { type: "application/xml" }), "editor.bpmn"); } catch (e) { fail(message, e); } } }, "Deploy")), preview, message));
+  },
+  async forms(box) {
+    const TYPES = ["textfield", "number", "textarea", "checkbox", "select", "radio"];
+    let comps = [], formId = "my-form";
+    const message = el("div"), builder = el("div"), preview = el("div"), json = el("textarea", { readonly: "readonly", rows: "10" });
+    const schema = () => ({ id: formId, type: "default", components: comps });
+    const refresh = () => {
+      json.value = JSON.stringify(schema(), null, 2);
+      preview.replaceChildren(el("div", { class: "card" }, el("h4", {}, "Preview"), ...comps.map((c) => formField(c).row)));
+    };
+    const num = (v) => (v === "" ? undefined : Number(v));
+    const input = (value, apply, attrs = {}) => { const i = el("input", { value: value ?? "", ...attrs }); i.addEventListener("change", () => { apply(i.value.trim()); refresh(); }); return i; };
+    const validate = (c, key, value) => { const v = { ...(c.validate || {}) }; if (value === undefined || value === "" || value === false) delete v[key]; else v[key] = value; if (Object.keys(v).length) c.validate = v; else delete c.validate; };
+    const rows = () => {
+      builder.replaceChildren(...comps.map((c, index) => {
+        const type = el("select", {}, ...TYPES.map((t) => el("option", { value: t, ...(t === c.type ? { selected: "selected" } : {}) }, t)));
+        type.addEventListener("change", () => { c.type = type.value; if (!["select", "radio"].includes(c.type)) delete c.values; rows(); refresh(); });
+        const required = el("input", { type: "checkbox", ...(c.validate?.required ? { checked: "checked" } : {}) });
+        required.addEventListener("change", () => { validate(c, "required", required.checked); refresh(); });
+        const extra = [];
+        if (c.type === "number") extra.push(el("label", {}, "min"), input(c.validate?.min, (v) => validate(c, "min", num(v)), { size: "5" }), el("label", {}, "max"), input(c.validate?.max, (v) => validate(c, "max", num(v)), { size: "5" }));
+        if (c.type === "textfield" || c.type === "textarea") extra.push(el("label", {}, "min length"), input(c.validate?.minLength, (v) => validate(c, "minLength", num(v)), { size: "4" }), el("label", {}, "max length"), input(c.validate?.maxLength, (v) => validate(c, "maxLength", num(v)), { size: "4" }), el("label", {}, "pattern"), input(c.validate?.pattern, (v) => validate(c, "pattern", v), { size: "14" }));
+        if (c.type === "select" || c.type === "radio") extra.push(el("label", {}, "options (label=value, comma separated)"), input((c.values || []).map((o) => `${o.label}=${o.value}`).join(", "), (v) => { c.values = v.split(",").map((s) => s.trim()).filter(Boolean).map((s) => { const [label, value = label] = s.split("="); return { label: label.trim(), value: value.trim() }; }); }, { size: "24" }));
+        const move = (by) => () => { const to = index + by; if (to < 0 || to >= comps.length) return; [comps[index], comps[to]] = [comps[to], comps[index]]; rows(); refresh(); };
+        return el("div", { class: "card row" }, type, el("label", {}, "key"), input(c.key, (v) => { c.key = v; }, { size: "12" }), el("label", {}, "label"), input(c.label, (v) => { c.label = v || undefined; }, { size: "14" }),
+          el("label", {}, "required"), required, ...extra, el("button", { onclick: move(-1) }, "↑"), el("button", { onclick: move(1) }, "↓"), el("button", { onclick: () => { comps.splice(index, 1); rows(); refresh(); } }, "✕"));
+      }));
+    };
+    const load = (s) => { formId = s.id || "my-form"; comps = JSON.parse(JSON.stringify(s.components || [])); idBox.value = formId; rows(); refresh(); };
+    const idBox = el("input", { value: formId });
+    idBox.addEventListener("change", () => { formId = idBox.value.trim(); refresh(); });
+    const known = (await api("/v1/forms")).data.items ?? [];
+    const open = el("select", {}, el("option", { value: "" }, "Open a deployed form…"), ...known.map((f) => el("option", { value: f.formId }, f.formId)));
+    open.addEventListener("change", async () => { if (open.value) { try { load((await api("/v1/forms/" + encodeURIComponent(open.value))).data.schema); } catch (e) { fail(message, e); } } });
+    box.append(el("p", { class: "muted" }, "Build a form for user tasks: add fields, set their checks, see the preview, then deploy. The checks are enforced when the task is completed."),
+      el("div", { class: "row" }, el("label", {}, "Form id"), idBox, open,
+        el("button", { onclick: () => { comps.push({ type: "textfield", key: "field" + (comps.length + 1), label: "Field " + (comps.length + 1) }); rows(); refresh(); } }, "Add field"),
+        el("button", { class: "primary", onclick: async () => {
+          try {
+            if (!/^[A-Za-z0-9_.-]+$/.test(formId)) throw new Error("The form id may use letters, digits, dots, dashes and underscores.");
+            const body = new FormData(); body.append("resources", new Blob([json.value], { type: "application/json" }), formId + ".form");
+            message.replaceChildren(el("pre", {}, JSON.stringify((await api("/v1/forms", { method: "POST", body })).data, null, 2)));
+          } catch (e) { fail(message, e); }
+        } }, "Deploy")),
+      builder, message, el("div", { class: "split" }, preview, el("div", {}, el("h4", {}, "Form JSON"), json)));
+    load({ id: formId, components: [{ type: "textfield", key: "name", label: "Name", validate: { required: true } }] });
   },
   async analytics(box) {
     const defs = (await api("/v1/process-definitions?pageSize=200")).data.items;
@@ -382,7 +437,7 @@ const NEW_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
     <bpmndi:BPMNShape id="Start_di" bpmnElement="Start"><dc:Bounds x="160" y="120" width="36" height="36"/></bpmndi:BPMNShape>
   </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
-const tabs = [["overview", "Overview"], ["instances", "Instances"], ["incidents", "Incidents"], ["tasks", "Tasks"], ["deploy", "Deploy"], ["modeler", "Modeler"], ["analytics", "Analytics"]];
+const tabs = [["overview", "Overview"], ["instances", "Instances"], ["incidents", "Incidents"], ["tasks", "Tasks"], ["deploy", "Deploy"], ["modeler", "Modeler"], ["forms", "Forms"], ["analytics", "Analytics"]];
 let current = "overview", showToken = 0;
 async function show(name) {
   current = name;
