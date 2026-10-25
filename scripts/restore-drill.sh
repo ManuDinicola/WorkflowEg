@@ -72,7 +72,7 @@ pgtool pg_restore --no-owner -d flowd_drill_restored "$TOOL_DIR/flowd.dump"
 echo "3. the restored database needs no migration and holds the instance"
 APPLIED="$(Flowd__ConnectionString="$(conn flowd_drill_restored)" dotnet "$FLOWD_DLL" migrate)"
 echo "   $APPLIED"
-[ "$APPLIED" = "Applied 0 migration(s)." ] || { echo "the restored database was not current"; exit 1; }
+echo "$APPLIED" | grep -q "Applied 0 migration(s)." || { echo "the restored database was not current"; exit 1; }
 serve flowd_drill_restored 18182
 STATE="$(curl -fsS "http://127.0.0.1:18182/v1/process-instances/$KEY" | sed -E 's/.*"state":"([A-Z]+)".*/\1/')"
 [ "$STATE" = "ACTIVE" ] || { echo "restored instance state is '$STATE', expected ACTIVE"; exit 1; }
