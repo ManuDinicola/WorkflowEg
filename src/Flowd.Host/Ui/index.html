@@ -279,22 +279,40 @@ const views = {
     };
     const ext = (element) => element.businessObject.extensionElements;
     const extOf = (element, type) => (ext(element)?.values ?? []).find((v) => v.$type === type);
-    const setExt = (element, type, attrs) => {
-      const bo = element.businessObject;
-      const extensions = bo.extensionElements ?? factory().create("bpmn:ExtensionElements", { values: [] });
-      const kept = extensions.values.filter((v) => v.$type !== type);
+    const setExt = (element, type, attrs, alsoRemove = []) => {
+      const extensions = element.businessObject.extensionElements ?? factory().create("bpmn:ExtensionElements", { values: [] });
+      const kept = extensions.values.filter((v) => v.$type !== type && !alsoRemove.includes(v.$type));
       const empty = Object.values(attrs).every((v) => !v);
-      modeling().updateProperties(element, { extensionElements: empty && kept.length === 0 ? undefined : factory().create("bpmn:ExtensionElements", { values: empty ? kept : [...kept, factory().create(type, attrs)] }) });
+      const values = empty ? kept : [...kept, factory().create(type, attrs)];
+      modeling().updateProperties(element, { extensionElements: values.length === 0 ? undefined : factory().create("bpmn:ExtensionElements", { values }) });
     };
+    const attrsOf = (node) => Object.fromEntries(Object.entries(node ?? {}).filter(([k, v]) => !k.startsWith("$") && typeof v === "string"));
     const showProps = (element) => {
       props.replaceChildren(el("h3", {}, "Properties"));
       if (!element || !element.businessObject || element.type === "label") { props.append(el("p", { class: "muted" }, "Select an element.")); return; }
       const bo = element.businessObject;
       props.append(el("p", { class: "muted" }, element.type + " · " + element.id), field("Name", bo.name, (v) => modeling().updateProperties(element, { name: v || undefined })));
       if (["bpmn:ServiceTask", "bpmn:SendTask", "bpmn:BusinessRuleTask"].includes(element.type)) {
-        const def = extOf(element, "flowd:TaskDefinition");
-        const type = field("Job type", def?.type, (v) => setExt(element, "flowd:TaskDefinition", { type: v, retries: extOf(element, "flowd:TaskDefinition")?.retries }));
-        props.append(type, field("Retries", def?.retries, (v) => setExt(element, "flowd:TaskDefinition", { type: extOf(element, "flowd:TaskDefinition")?.type, retries: v })));
+        const connector = extOf(element, "flowd:Connector"), decision = extOf(element, "flowd:CalledDecision");
+        const kind = connector ? connector.type : decision ? "decision" : "job";
+        const select = el("select", {}, ...Object.entries(ELEMENT_TEMPLATES).map(([key, t]) => el("option", { value: key, ...(key === kind ? { selected: "selected" } : {}) }, t.label)));
+        select.addEventListener("change", () => {
+          const template = ELEMENT_TEMPLATES[select.value];
+          if (select.value === "job") setExt(element, "flowd:TaskDefinition", { type: "my-job" }, ["flowd:Connector", "flowd:CalledDecision"]);
+          else if (select.value === "decision") setExt(element, "flowd:CalledDecision", { decisionId: "my-decision", resultVariable: "decisionResult" }, ["flowd:Connector", "flowd:TaskDefinition"]);
+          else setExt(element, "flowd:Connector", { type: select.value, ...template.defaults }, ["flowd:TaskDefinition", "flowd:CalledDecision"]);
+          showProps(element);
+        });
+        props.append(el("label", {}, "Template"), select);
+        const template = ELEMENT_TEMPLATES[kind];
+        if (connector || decision) {
+          const type = connector ? "flowd:Connector" : "flowd:CalledDecision";
+          for (const name of template.fields) props.append(field(name, extOf(element, type)?.[name], (v) => setExt(element, type, { ...attrsOf(extOf(element, type)), [name]: v })));
+        } else {
+          const def = extOf(element, "flowd:TaskDefinition");
+          props.append(field("Job type", def?.type, (v) => setExt(element, "flowd:TaskDefinition", { type: v, retries: extOf(element, "flowd:TaskDefinition")?.retries })),
+            field("Retries", def?.retries, (v) => setExt(element, "flowd:TaskDefinition", { type: extOf(element, "flowd:TaskDefinition")?.type, retries: v })));
+        }
       }
       if (element.type === "bpmn:UserTask") {
         const a = extOf(element, "flowd:AssignmentDefinition");
@@ -340,11 +358,19 @@ const loadModeler = () => modelerLoad ??= new Promise((resolve, reject) => {
   script.onerror = () => { modelerLoad = undefined; reject(new Error("The modeler could not be loaded.")); };
   document.head.append(script);
 });
+const ELEMENT_TEMPLATES = {
+  job: { label: "Job worker (your own code)", fields: [] },
+  http: { label: "HTTP request (built in)", fields: ["url", "method", "body", "headers", "resultVariable", "failOnError"], defaults: { method: "POST", resultVariable: "response" } },
+  email: { label: "E-mail (built in)", fields: ["to", "subject", "body", "from", "html", "resultVariable"], defaults: { resultVariable: "email" } },
+  decision: { label: "Decision (DMN)", fields: ["decisionId", "resultVariable"] },
+};
 const FLOWD_MODDLE = {
   name: "Flowd", uri: "http://flowd.io/schema/1.0", prefix: "flowd", xml: { tagAlias: "lowerCase" },
   types: [
     { name: "TaskDefinition", superClass: ["Element"], properties: [{ name: "type", isAttr: true, type: "String" }, { name: "retries", isAttr: true, type: "String" }] },
     { name: "AssignmentDefinition", superClass: ["Element"], properties: [{ name: "assignee", isAttr: true, type: "String" }, { name: "candidateGroups", isAttr: true, type: "String" }] },
+    { name: "Connector", superClass: ["Element"], properties: ["type", "url", "method", "body", "headers", "resultVariable", "failOnError", "to", "subject", "from", "html"].map((name) => ({ name, isAttr: true, type: "String" })) },
+    { name: "CalledDecision", superClass: ["Element"], properties: ["decisionId", "resultVariable"].map((name) => ({ name, isAttr: true, type: "String" })) },
   ],
 };
 const NEW_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
