@@ -160,3 +160,69 @@ Features of Camunda 8 that were not in the checklist above. They count in the sc
 - [x] DMN decision table editor in the UI (one table per file)
 - [x] Resource-based authorizations: processes (key limits) and user tasks (groups); not decisions, forms or incidents
 - [x] Users, groups and roles: built-in users with passwords, roles, groups and tenants (no password reset, no 2FA); API keys; or your identity provider
+
+## Second audit: Camunda 8 features the first two lists did not cover (2026-10-25)
+The first list was too narrow: Flowd scored 98 % on it while there were still many Camunda 8 features nobody had looked at. This list adds them. Items are ticked only when Flowd has them, checked in the code or by a test.
+
+### BPMN elements and execution
+- [x] Intermediate signal throw and catch events
+- [x] Escalation end event
+- [x] Script task with a FEEL expression and result variable
+- [x] Boundary events on call activities, and multi-instance call activities
+- [x] Job type, retries and headers given as expressions
+- [ ] Signal end event
+- [ ] Version tags on process definitions, and call activities that bind to a version tag
+- [ ] Process instance tags
+- [ ] Call activity with the called process id as an expression
+
+### FEEL
+- [ ] `instance of` and type checks
+- [ ] Range functions (`before`, `after`, `meets`, `overlaps`, `includes`, ...)
+- [ ] `sort` with a comparison function
+- [ ] Temporal literals such as `@"2026-10-25"`
+- [ ] `day of year`, `date and time(date, time)`, `number(text, grouping, decimal)`, `format number`
+- [ ] `uuid()` and `random number()`
+
+### API
+- [x] Search of instances, jobs, tasks, incidents, variables and element instances
+- [x] Process definition statistics per element
+- [ ] Validate a BPMN file through the API without deploying it
+- [ ] Topology: which nodes are running
+- [ ] Decision instance history (which decision was evaluated with what)
+- [ ] Command line deploy and start (`flowd deploy`, `flowd start`)
+
+### Connectors
+- [x] Outbound HTTP, e-mail and RabbitMQ; inbound signed webhooks; secrets
+- [ ] REST connector with OAuth 2.0 client credentials and basic/bearer helpers
+- [ ] GraphQL connector
+- [ ] Slack connector
+- [ ] Kafka connector
+- [ ] SQL connector
+- [ ] AWS (SQS, SNS, Lambda) connectors
+- [ ] Azure and Google connectors
+
+### Modeler and tools
+- [x] BPMN modeler, decision table editor, form builder, element templates for HTTP, e-mail and decisions
+- [ ] Validation (lint) of the diagram inside the modeler
+- [ ] Export of the diagram as an image
+- [ ] Properties panel for timers, messages, signals, errors, multi-instance, input/output mappings and listeners
+- [ ] Import of custom element template files
+- [ ] Model versions and milestones, comments, collaboration
+- [ ] Play mode (run a process inside the modeler)
+
+### Operate, Tasklist, Optimize
+- [x] Instance list and detail with diagram and tokens, incidents, batch operations, task list with forms, analytics heat map
+- [ ] Modify an instance (move tokens) and migrate instances from the UI
+- [ ] Reports and dashboards over history (Optimize)
+
+### Clients and developer experience
+- [x] Worker SDKs for .NET, TypeScript, Python and Java; OpenAPI document
+- [ ] Go client
+- [ ] Spring Boot starter
+- [ ] Process test library for users (assertions on instances in unit tests)
+
+### Operations
+- [x] Health, metrics, traces, logs, backup and restore (drilled in CI), Windows service, Docker image, rolling start of several nodes
+- [ ] Kubernetes manifests or Helm chart
+- [ ] Elasticsearch or OpenSearch exporter of events
+- [ ] Partitioned, replicated engine (Zeebe-style): Flowd scales by nodes on one PostgreSQL instead
