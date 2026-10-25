@@ -383,11 +383,19 @@ ${model.rules.map((r) => `      <rule>${r.ins.map((t) => `<inputEntry><text>${es
             message.replaceChildren(el("pre", {}, JSON.stringify((await api("/v1/decisions", { method: "POST", body })).data, null, 2)));
           } catch (e) { fail(message, e); }
         } }, "Deploy")),
+    const historyBox = el("div");
+    const loadHistory = async () => {
+      try {
+        const items = (await api(`/v1/decision-instances?decisionId=${encodeURIComponent(model.id)}&pageSize=20`)).data.items;
+        historyBox.replaceChildren(items.length === 0 ? el("p", { class: "muted" }, "No evaluations recorded yet.") : el("table", {}, el("tr", {}, ...["When", "From", "Instance", "ms", "Input", "Output / error"].map((h) => el("th", {}, h))),
+          ...items.map((i) => el("tr", {}, el("td", {}, fmt(i.evaluatedAt)), el("td", {}, i.source), el("td", {}, i.processInstanceKey ?? ""), el("td", {}, String(i.durationMs)), el("td", {}, JSON.stringify(i.input)), el("td", {}, i.error ?? JSON.stringify(i.output))))));
+      } catch (e) { fail(historyBox, e); }
+    };
       grid, message,
       el("div", { class: "card" }, el("h4", {}, "Try it (the deployed version)"), variables,
         el("button", { onclick: async () => {
           try { result.replaceChildren(el("pre", {}, JSON.stringify((await api(`/v1/decisions/${encodeURIComponent(model.id)}/evaluate`, { method: "POST", json: { variables: variables.value ? JSON.parse(variables.value) : {} } })).data, null, 2))); } catch (e) { fail(result, e); }
-        } }, "Evaluate"), result));
+        } }, "Evaluate"), el("button", { onclick: () => loadHistory() }, "Show recent evaluations"), result, historyBox));
     draw();
   },
   async access(box) {

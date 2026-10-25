@@ -189,7 +189,7 @@ The first list was too narrow: Flowd scored 98 % on it while there were still ma
 - [x] Process definition statistics per element
 - [x] Validate a BPMN file through the API without deploying it
 - [x] Topology: which nodes are running
-- [ ] Decision instance history (which decision was evaluated with what)
+- [x] Decision instance history (which decision was evaluated with what)
 - [x] Command line deploy and start (`flowd deploy`, `flowd start`)
 
 ### Connectors

@@ -57,11 +57,17 @@ public sealed class DeployDecisionsUseCase(IDecisionStore store, IKeyGenerator k
     }
 }
 
-/// <summary>Evaluates the latest version of a stored decision with the given variables (FR-DMN-003).</summary>
-public sealed class EvaluateDecisionUseCase(IDecisionStore store, TimeProvider time)
+/// <summary>Evaluates the latest version of a stored decision with the given variables and records the evaluation (FR-DMN-003, FR-DMN-007).</summary>
+public sealed class EvaluateDecisionUseCase(IDecisionStore store, IDecisionHistory history, IKeyGenerator keys, TimeProvider time)
 {
-    public async Task<Result<DecisionEvaluation>> ExecuteAsync(string tenantId, string decisionId, JsonObject? variables, CancellationToken cancellationToken)
+    private const int MaxRecordedInputChars = 65_536;
+
+    public Task<Result<DecisionEvaluation>> ExecuteAsync(string tenantId, string decisionId, JsonObject? variables, CancellationToken cancellationToken) =>
+        ExecuteAsync(tenantId, decisionId, variables, EvaluationSource.Api, cancellationToken);
+
+    public async Task<Result<DecisionEvaluation>> ExecuteAsync(string tenantId, string decisionId, JsonObject? variables, EvaluationSource source, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(source);
         var info = await store.FindAsync(tenantId, decisionId, cancellationToken).ConfigureAwait(false);
         var bytes = info is null ? null : await store.GetResourceAsync(tenantId, info.Key, cancellationToken).ConfigureAwait(false);
         if (info is null || bytes is null)
@@ -75,11 +81,23 @@ public sealed class EvaluateDecisionUseCase(IDecisionStore store, TimeProvider t
             return new Failure(new NotFound($"Decision '{decisionId}' not found."));
         }
 
+        var started = time.GetTimestamp();
         var outcome = DecisionEvaluator.Evaluate(decision, definitions, ExpressionJson.ToVariables(variables ?? []), time.GetUtcNow());
+        var elapsed = time.GetElapsedTime(started);
+        var output = outcome is DecisionResult done ? ExpressionJson.ToJson(done.Value) : null;
+        var error = outcome is DecisionFailure failed ? $"{failed.Code}: {failed.Message}" : null;
+        await RecordAsync(tenantId, decisionId, info.Key, source, (int)elapsed.TotalMilliseconds, variables ?? [], output, error, cancellationToken).ConfigureAwait(false);
         return outcome switch
         {
-            DecisionResult result => new DecisionEvaluation(ExpressionJson.ToJson(result.Value)),
+            DecisionResult => new DecisionEvaluation(output),
             DecisionFailure failure => new Failure(new ValidationFailure(failure.Message, [new FailureDetail(decisionId, failure.Code, failure.Message)])),
         };
+    }
+
+    private async Task RecordAsync(string tenantId, string decisionId, long decisionKey, EvaluationSource source, int durationMs, JsonObject input, JsonNode? output, string? error, CancellationToken cancellationToken)
+    {
+        var text = input.ToJsonString();
+        JsonNode recorded = text.Length <= MaxRecordedInputChars ? input.DeepClone() : new JsonObject { ["_truncated"] = true, ["characters"] = text.Length };
+        await history.AppendAsync(new DecisionEvaluationRecord(keys.NextKey(), tenantId, decisionId, decisionKey, time.GetUtcNow(), source.Kind, source.InstanceKey, durationMs, recorded, output?.DeepClone(), error), cancellationToken).ConfigureAwait(false);
     }
 }

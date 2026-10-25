@@ -38,7 +38,7 @@ public sealed class DecisionJobProcessor(IJobQueue queue, EvaluateDecisionUseCas
     {
         var decisionId = job.CustomHeaders.GetValueOrDefault("decisionId") ?? string.Empty;
         var resultVariable = job.CustomHeaders.GetValueOrDefault("resultVariable") ?? "decisionResult";
-        var result = await evaluate.ExecuteAsync(tenant, decisionId, job.Variables, cancellationToken).ConfigureAwait(false);
+        var result = await evaluate.ExecuteAsync(tenant, decisionId, job.Variables, EvaluationSource.Task(job.InstanceKey), cancellationToken).ConfigureAwait(false);
         if (result is DecisionEvaluation evaluation)
         {
             var variables = new JsonObject { [resultVariable] = evaluation.Value?.DeepClone() };

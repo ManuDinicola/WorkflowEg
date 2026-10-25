@@ -26,7 +26,11 @@ public sealed class PostgresRetentionStore(NpgsqlDataSource dataSource) : IReten
             "DELETE FROM idempotency_key WHERE key IN (SELECT key FROM idempotency_key WHERE created_at < @cutoff LIMIT @batch)",
             new { cutoff = (now - IdempotencyRetention).UtcDateTime, batch = policy.BatchSize },
             cancellationToken: cancellationToken)).ConfigureAwait(false);
-        return new RetentionResult(instances, history, outbox, keys);
+        var evaluations = await connection.ExecuteAsync(new CommandDefinition(
+            "DELETE FROM decision_evaluation WHERE key IN (SELECT key FROM decision_evaluation WHERE evaluated_at < @cutoff ORDER BY key LIMIT @batch)",
+            new { cutoff = (now - policy.History).UtcDateTime, batch = policy.BatchSize },
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+        return new RetentionResult(instances, history, outbox, keys + evaluations); // old decision evaluations are counted with the idempotency keys: both are small side tables
     }
 
     public async Task<DeleteInstanceOutcome> DeleteInstanceAsync(string tenantId, long instanceKey, CancellationToken cancellationToken)

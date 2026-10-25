@@ -13,6 +13,8 @@ GET /v1/analytics/processes/{bpmnProcessId}
 GET /v1/analytics/summary
 GET /v1/api-keys
 GET /v1/audit
+GET /v1/decision-instances
+GET /v1/decision-instances/{key}
 GET /v1/decisions
 GET /v1/decisions/{decisionId}/xml
 GET /v1/events/stream
