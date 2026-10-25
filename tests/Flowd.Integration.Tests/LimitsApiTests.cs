@@ -113,4 +113,23 @@ public sealed class LimitsApiTests(PostgresFixture postgres) : IClassFixture<Pos
             (await app.Client.GetAsync(new Uri("/healthz", UriKind.Relative))).StatusCode.ShouldBe(HttpStatusCode.OK);
         }
     }
+
+    [Fact]
+    public async Task API_R1_the_same_request_sent_at_the_same_time_with_one_key_starts_one_instance()
+    {
+        await using var app = await TestApp.StartAsync(postgres);
+        await app.DeployAsync(Process);
+
+        var calls = Enumerable.Range(0, 8).Select(async _ =>
+        {
+            using var response = await app.Client.SendAsync(Start("race-1", "{\"a\":1}"));
+            return response.StatusCode;
+        });
+        var statuses = await Task.WhenAll(calls);
+
+        statuses.ShouldAllBe(s => s == HttpStatusCode.OK || s == HttpStatusCode.Conflict);
+        statuses.ShouldContain(HttpStatusCode.OK);
+        var list = await app.Client.GetFromJsonAsync<PageDto<InstanceDto>>(new Uri("/v1/process-instances", UriKind.Relative));
+        list!.Items.Count.ShouldBe(1);
+    }
 }

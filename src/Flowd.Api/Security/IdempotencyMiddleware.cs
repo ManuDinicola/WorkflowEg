@@ -7,12 +7,15 @@ namespace Flowd.Api.Security;
 
 /// <summary>
 /// Replays the original response for a repeated <c>Idempotency-Key</c> with the same request within 24 hours (API-R1).
-/// The same key with a different request is refused with <c>IDEMPOTENCY_KEY_REUSED</c>.
+/// The same key with a different request is refused with <c>IDEMPOTENCY_KEY_REUSED</c>. The key is reserved before the command runs, so the
+/// same request sent twice at the same time runs once: the second one is told <c>IDEMPOTENCY_IN_PROGRESS</c> (409) and should retry shortly.
+/// A reservation whose request died is taken over after two minutes.
 /// </summary>
 public sealed class IdempotencyMiddleware(RequestDelegate next, TimeProvider time)
 {
     public const string HeaderName = "Idempotency-Key";
     public static readonly TimeSpan Retention = TimeSpan.FromHours(24);
+    public static readonly TimeSpan InProgressTimeout = TimeSpan.FromMinutes(2);
     private const int MaxKeyLength = 255;
 
     public async Task InvokeAsync(HttpContext context, IIdempotencyStore store)
@@ -27,29 +30,53 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, TimeProvider tim
 
         var scopedKey = $"{context.User.TenantId()}|{key}";
         var hash = await HashRequestAsync(context.Request).ConfigureAwait(false);
-        var existing = await store.FindAsync(scopedKey, context.RequestAborted).ConfigureAwait(false);
-        if (existing is not null && time.GetUtcNow() - existing.CreatedAt < Retention)
+        for (var attempt = 0; attempt < 2; attempt++)
         {
-            await ReplayAsync(context, existing, hash).ConfigureAwait(false);
-            return;
+            var now = time.GetUtcNow();
+            var existing = await store.FindAsync(scopedKey, context.RequestAborted).ConfigureAwait(false);
+            if (existing is not null && !IsExpired(existing, now))
+            {
+                await ReplayAsync(context, existing, hash).ConfigureAwait(false);
+                return;
+            }
+
+            if (await store.TryReserveAsync(scopedKey, hash, now, now - Retention, now - InProgressTimeout, context.RequestAborted).ConfigureAwait(false))
+            {
+                await RunAsync(context, store, scopedKey, hash).ConfigureAwait(false);
+                return;
+            }
         }
 
+        await WriteInProgressAsync(context).ConfigureAwait(false); // two lost races in a row: someone else is running it
+    }
+
+    private static bool IsExpired(IdempotentResponse stored, DateTimeOffset now) =>
+        now - stored.CreatedAt >= (stored.IsInProgress ? InProgressTimeout : Retention);
+
+    private async Task RunAsync(HttpContext context, IIdempotencyStore store, string scopedKey, byte[] hash)
+    {
         var original = context.Response.Body;
         await using var buffer = new MemoryStream();
         context.Response.Body = buffer;
+        var completed = false;
         try
         {
             await next(context).ConfigureAwait(false);
+            completed = true;
         }
         finally
         {
             context.Response.Body = original;
+            if (!completed || context.Response.StatusCode >= 500)
+            {
+                await store.ReleaseAsync(scopedKey, CancellationToken.None).ConfigureAwait(false); // failures are not remembered: a retry may run
+            }
         }
 
         if (context.Response.StatusCode < 500)
         {
             var response = new IdempotentResponse(hash, context.Response.StatusCode, context.Response.ContentType, buffer.ToArray(), time.GetUtcNow());
-            await store.SaveAsync(scopedKey, response, context.RequestAborted).ConfigureAwait(false);
+            await store.SaveAsync(scopedKey, response, CancellationToken.None).ConfigureAwait(false);
         }
 
         buffer.Position = 0;
@@ -78,6 +105,16 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, TimeProvider tim
         return sha.GetHashAndReset();
     }
 
+    private static async Task WriteInProgressAsync(HttpContext context)
+    {
+        context.Response.StatusCode = StatusCodes.Status409Conflict;
+        context.Response.Headers.RetryAfter = "1";
+        context.Response.ContentType = "application/problem+json";
+        await context.Response.WriteAsJsonAsync(
+            new { title = "Request in progress", status = 409, code = "IDEMPOTENCY_IN_PROGRESS", detail = "A request with this key is still running. Retry in a moment to get its result." },
+            context.RequestAborted).ConfigureAwait(false);
+    }
+
     private static async Task ReplayAsync(HttpContext context, IdempotentResponse stored, byte[] hash)
     {
         if (!stored.RequestHash.AsSpan().SequenceEqual(hash))
@@ -87,6 +124,12 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, TimeProvider tim
             await context.Response.WriteAsJsonAsync(
                 new { title = "Idempotency key reused", status = 422, code = "IDEMPOTENCY_KEY_REUSED", detail = "The key was already used with a different request." },
                 context.RequestAborted).ConfigureAwait(false);
+            return;
+        }
+
+        if (stored.IsInProgress)
+        {
+            await WriteInProgressAsync(context).ConfigureAwait(false);
             return;
         }
 

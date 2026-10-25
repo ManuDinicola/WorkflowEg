@@ -35,7 +35,7 @@ A checklist for putting Flowd on a real server, and an honest list of what is no
 ## Known limits and differences (read this)
 - **No production history.** Flowd is new. Camunda has years of field use; Flowd has automated tests (unit, conformance, integration on PostgreSQL 14 and 17, a chaos test) and a few load runs.
 - **One PostgreSQL.** Nodes scale the engine, not the database. There is no partitioning and no built-in database failover; use your PostgreSQL high-availability setup. Scaling across separate machines has not been demonstrated.
-- **Idempotency keys** are stored after the command commits, so a crash in that gap can let a retried request run twice.
+- **Idempotency keys** are reserved before the command runs, so the same request sent twice at once runs once (the second gets `409 IDEMPOTENCY_IN_PROGRESS` and retries). If a node dies after the command committed but before the response was stored, the reservation is taken over after two minutes and a retry runs again.
 - **At-least-once everywhere.** Jobs, connectors (HTTP, e-mail), webhooks and message correlation can repeat after failures. Make the called systems idempotent.
 - **Differences from Camunda 8** are listed in `docs/camunda-parity.md` (listeners do not block, compensation is simplified, no conditional start events, no message queue connector, user defined functions only inside one expression, people and groups are managed in your identity provider).
 - **UI sessions.** The sign-in keeps an access token in the browser tab and has no refresh token: people sign in again when it expires.
