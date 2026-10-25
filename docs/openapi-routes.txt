@@ -1,6 +1,7 @@
 DELETE /v1/api-keys/{id}
 DELETE /v1/process-definitions/{key}
 DELETE /v1/process-instances/{key}
+DELETE /v1/users/{username}
 GET /
 GET /healthz
 GET /metrics
@@ -30,6 +31,7 @@ GET /v1/process-instances/{key}/history
 GET /v1/process-instances/{key}/variables
 GET /v1/user-tasks
 GET /v1/user-tasks/{key}/form
+GET /v1/users
 PATCH /v1/jobs/{key}
 POST /v1/api-keys
 POST /v1/batch/cancel-instances
@@ -45,6 +47,7 @@ POST /v1/jobs/activate
 POST /v1/jobs/{key}/complete
 POST /v1/jobs/{key}/error
 POST /v1/jobs/{key}/fail
+POST /v1/login
 POST /v1/messages
 POST /v1/process-instances
 POST /v1/process-instances/{key}/cancel
@@ -55,4 +58,6 @@ POST /v1/user-tasks/{key}/assign
 POST /v1/user-tasks/{key}/claim
 POST /v1/user-tasks/{key}/complete
 POST /v1/user-tasks/{key}/unclaim
+POST /v1/users
 PUT /v1/process-instances/{key}/variables
+PUT /v1/users/{username}

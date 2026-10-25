@@ -48,6 +48,12 @@ public sealed class AuthOptions
 
     /// <summary>Token claim whose values become the caller's groups.</summary>
     public string GroupsClaim { get; init; } = "groups";
+
+    /// <summary>Token claim with the display name of the caller, used as the user name of tasks (falls back to <c>preferred_username</c>, then <c>sub</c>).</summary>
+    public string NameClaim { get; init; } = "name";
+
+    /// <summary>How long a token from <c>POST /v1/login</c> is valid, in minutes (1 to 1440).</summary>
+    public int LoginTokenMinutes { get; init; } = 60;
 }
 
 public static class ClaimsExtensions
@@ -151,6 +157,11 @@ public sealed class FlowdClaimsTransformation(IOptions<AuthOptions> options) : I
 
         var transformed = new ClaimsIdentity(identity);
         transformed.AddClaim(new Claim(ClaimsExtensions.TenantClaimType, principal.FindFirst(options.Value.TenantClaim)?.Value ?? string.Empty));
+        if (!transformed.HasClaim(c => c.Type == ClaimTypes.Name) && (principal.FindFirst(options.Value.NameClaim) ?? principal.FindFirst("preferred_username") ?? principal.FindFirst("sub")) is { } named)
+        {
+            transformed.AddClaim(new Claim(ClaimTypes.Name, named.Value));
+        }
+
         foreach (var group in principal.FindAll(options.Value.GroupsClaim).Where(c => !transformed.HasClaim(ClaimsExtensions.GroupClaimType, c.Value)))
         {
             transformed.AddClaim(new Claim(ClaimsExtensions.GroupClaimType, group.Value));

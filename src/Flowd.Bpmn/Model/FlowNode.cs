@@ -59,6 +59,8 @@ public sealed class ServiceTask : FlowNode
 
     public const string EmailConnectorTaskType = "io.flowd:email";
 
+    public const string QueueConnectorTaskType = "io.flowd:rabbitmq";
+
     /// <summary>Raw <c>retries</c> attribute: a literal or an expression starting with <c>=</c>.</summary>
     public string? Retries { get; init; }
 

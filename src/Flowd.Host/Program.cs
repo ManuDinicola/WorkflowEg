@@ -93,8 +93,29 @@ createKey.SetAction(async (parseResult, cancellationToken) =>
     return 0;
 });
 apiKey.Add(createKey);
+var userName = new Option<string>("--username") { Description = "Login name of the user.", Required = true };
+var userRoles = new Option<string>("--user-roles") { Description = "Comma separated roles: admin, operator, developer, worker, reader.", Required = true };
+var userTenant = new Option<string>("--user-tenant") { Description = "Tenant of the user (empty for single-tenant mode).", DefaultValueFactory = _ => string.Empty };
+var user = new Command("user", "Manage built-in users.");
+var createUser = new Command("create", "Create a user. The password is read from the environment variable FLOWD_USER_PASSWORD (at least 12 characters), never from the command line.") { userName, userRoles, userTenant };
+createUser.SetAction(async (parseResult, cancellationToken) =>
+{
+    var roles = parseResult.GetRequiredValue(userRoles).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    var password = Environment.GetEnvironmentVariable("FLOWD_USER_PASSWORD") ?? string.Empty;
+    if (password.Length < Flowd.Application.Security.PasswordHasher.MinimumLength || roles.Length == 0 || roles.Any(r => !Flowd.Application.Security.Roles.All.Contains(r, StringComparer.Ordinal)))
+    {
+        await Console.Error.WriteLineAsync($"Set FLOWD_USER_PASSWORD (at least {Flowd.Application.Security.PasswordHasher.MinimumLength} characters) and give valid roles.".AsMemory(), cancellationToken).ConfigureAwait(false);
+        return 2;
+    }
 
-return await new RootCommand("flowd - BPMN workflow engine") { serve, migrate, validate, apiKey }
+    var options = FlowdHostBuilder.LoadOptions(Environment.GetCommandLineArgs().Skip(3).ToArray());
+    var created = await FlowdHostBuilder.CreateUserAsync(options, new NewUser(parseResult.GetRequiredValue(userName), password, roles, parseResult.GetValue(userTenant) ?? string.Empty), cancellationToken).ConfigureAwait(false);
+    await Console.Out.WriteLineAsync((created ? "User created." : "That username already exists.").AsMemory(), cancellationToken).ConfigureAwait(false);
+    return created ? 0 : 1;
+});
+user.Add(createUser);
+
+return await new RootCommand("flowd - BPMN workflow engine") { serve, migrate, validate, apiKey, user }
     .Parse(args)
     .InvokeAsync()
     .ConfigureAwait(false);

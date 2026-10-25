@@ -60,6 +60,14 @@ internal static class FlowdHostBuilder
         return key;
     }
 
+    public static async Task<bool> CreateUserAsync(FlowdOptions options, NewUser user, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        await using var dataSource = NpgsqlDataSource.Create(options.ConnectionString);
+        var info = new UserInfo(user.Username.Trim(), user.Roles, user.Tenant, [], DateTimeOffset.UtcNow, Disabled: false);
+        return await new PostgresUserStore(dataSource).CreateAsync(info.Username, PasswordHasher.Hash(user.Password), info, cancellationToken).ConfigureAwait(false);
+    }
+
     public static IMigrationRunner CreateMigrationRunner(FlowdOptions options) =>
         new PostgresMigrationRunner(options.ConnectionString);
 
@@ -104,6 +112,7 @@ internal static class FlowdHostBuilder
         app.MapJobEndpoints();
         app.MapMessageEndpoints();
         app.MapApiKeyEndpoints();
+        app.MapUserEndpoints();
         app.MapGrpcService<Flowd.Api.Grpc.GatewayService>();
         app.MapMetricsEndpoint();
         app.MapSignalAndUserTaskEndpoints();
@@ -229,6 +238,7 @@ internal static class FlowdHostBuilder
         services.AddSingleton<IUserTaskQueries, PostgresUserTaskQueries>();
         services.AddSingleton<IChildInstanceStore, PostgresChildInstanceStore>();
         services.AddSingleton<IApiKeyStore, PostgresApiKeyStore>();
+        services.AddSingleton<IUserStore, PostgresUserStore>();
         services.AddSingleton<IRetentionStore, PostgresRetentionStore>();
         services.AddOptions<RetentionOptions>().BindConfiguration(RetentionOptions.SectionName);
         services.AddSingleton<Janitor>();
@@ -245,9 +255,11 @@ internal static class FlowdHostBuilder
         services.AddSingleton(sp => sp.GetRequiredService<IConfiguration>().GetSection(ConnectorOptions.SectionName).Get<ConnectorOptions>() ?? new ConnectorOptions());
         services.AddSingleton<ISecretProvider, ConfigSecretProvider>();
         services.AddSingleton<IHttpCallSender, HttpCallSender>();
-        services.AddSingleton<HttpConnectorHandler>();
+        services.AddSingleton<IConnectorHandler, HttpConnectorHandler>();
+        services.AddSingleton<IQueuePublisher, RabbitMqPublisher>();
+        services.AddSingleton<IConnectorHandler, QueueConnectorHandler>();
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
-        services.AddSingleton<EmailConnectorHandler>();
+        services.AddSingleton<IConnectorHandler, EmailConnectorHandler>();
         services.AddSingleton<ConnectorJobProcessor>();
         services.AddHostedService<ConnectorWorker>();
         services.AddHostedService<DecisionWorker>();
@@ -273,6 +285,7 @@ internal static class FlowdHostBuilder
         services.AddSingleton<JobActivationService>();
         services.AddSingleton<TimerService>();
         services.AddSingleton<MessageService>();
+        services.AddSingleton<LoginService>();
         services.AddSingleton<IMessagePublisher>(sp => sp.GetRequiredService<MessageService>());
         services.AddSingleton<SignalService>();
         services.AddSingleton<ISignalBroadcaster>(sp => sp.GetRequiredService<SignalService>());

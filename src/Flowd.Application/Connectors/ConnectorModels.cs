@@ -22,6 +22,9 @@ public sealed class ConnectorOptions
 
     /// <summary>SMTP server of the e-mail connector (FR-CON-012).</summary>
     public SmtpSettings Smtp { get; init; } = new();
+
+    /// <summary>Message broker of the queue connector (FR-CON-013).</summary>
+    public QueueSettings Queue { get; init; } = new();
 }
 
 /// <summary>Port: named secrets for connector templates (<c>{{secrets.NAME}}</c>). Secrets never appear in process variables or history.</summary>
