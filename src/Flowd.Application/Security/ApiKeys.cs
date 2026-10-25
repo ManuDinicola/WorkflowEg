@@ -16,8 +16,8 @@ public static class Roles
 }
 
 /// <summary>An API key as stored: only its hash is kept (FR-SEC-001).</summary>
-/// <summary>An API key: <c>Processes</c> limits deploy, start and batch operations to these process ids (null or empty: all).</summary>
-public sealed record ApiKeyInfo(string Name, IReadOnlyList<string> Roles, string TenantId, IReadOnlyList<string>? Processes = null);
+/// <summary>An API key: <c>Processes</c> limits deploy, start and batch operations to these process ids (null or empty: all). <c>Groups</c>, when not empty, restrict user tasks to those the key is assignee or candidate of.</summary>
+public sealed record ApiKeyInfo(string Name, IReadOnlyList<string> Roles, string TenantId, IReadOnlyList<string>? Processes = null, IReadOnlyList<string>? Groups = null);
 
 /// <summary>A stored key as listed: <c>Id</c> is the first 12 hex characters of its hash (the key itself cannot be recovered).</summary>
 public sealed record ApiKeyRecord(string Id, ApiKeyInfo Info, DateTimeOffset CreatedAt, DateTimeOffset? RevokedAt);

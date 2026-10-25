@@ -375,19 +375,19 @@ ${model.rules.map((r) => `      <rule>${r.ins.map((t) => `<inputEntry><text>${es
   },
   async access(box) {
     const out = el("div"), message = el("div");
-    const name = el("input", { placeholder: "name, for example ci-pipeline", size: "24" }), tenant = el("input", { placeholder: "tenant (optional)", size: "14" }), processes = el("input", { placeholder: "limit to process ids, comma separated (optional)", size: "34" });
+    const name = el("input", { placeholder: "name, for example ci-pipeline", size: "24" }), tenant = el("input", { placeholder: "tenant (optional)", size: "14" }), processes = el("input", { placeholder: "limit to process ids, comma separated (optional)", size: "34" }), groups = el("input", { placeholder: "groups: sees only its own tasks (optional)", size: "30" });
     const roles = ["admin", "operator", "developer", "worker", "reader"].map((r) => { const box = el("input", { type: "checkbox", value: r }); return { r, box, label: el("label", { class: "inline" }, box, " " + r) }; });
     const load = async () => {
       const items = (await api("/v1/api-keys")).data.items;
-      out.replaceChildren(el("table", {}, el("tr", {}, ...["Id", "Name", "Roles", "Tenant", "Processes", "Created", "State", ""].map((h) => el("th", {}, h))),
-        ...items.map((k) => el("tr", {}, el("td", {}, k.id), el("td", {}, k.name), el("td", {}, k.roles.join(", ")), el("td", {}, k.tenant), el("td", {}, k.processes.join(", ")), el("td", {}, fmt(k.createdAt)), el("td", {}, k.revokedAt ? "revoked " + fmt(k.revokedAt) : "active"),
+      out.replaceChildren(el("table", {}, el("tr", {}, ...["Id", "Name", "Roles", "Tenant", "Processes", "Groups", "Created", "State", ""].map((h) => el("th", {}, h))),
+        ...items.map((k) => el("tr", {}, el("td", {}, k.id), el("td", {}, k.name), el("td", {}, k.roles.join(", ")), el("td", {}, k.tenant), el("td", {}, k.processes.join(", ")), el("td", {}, k.groups.join(", ")), el("td", {}, fmt(k.createdAt)), el("td", {}, k.revokedAt ? "revoked " + fmt(k.revokedAt) : "active"),
           el("td", {}, k.revokedAt ? "" : el("button", { onclick: async () => { try { await api("/v1/api-keys/" + k.id, { method: "DELETE" }); message.replaceChildren(); await load(); } catch (e) { fail(message, e); } } }, "Revoke"))))));
     };
     box.append(el("p", { class: "muted" }, "API keys for workers and automation. The key is shown once, when you create it; only a hash is stored. Needs the admin role."),
-      el("div", { class: "card" }, el("h3", {}, "New key"), el("div", { class: "row" }, name, tenant, processes), el("div", { class: "row" }, ...roles.map((r) => r.label),
+      el("div", { class: "card" }, el("h3", {}, "New key"), el("div", { class: "row" }, name, tenant, processes, groups), el("div", { class: "row" }, ...roles.map((r) => r.label),
         el("button", { class: "primary", onclick: async () => {
           try {
-            const created = (await api("/v1/api-keys", { method: "POST", json: { name: name.value, roles: roles.filter((r) => r.box.checked).map((r) => r.r), tenant: tenant.value || undefined, processes: processes.value.split(",").map((s) => s.trim()).filter(Boolean) } })).data;
+            const created = (await api("/v1/api-keys", { method: "POST", json: { name: name.value, roles: roles.filter((r) => r.box.checked).map((r) => r.r), tenant: tenant.value || undefined, processes: processes.value.split(",").map((s) => s.trim()).filter(Boolean), groups: groups.value.split(",").map((s) => s.trim()).filter(Boolean) } })).data;
             message.replaceChildren(el("div", { class: "card" }, el("p", {}, "Copy this key now. It cannot be shown again:"), el("pre", { class: "newkey" }, created.key)));
             name.value = ""; await load();
           } catch (e) { fail(message, e); }

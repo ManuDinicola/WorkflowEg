@@ -147,7 +147,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-25): 120 of 125 = 96 %. Target: 95 % (119 of 125).
+Score (2026-10-25): 121 of 125 = 96 %. Target: 95 % (119 of 125).
 
 Not counted: complex gateway, transaction sub-process with cancel event, and multiple / parallel multiple events. Camunda 8 does not support them either (they are BPMN elements that Camunda 8 leaves out), so they are not Camunda 8 features. Flowd does not support them. Before 2026-10-25 these three lines were in the checklist as open items; moving them out raised the percentage by about three points without any new code, so compare scores before and after with that in mind.
 
@@ -158,5 +158,5 @@ Features of Camunda 8 that were not in the checklist above. They count in the sc
 - [x] Element templates in the modeler (built-in HTTP, e-mail and decision templates; no import of custom template files)
 - [x] Form builder (graphical) in the UI (six field types; no groups or conditional fields)
 - [x] DMN decision table editor in the UI (one table per file)
-- [ ] Resource-based authorizations (who may read or change which resource)
+- [x] Resource-based authorizations: processes (key limits) and user tasks (groups); not decisions, forms or incidents
 - [ ] Users, groups and role management (identity): API keys are managed in Flowd (done); people and groups stay in your identity provider

@@ -29,7 +29,7 @@ public static class ApiKeyEndpoints
     private static async Task<IResult> ListAsync(ClaimsPrincipal user, IApiKeyStore store, CancellationToken cancellationToken)
     {
         var keys = await store.ListAsync(Scope(user), cancellationToken).ConfigureAwait(false);
-        return Results.Ok(new { items = keys.Select(k => new ApiKeyDto(k.Id, k.Info.Name, k.Info.Roles, k.Info.TenantId, k.Info.Processes ?? [], k.CreatedAt, k.RevokedAt)) });
+        return Results.Ok(new { items = keys.Select(k => new ApiKeyDto(k.Id, k.Info.Name, k.Info.Roles, k.Info.TenantId, k.Info.Processes ?? [], k.Info.Groups ?? [], k.CreatedAt, k.RevokedAt)) });
     }
 
     private static async Task<IResult> CreateAsync(ClaimsPrincipal user, CreateApiKeyRequestDto request, IApiKeyStore store, TimeProvider time, CancellationToken cancellationToken)
@@ -42,10 +42,11 @@ public static class ApiKeyEndpoints
 
         var tenant = Scope(user) ?? request.Tenant ?? string.Empty;
         var processes = request.Processes ?? [];
+        var groups = request.Groups ?? [];
         var key = ApiKeyHasher.NewKey();
         var hash = ApiKeyHasher.Hash(key);
-        await store.CreateAsync(hash, new ApiKeyInfo(request.Name.Trim(), request.Roles, tenant, processes), time.GetUtcNow(), cancellationToken).ConfigureAwait(false);
-        return Results.Ok(new CreatedApiKeyDto(Convert.ToHexStringLower(hash)[..12], key, request.Name.Trim(), request.Roles, tenant, processes));
+        await store.CreateAsync(hash, new ApiKeyInfo(request.Name.Trim(), request.Roles, tenant, processes, groups), time.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+        return Results.Ok(new CreatedApiKeyDto(Convert.ToHexStringLower(hash)[..12], key, request.Name.Trim(), request.Roles, tenant, processes, groups));
     }
 
     private static async Task<IResult> RevokeAsync(ClaimsPrincipal user, string id, IApiKeyStore store, TimeProvider time, CancellationToken cancellationToken) =>

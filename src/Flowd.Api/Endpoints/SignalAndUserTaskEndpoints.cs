@@ -61,20 +61,47 @@ public static class SignalAndUserTaskEndpoints
             Math.Clamp(pageSize ?? 100, 1, MaxPageSize),
             InstanceEndpoints.TryKey(after),
             cancellationToken).ConfigureAwait(false);
-        var items = page.Items.Select(t => new UserTaskDto(
+        var items = page.Items.Where(t => user.MayWorkOn(t.Assignee, t.CandidateGroups, t.CandidateUsers)).Select(t => new UserTaskDto(
             InstanceEndpoints.Id(t.Key), InstanceEndpoints.Id(t.InstanceKey), t.ElementId, t.Assignee, t.CandidateGroups, t.CandidateUsers, t.DueDate, t.FollowUpDate, t.Priority, t.FormKey, t.State, t.CreatedAt));
         return Results.Ok(new PageDto<UserTaskDto>([.. items], page.NextCursor is { } c ? InstanceEndpoints.Id(c) : null));
     }
 
-    private static Task<IResult> ClaimAsync(ClaimsPrincipal user, string key, ClaimUserTaskRequestDto request, UserTaskService tasks, CancellationToken cancellationToken) =>
-        InstanceEndpoints.RunAsync(key, k => tasks.ClaimAsync(user.TenantId(), k, request.User, cancellationToken));
+    /// <summary>Callers with groups reach only the tasks they are assignee or candidate of; others answer 404 as if the task did not exist (FR-SEC-009).</summary>
+    internal static async Task<bool> MayReachAsync(ClaimsPrincipal user, string key, IUserTaskQueries queries, CancellationToken cancellationToken)
+    {
+        if (user.Groups().Count == 0)
+        {
+            return true;
+        }
 
-    private static Task<IResult> UnclaimAsync(ClaimsPrincipal user, string key, UserTaskService tasks, CancellationToken cancellationToken) =>
-        InstanceEndpoints.RunAsync(key, k => tasks.UnclaimAsync(user.TenantId(), k, cancellationToken));
+        var task = InstanceEndpoints.TryKey(key) is { } k ? await queries.GetAsync(user.TenantId(), k, cancellationToken).ConfigureAwait(false) : null;
+        return task is not null && user.MayWorkOn(task.Assignee, task.CandidateGroups, task.CandidateUsers);
+    }
 
-    private static Task<IResult> AssignAsync(ClaimsPrincipal user, string key, AssignUserTaskRequestDto request, UserTaskService tasks, CancellationToken cancellationToken) =>
-        InstanceEndpoints.RunAsync(key, k => tasks.AssignAsync(user.TenantId(), k, request.User, cancellationToken));
+    private static string AsCaller(ClaimsPrincipal user, string? requested) => user.Groups().Count > 0 ? user.Identity?.Name ?? string.Empty : requested ?? string.Empty;
 
-    private static Task<IResult> CompleteAsync(ClaimsPrincipal user, string key, CompleteUserTaskRequestDto request, UserTaskService tasks, CancellationToken cancellationToken) =>
-        InstanceEndpoints.RunAsync(key, k => tasks.CompleteAsync(user.TenantId(), k, request.Variables, request.User, cancellationToken));
+    private static async Task<IResult> ClaimAsync(ClaimsPrincipal user, string key, ClaimUserTaskRequestDto request, UserTaskService tasks, IUserTaskQueries queries, CancellationToken cancellationToken) =>
+        !await MayReachAsync(user, key, queries, cancellationToken).ConfigureAwait(false)
+            ? InstanceEndpoints.NotFound("User task", key)
+            : await InstanceEndpoints.RunAsync(key, k => tasks.ClaimAsync(user.TenantId(), k, AsCaller(user, request.User), cancellationToken)).ConfigureAwait(false);
+
+    private static async Task<IResult> UnclaimAsync(ClaimsPrincipal user, string key, UserTaskService tasks, IUserTaskQueries queries, CancellationToken cancellationToken) =>
+        !await MayReachAsync(user, key, queries, cancellationToken).ConfigureAwait(false)
+            ? InstanceEndpoints.NotFound("User task", key)
+            : await InstanceEndpoints.RunAsync(key, k => tasks.UnclaimAsync(user.TenantId(), k, cancellationToken)).ConfigureAwait(false);
+
+    private static async Task<IResult> AssignAsync(ClaimsPrincipal user, string key, AssignUserTaskRequestDto request, UserTaskService tasks, CancellationToken cancellationToken)
+    {
+        if (user.Groups().Count > 0)
+        {
+            return FailureMapper.ToProblem(new Failure(new PermissionDenied("A caller restricted to its own tasks can claim tasks but not assign them to others.")));
+        }
+
+        return await InstanceEndpoints.RunAsync(key, k => tasks.AssignAsync(user.TenantId(), k, request.User, cancellationToken)).ConfigureAwait(false);
+    }
+
+    private static async Task<IResult> CompleteAsync(ClaimsPrincipal user, string key, CompleteUserTaskRequestDto request, UserTaskService tasks, IUserTaskQueries queries, CancellationToken cancellationToken) =>
+        !await MayReachAsync(user, key, queries, cancellationToken).ConfigureAwait(false)
+            ? InstanceEndpoints.NotFound("User task", key)
+            : await InstanceEndpoints.RunAsync(key, k => tasks.CompleteAsync(user.TenantId(), k, request.Variables, user.Groups().Count > 0 ? AsCaller(user, null) : request.User, cancellationToken)).ConfigureAwait(false);
 }
