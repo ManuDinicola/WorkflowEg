@@ -23,7 +23,8 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Escalation throw / end / boundary / event sub-process
 - [x] Message throw events (intermediate and end) publish real messages; send task stays a worker job
 - [x] Link events
-- [ ] Conditional events (boundary, catch, start)
+- [x] Conditional events (boundary, catch, event sub-process; fire once)
+- [ ] Conditional start events
 - [ ] Multiple and parallel multiple events
 - [ ] Compensation (events, handlers)
 - [ ] Transaction sub-process and cancel event
@@ -43,7 +44,7 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Inclusive gateway
 - [x] Event-based gateway
 - [ ] Complex gateway
-- [ ] Ad-hoc sub-process
+- [x] Ad-hoc sub-process (all free activities start; no completion condition or dynamic selection)
 - [x] Business rule task with DMN
 - [x] Multi-instance completion condition
 
@@ -147,4 +148,4 @@ The list is my reading of the Camunda 8 documentation (engine, BPMN, DMN, FEEL, 
 - [x] Connector runtime and secrets
 
 ## Current score
-Score (2026-10-24): 104 of 118 = 88 %. Target: 95 % (113 of 118).
+Score (2026-10-24): 106 of 119 = 89 %. Target: 95 % (114 of 119).

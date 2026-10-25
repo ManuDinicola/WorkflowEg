@@ -59,6 +59,9 @@ internal static class Triggers
             case SignalEventDefinition signal:
                 context.OpenSubscription(owner, elementId, kind, signal.Name, string.Empty, isSignal: true);
                 return true;
+            case ConditionalEventDefinition:
+                context.OpenSubscription(owner, elementId, kind, Conditions.Marker, string.Empty);
+                return true;
             case MessageEventDefinition message:
                 return OpenMessage(context, owner, elementId, message, kind);
         }
@@ -140,6 +143,9 @@ internal static class TriggerCommands
 
         return Fire(context, timer.ElementInstanceKey, timer.Kind, timer.ElementId, null);
     }
+
+    public static CommandRejected? FireWaiting(StepContext context, SubscriptionRecord subscription) =>
+        Fire(context, subscription.ElementInstanceKey, subscription.Kind, subscription.ElementId, null);
 
     public static CommandRejected? FireSignal(StepContext context, TriggerSignal command)
     {

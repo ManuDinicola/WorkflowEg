@@ -103,6 +103,9 @@ public sealed class SubProcess : FlowNode
     /// <summary>True for an event sub-process: triggered by its start event instead of by sequence flow (section 6.1).</summary>
     public bool IsEventSubProcess { get; init; }
 
+    /// <summary>True for an ad-hoc sub-process: every activity without an incoming flow starts at once and the scope ends when all are done (FR-ADH-001).</summary>
+    public bool IsAdHoc { get; init; }
+
     public LoopCharacteristics? Loop { get; init; }
 
     /// <summary>Evaluated on completion against the sub-process scope and written to the parent scope.</summary>
@@ -263,3 +266,9 @@ public sealed class LinkEventDefinition : EventDefinition
 
 /// <summary>A listener: when <see cref="Event"/> happens on the element, a job of type <see cref="JobType"/> is created. It never delays or changes the flow.</summary>
 public sealed record ListenerDefinition(string Event, string JobType);
+
+/// <summary>Conditional event: fires once, as soon as the boolean <see cref="Condition"/> is true in the scope of the waiting element (FR-CND-001).</summary>
+public sealed class ConditionalEventDefinition : EventDefinition
+{
+    public required string Condition { get; init; }
+}

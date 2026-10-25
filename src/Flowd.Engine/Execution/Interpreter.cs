@@ -71,6 +71,7 @@ public sealed class Interpreter(ElementHandlerRegistry handlers, EngineOptions? 
                 handler.Reevaluate(context);
             }
 
+            Conditions.FireTrue(context);
             CompleteFinishedScopes(context);
             if (!context.HasQueuedSteps && context.Effects.Count == before)
             {

@@ -15,3 +15,8 @@ An intermediate throw event or an end event with a `messageEventDefinition` (and
 
 ## Execution listeners
 Any flow node may declare `flowd:executionListeners` with `flowd:listener event="start|end" type="job-type"`. When the element starts or ends, Flowd creates an ordinary job of that type with the header `_flowdListener` (the event name). A listener job never blocks the element, cannot change variables, and a failure never raises an incident; delivery is at least once. This differs from Camunda 8.6, where listeners block the element. Use them for notifications, audit and side effects. User tasks additionally accept `created`, `assigned` and `completed` (task listeners).
+
+## Conditional events and ad-hoc sub-processes
+A `conditionalEventDefinition` with `<bpmn:condition>= expression</bpmn:condition>` is allowed on intermediate catch events, boundary events and event sub-process start events. After every command (variable change, job completion, ...) Flowd evaluates the condition in the scope of the waiting element and fires the event the first time it is true (at once if it already holds). It fires once, so a non-interrupting conditional event does not repeat. Conditional process start events are not supported.
+
+An `adHocSubProcess` starts every inner activity that has no incoming flow, all in parallel, and completes when nothing inside is live. Camunda's dynamic activity selection and completion condition are not supported.

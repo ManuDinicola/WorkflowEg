@@ -63,9 +63,9 @@ public static class BpmnValidator
     }
 
     /// <summary>Validates one scope (the process itself or one embedded sub-process) and recurses into nested scopes.</summary>
-    private static void ValidateScope(string? scopeId, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues, bool inEventSubProcess = false)
+    private static void ValidateScope(string? scopeId, IReadOnlyList<FlowNode> nodes, IReadOnlyList<SequenceFlow> flows, List<BpmnIssue> issues, bool inEventSubProcess = false, bool adHoc = false)
     {
-        if (!nodes.Any(n => n is StartEvent))
+        if (!adHoc && !nodes.Any(n => n is StartEvent))
         {
             issues.Add(new BpmnIssue(scopeId, BpmnIssueCodes.NoStartEvent, $"'{scopeId}' has no (supported) start event."));
         }
@@ -78,7 +78,7 @@ public static class BpmnValidator
             ValidateNode(node, nodes, flows, issues, inEventSubProcess);
             if (node is SubProcess sub)
             {
-                ValidateScope(sub.Id, sub.Nodes, sub.Flows, issues, sub.IsEventSubProcess);
+                ValidateScope(sub.Id, sub.Nodes, sub.Flows, issues, sub.IsEventSubProcess, sub.IsAdHoc);
             }
         }
 
@@ -255,6 +255,9 @@ public static class BpmnValidator
                 break;
             case EscalationEventDefinition when !allowEscalation:
                 issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"'{ownerId}' cannot use an escalation definition (only boundary events, event sub-process start events, escalation throw and end events can)."));
+                break;
+            case ConditionalEventDefinition { Condition: var condition } when !condition.TrimStart().StartsWith('=') || condition.Trim().Length < 2:
+                issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"The condition of '{ownerId}' must be an expression starting with '='."));
                 break;
             case SignalEventDefinition { Name: var signalName } when string.IsNullOrWhiteSpace(signalName):
                 issues.Add(new BpmnIssue(ownerId, BpmnIssueCodes.InvalidEventDefinition, $"The signal of '{ownerId}' has no name."));

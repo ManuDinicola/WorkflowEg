@@ -157,6 +157,7 @@ public sealed class BpmnParser
             "scriptTask" => ParseScriptTask(e, id, name),
             "manualTask" => new ManualTask { Id = id, Name = name },
             "subProcess" => ParseSubProcess(e, id, name),
+            "adHocSubProcess" => ParseSubProcess(e, id, name),
             "callActivity" => ParseCallActivity(e, id, name),
             "exclusiveGateway" => new ExclusiveGateway { Id = id, Name = name, DefaultFlowId = (string?)e.Attribute("default") },
             "inclusiveGateway" => new InclusiveGateway { Id = id, Name = name, DefaultFlowId = (string?)e.Attribute("default") },
@@ -193,6 +194,11 @@ public sealed class BpmnParser
         if (e.Element(Bpmn + "signalEventDefinition") is { } signal)
         {
             return _signals.TryGetValue((string?)signal.Attribute("signalRef") ?? string.Empty, out var name) ? new SignalEventDefinition { Name = name } : null;
+        }
+
+        if (e.Element(Bpmn + "conditionalEventDefinition") is { } conditional)
+        {
+            return new ConditionalEventDefinition { Condition = (string?)conditional.Element(Bpmn + "condition") ?? string.Empty };
         }
 
         if (e.Element(Bpmn + "linkEventDefinition") is not null)
@@ -322,6 +328,7 @@ public sealed class BpmnParser
             Nodes = ParseNodes(e),
             Flows = ParseFlows(e),
             IsEventSubProcess = IsTrue(e, "triggeredByEvent"),
+            IsAdHoc = e.Name.LocalName == "adHocSubProcess",
             Loop = ReadLoop(e),
             Inputs = ParseMappings(mapping, "input"),
             Outputs = ParseMappings(mapping, "output"),

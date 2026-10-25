@@ -36,6 +36,17 @@ public sealed class SubProcessHandler : ElementHandler<SubProcess>
             return;
         }
 
+        if (element.IsAdHoc)
+        {
+            var hasIncoming = element.Flows.Select(f => f.TargetRef).ToHashSet(StringComparer.Ordinal);
+            foreach (var inner in element.Nodes.Where(n => n is not (StartEvent or BoundaryEvent) && !(n is SubProcess { IsEventSubProcess: true }) && !hasIncoming.Contains(n.Id)))
+            {
+                context.Enqueue(new ActivateElement(inner.Id, instance.Key, null));
+            }
+
+            return;
+        }
+
         var start = element.Nodes.OfType<StartEvent>().First(); // the validator guarantees one
         context.Enqueue(new ActivateElement(start.Id, instance.Key, null));
     }
